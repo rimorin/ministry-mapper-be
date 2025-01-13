@@ -114,6 +114,15 @@ func main() {
 		return e.Next()
 	})
 
+	// This hook is executed before a new record is created in the "users" table
+	app.OnRecordCreate("users").BindFunc(func(e *core.RecordEvent) error {
+		email := e.Record.Get("email").(string)
+		// Clean up and lower case the email
+		email = strings.ToLower(strings.TrimSpace(email))
+		e.Record.Set("email", email)
+		return e.Next()
+	})
+
 	isGoRun := strings.HasPrefix(os.Args[0], os.TempDir())
 
 	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{
