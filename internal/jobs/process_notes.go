@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"text/template"
 	"time"
 
@@ -112,6 +113,10 @@ func ProcessNote(congID string, app *pocketbase.PocketBase, timeBuffer time.Dura
 
 	// Process notes
 	for _, note := range notes {
+		noteText := note.Get("notes").(string)
+		if len(noteText) == 0 || strings.TrimSpace(noteText) == "" {
+			continue
+		}
 		mapData := note.ExpandedOne("map")
 		mapName := mapData.Get("description").(string)
 		mapType := mapData.Get("type").(string)
@@ -123,7 +128,7 @@ func ProcessNote(congID string, app *pocketbase.PocketBase, timeBuffer time.Dura
 		notesData := notesData{
 			Address:   addressName,
 			Publisher: note.Get("last_notes_updated_by").(string),
-			Message:   note.Get("notes").(string),
+			Message:   noteText,
 			Date:      note.GetDateTime("last_notes_updated").Time().In(location).Format("03:04 PM, 02 Jan 2006"),
 		}
 		emailData.Notes = append(emailData.Notes, notesData)
