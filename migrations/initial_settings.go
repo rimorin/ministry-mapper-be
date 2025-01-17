@@ -61,6 +61,12 @@ func init() {
 			hideControlsBool, _ = strconv.ParseBool(hideControls)
 		}
 
+		rateLimitingEnabled := os.Getenv("PB_ENABLE_RATE_LIMITING")
+		rateLimitingEnabledBool := false
+		if rateLimitingEnabled != "" {
+			rateLimitingEnabledBool, _ = strconv.ParseBool(rateLimitingEnabled)
+		}
+
 		settings.Meta.AppName = appName
 		settings.Meta.AppURL = appURL
 		settings.Meta.SenderAddress = smtpSenderAddress
@@ -71,6 +77,7 @@ func init() {
 		settings.SMTP.Username = smtpUsername
 		settings.SMTP.Password = smtpPassword
 		settings.Meta.HideControls = hideControlsBool
+		settings.RateLimits.Enabled = rateLimitingEnabledBool
 
 		return app.Save(settings)
 	}, nil)
