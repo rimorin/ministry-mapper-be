@@ -1,0 +1,45 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches:
+      - master
+      - staging
+
+jobs:
+  build:
+    name: Check and Build Application
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        # Checkout the repository code
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        # Set up the Go environment
+        go-version: '^1.23.3'
+
+    - name: Install dependencies
+      run: go mod tidy
+      # Ensure all dependencies are installed and tidy up the go.mod file
+
+    - name: Verify dependencies
+      run: go mod verify
+      # Verify that dependencies have not been tampered with
+
+    - name: Build
+      run: go build -v ./...
+      # Compile the Go code with verbose output
+
+    - name: Run tests
+      run: go test -v ./...
+      # Run the tests with verbose output
+
+    - name: Run go vet
+      run: go vet ./...
+      # Run go vet to examine Go source code and report suspicious constructs
