@@ -746,7 +746,7 @@ func init() {
 					"CREATE UNIQUE INDEX ` + "`" + `_flm2xtzrt82ltf7_email_idx` + "`" + ` ON ` + "`" + `users` + "`" + ` (` + "`" + `email` + "`" + `) WHERE ` + "`" + `email` + "`" + ` != ''",
 					"CREATE UNIQUE INDEX ` + "`" + `_flm2xtzrt82ltf7_tokenKey_idx` + "`" + ` ON ` + "`" + `users` + "`" + ` (` + "`" + `tokenKey` + "`" + `)"
 				],
-				"listRule": "@request.auth.id ?= @collection.roles.user.id",
+				"listRule": "@request.auth.id != \"\"",
 				"manageRule": null,
 				"mfa": {
 					"duration": 1800,
@@ -796,11 +796,11 @@ func init() {
 				"verificationToken": {
 					"duration": 604800
 				},
-				"viewRule": "@request.auth.id ?= @collection.roles.user.id"
+				"viewRule": "@request.auth.id != \"\""
 			},
 			{
 				"createRule": null,
-				"deleteRule": "@request.auth.id ?= @collection.roles.user.id",
+				"deleteRule": "@request.auth.id != \"\"",
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
@@ -1037,20 +1037,19 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_20F0iUx` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `floor` + "`" + `,\n  ` + "`" + `map` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_Fx581hd` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `status` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_vEPqxAk` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `status` + "`" + `\n)",
-					"CREATE INDEX ` + "`" + `idx_84bCJ9W` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `status` + "`" + `\n)",
-					"CREATE INDEX ` + "`" + `idx_xmSODYW` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `status` + "`" + `\n)",
-					"CREATE INDEX ` + "`" + `idx_vqISaS1INC` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `floor` + "`" + `,\n  ` + "`" + `sequence` + "`" + `\n)"
+					"CREATE INDEX ` + "`" + `idx_124WdYx7Ri` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `congregation` + "`" + `\n)",
+					"CREATE INDEX ` + "`" + `idx_kJtt908M2s` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `last_notes_updated_by` + "`" + `\n)"
 				],
-				"listRule": "@request.auth.id ?= @collection.roles.user.id || @request.headers.link_id ?= @collection.assignments.id",
+				"listRule": "@request.auth.id != \"\"  || @request.headers.link_id ?= @collection.assignments.id",
 				"name": "addresses",
 				"system": false,
 				"type": "base",
-				"updateRule": "@request.auth.id ?= @collection.roles.user.id || @request.headers.link_id ?= @collection.assignments.id",
+				"updateRule": "@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id",
 				"viewRule": null
 			},
 			{
-				"createRule": "@request.auth.id ?= @collection.roles.user.id",
-				"deleteRule": "@request.auth.id ?= @collection.roles.user.id",
+				"createRule": "@request.auth.id != \"\"",
+				"deleteRule": "@request.auth.id != \"\"",
 				"fields": [
 					{
 						"autogeneratePattern": "[a-zA-Z0-9]{20}",
@@ -1155,14 +1154,15 @@ func init() {
 				"id": "06zc4itse2ipw9l",
 				"indexes": [
 					"CREATE INDEX ` + "`" + `idx_pI4sxv2` + "`" + ` ON ` + "`" + `assignments` + "`" + ` (` + "`" + `map` + "`" + `)",
-					"CREATE INDEX ` + "`" + `idx_RuF9QNcKE2` + "`" + ` ON ` + "`" + `assignments` + "`" + ` (` + "`" + `expiry_date` + "`" + `)"
+					"CREATE INDEX ` + "`" + `idx_RuF9QNcKE2` + "`" + ` ON ` + "`" + `assignments` + "`" + ` (` + "`" + `expiry_date` + "`" + `)",
+					"CREATE INDEX ` + "`" + `idx_6V9YIvnGqD` + "`" + ` ON ` + "`" + `assignments` + "`" + ` (\n  ` + "`" + `user` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)"
 				],
-				"listRule": "@request.auth.id ?= @collection.roles.user.id",
+				"listRule": "@request.auth.id != \"\"",
 				"name": "assignments",
 				"system": false,
 				"type": "base",
 				"updateRule": null,
-				"viewRule": "@request.auth.id ?= @collection.roles.user.id || @request.headers.link_id ?= @collection.assignments.id"
+				"viewRule": "@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id"
 			},
 			{
 				"createRule": null,
@@ -1285,16 +1285,16 @@ func init() {
 				],
 				"id": "zzljam3htisq5tv",
 				"indexes": [],
-				"listRule": "@request.auth.id != \"\" && @request.auth.id ?= @collection.roles.user.id",
+				"listRule": "@request.auth.id != \"\"",
 				"name": "congregations",
 				"system": false,
 				"type": "base",
-				"updateRule": "@request.auth.id != \"\" && @request.auth.id ?= @collection.roles.user.id",
-				"viewRule": "@request.auth.id ?= @collection.roles.user.id || @request.headers.link_id ?= @collection.assignments.id"
+				"updateRule": "@request.auth.id != \"\"",
+				"viewRule": "@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id"
 			},
 			{
 				"createRule": null,
-				"deleteRule": "@request.auth.id ?= @collection.roles.user.id",
+				"deleteRule": "@request.auth.id != \"\"",
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
@@ -1434,19 +1434,18 @@ func init() {
 				"id": "rupq6yj561mghrr",
 				"indexes": [
 					"CREATE INDEX ` + "`" + `idx_QjY4Y2c` + "`" + ` ON ` + "`" + `maps` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `code` + "`" + `\n)",
-					"CREATE INDEX ` + "`" + `idx_O2TlLJr` + "`" + ` ON ` + "`" + `maps` + "`" + ` (` + "`" + `territory` + "`" + `)",
-					"CREATE INDEX ` + "`" + `idx_2S6sYtD` + "`" + ` ON ` + "`" + `maps` + "`" + ` (` + "`" + `updated` + "`" + `)"
+					"CREATE INDEX ` + "`" + `idx_O2TlLJr` + "`" + ` ON ` + "`" + `maps` + "`" + ` (` + "`" + `territory` + "`" + `)"
 				],
-				"listRule": "@request.auth.id ?= @collection.roles.user.id || @request.headers.link_id ?= @collection.assignments.id",
+				"listRule": "@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id",
 				"name": "maps",
 				"system": false,
 				"type": "base",
-				"updateRule": "@request.auth.id ?= @collection.roles.user.id",
-				"viewRule": "@request.auth.id ?= @collection.roles.user.id || @request.headers.link_id ?= @collection.assignments.id"
+				"updateRule": "@request.auth.id != \"\"",
+				"viewRule": "@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id"
 			},
 			{
-				"createRule": "@request.auth.id ?= @collection.roles.user.id || @request.headers.link_id ?= @collection.assignments.id",
-				"deleteRule": "@request.auth.id ?= @collection.roles.user.id",
+				"createRule": "@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id",
+				"deleteRule": "@request.auth.id != \"\"",
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
@@ -1559,18 +1558,15 @@ func init() {
 				],
 				"id": "r2gqvjai7gbzl7a",
 				"indexes": [
-					"CREATE INDEX ` + "`" + `idx_j1R4J2G` + "`" + ` ON ` + "`" + `messages` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `created_by` + "`" + `\n)",
-					"CREATE INDEX ` + "`" + `idx_dHQST9K` + "`" + ` ON ` + "`" + `messages` + "`" + ` (` + "`" + `map` + "`" + `)",
-					"CREATE INDEX ` + "`" + `idx_rDw9b3E` + "`" + ` ON ` + "`" + `messages` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `read` + "`" + `,\n  ` + "`" + `type` + "`" + `\n)",
-					"CREATE INDEX ` + "`" + `idx_7sota7r` + "`" + ` ON ` + "`" + `messages` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `created` + "`" + `,\n  ` + "`" + `read` + "`" + `\n)",
-					"CREATE INDEX ` + "`" + `idx_3JOB5N0` + "`" + ` ON ` + "`" + `messages` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `pinned` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)",
-					"CREATE INDEX ` + "`" + `idx_VVfAv7VBxj` + "`" + ` ON ` + "`" + `messages` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `pinned` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)"
+					"CREATE INDEX ` + "`" + `idx_dHQST9K` + "`" + ` ON ` + "`" + `messages` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `pinned` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)",
+					"CREATE INDEX ` + "`" + `idx_4xBZkdzeoM` + "`" + ` ON ` + "`" + `messages` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `pinned` + "`" + `\n)",
+					"CREATE INDEX ` + "`" + `idx_IFmnqzx737` + "`" + ` ON ` + "`" + `messages` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `read` + "`" + `\n)"
 				],
-				"listRule": "@request.auth.id ?= @collection.roles.user.id || @request.headers.link_id ?= @collection.assignments.id",
+				"listRule": "@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id",
 				"name": "messages",
 				"system": false,
 				"type": "base",
-				"updateRule": "@request.auth.id ?= @collection.roles.user.id",
+				"updateRule": "@request.auth.id != \"\"",
 				"viewRule": null
 			},
 			{
@@ -1688,16 +1684,16 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_oBkThEt` + "`" + ` ON ` + "`" + `options` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `sequence` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_LDPjOnA` + "`" + ` ON ` + "`" + `options` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `is_default` + "`" + `\n)"
 				],
-				"listRule": "@request.auth.id ?= @collection.roles.user.id",
+				"listRule": "@request.auth.id != \"\"",
 				"name": "options",
 				"system": false,
 				"type": "base",
 				"updateRule": null,
-				"viewRule": "@request.auth.id ?= @collection.roles.user.id || @request.headers.link_id ?= @collection.assignments.id"
+				"viewRule": "@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id"
 			},
 			{
-				"createRule": "@request.auth.id ?= @collection.roles.user.id",
-				"deleteRule": "@request.auth.id ?= @collection.roles.user.id",
+				"createRule": "@request.auth.id != \"\"",
+				"deleteRule": "@request.auth.id != \"\"",
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
@@ -1777,18 +1773,19 @@ func init() {
 				],
 				"id": "xln2af1in0pdo30",
 				"indexes": [
-					"CREATE INDEX ` + "`" + `idx_u9wr0mg` + "`" + ` ON ` + "`" + `roles` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `role` + "`" + `\n)"
+					"CREATE INDEX ` + "`" + `idx_u9wr0mg` + "`" + ` ON ` + "`" + `roles` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `role` + "`" + `\n)",
+					"CREATE INDEX ` + "`" + `idx_iPooFW46s8` + "`" + ` ON ` + "`" + `roles` + "`" + ` (` + "`" + `user` + "`" + `)"
 				],
-				"listRule": "@request.auth.id ?= @collection.roles.user.id",
+				"listRule": "@request.auth.id != \"\"",
 				"name": "roles",
 				"system": false,
 				"type": "base",
-				"updateRule": "@request.auth.id ?= @collection.roles.user.id",
+				"updateRule": "@request.auth.id != \"\"",
 				"viewRule": null
 			},
 			{
-				"createRule": "@request.auth.id ?= @collection.roles.user.id",
-				"deleteRule": "@request.auth.id ?= @collection.roles.user.id",
+				"createRule": "@request.auth.id != \"\"",
+				"deleteRule": "@request.auth.id != \"\"",
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
@@ -1883,112 +1880,12 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_fMh5sfU` + "`" + ` ON ` + "`" + `territories` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `code` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_Otsl0yR` + "`" + ` ON ` + "`" + `territories` + "`" + ` (` + "`" + `congregation` + "`" + `)"
 				],
-				"listRule": "@request.auth.id ?= @collection.roles.user.id",
+				"listRule": "@request.auth.id != \"\"",
 				"name": "territories",
 				"system": false,
 				"type": "base",
-				"updateRule": "@request.auth.id ?= @collection.roles.user.id",
+				"updateRule": "@request.auth.id != \"\"",
 				"viewRule": null
-			},
-			{
-				"createRule": null,
-				"deleteRule": null,
-				"fields": [
-					{
-						"autogeneratePattern": "",
-						"hidden": false,
-						"id": "text3208210256",
-						"max": 0,
-						"min": 0,
-						"name": "id",
-						"pattern": "^[a-z0-9]+$",
-						"presentable": false,
-						"primaryKey": true,
-						"required": true,
-						"system": true,
-						"type": "text"
-					},
-					{
-						"autogeneratePattern": "",
-						"hidden": false,
-						"id": "_clone_lmKq",
-						"max": 0,
-						"min": 0,
-						"name": "description",
-						"pattern": "",
-						"presentable": false,
-						"primaryKey": false,
-						"required": false,
-						"system": false,
-						"type": "text"
-					},
-					{
-						"autogeneratePattern": "",
-						"hidden": false,
-						"id": "_clone_b6qT",
-						"max": 0,
-						"min": 0,
-						"name": "code",
-						"pattern": "",
-						"presentable": false,
-						"primaryKey": false,
-						"required": false,
-						"system": false,
-						"type": "text"
-					},
-					{
-						"hidden": false,
-						"id": "_clone_bFut",
-						"max": null,
-						"min": null,
-						"name": "sequence",
-						"onlyInt": true,
-						"presentable": false,
-						"required": false,
-						"system": false,
-						"type": "number"
-					},
-					{
-						"cascadeDelete": true,
-						"collectionId": "zzljam3htisq5tv",
-						"hidden": false,
-						"id": "_clone_hLCV",
-						"maxSelect": 1,
-						"minSelect": 0,
-						"name": "congregation",
-						"presentable": false,
-						"required": false,
-						"system": false,
-						"type": "relation"
-					},
-					{
-						"hidden": false,
-						"id": "_clone_IaCL",
-						"name": "is_countable",
-						"presentable": false,
-						"required": false,
-						"system": false,
-						"type": "bool"
-					},
-					{
-						"hidden": false,
-						"id": "_clone_u7Vb",
-						"name": "is_default",
-						"presentable": false,
-						"required": false,
-						"system": false,
-						"type": "bool"
-					}
-				],
-				"id": "fgw9o849ohyrie7",
-				"indexes": [],
-				"listRule": null,
-				"name": "sorted_options",
-				"system": false,
-				"type": "view",
-				"updateRule": null,
-				"viewQuery": "SELECT id, description, code, sequence, congregation, is_countable, is_default FROM options ORDER by options.sequence",
-				"viewRule": "@request.auth.id ?= @collection.roles.user.id || @request.headers.link_id ?= @collection.assignments.id"
 			}
 		]`
 
