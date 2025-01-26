@@ -66,7 +66,7 @@ func ProcessNote(congID string, app *pocketbase.PocketBase, timeBuffer time.Dura
 		log.Println("Error finding congregation:", err)
 	}
 
-	notes, err := app.FindRecordsByFilter("addresses", "congregation = {:congregation} && last_notes_updated > {:created}", "last_notes_updated", 0, 0, dbx.Params{"congregation": congID, "created": time.Now().UTC().Add(timeBuffer)})
+	notes, err := app.FindRecordsByFilter("addresses", "congregation = {:congregation} && last_notes_updated > {:created} && notes != NULL && notes != ''", "last_notes_updated", 0, 0, dbx.Params{"congregation": congID, "created": time.Now().UTC().Add(timeBuffer)})
 	if err != nil {
 		log.Println("Error finding notes by filter:", err)
 		return err
@@ -196,7 +196,7 @@ func ProcessNotes(app *pocketbase.PocketBase, timeIntervalMinutes int) error {
 	timeBuffer := time.Duration(-timeIntervalMinutes) * time.Minute
 
 	// Fetch all notes that have not been processed
-	err := app.DB().NewQuery("SELECT DISTINCT congregation FROM addresses WHERE last_notes_updated > {:created}").Bind(dbx.Params{"created": time.Now().UTC().Add(timeBuffer)}).All(&congregations)
+	err := app.DB().NewQuery("SELECT DISTINCT congregation FROM addresses WHERE last_notes_updated > {:created} and notes IS NOT NULL and notes != ''").Bind(dbx.Params{"created": time.Now().UTC().Add(timeBuffer)}).All(&congregations)
 	log.Printf("congregations: %v\n", congregations)
 	if err != nil {
 		log.Println("Error fetching maps:", err)
