@@ -131,7 +131,7 @@ func isValidSequence(sequence string) bool {
 		return false
 	}
 
-	// regex to match comma-separated alphanumeric values with optional spaces after commas
-	re := regexp.MustCompile(`^([a-zA-Z0-9]+( *, *)?)*[a-zA-Z0-9]+$`)
+	// check if sequence contains only alphanumeric characters and hyphens
+	re := regexp.MustCompile(`^([a-zA-Z0-9-]+,?)*[a-zA-Z0-9-]+$`)
 	return re.MatchString(sequence)
 }
