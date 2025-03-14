@@ -770,7 +770,7 @@ func init() {
 						"subject": "OTP for {APP_NAME}"
 					},
 					"enabled": true,
-					"length": 8
+					"length": 4
 				},
 				"passwordAuth": {
 					"enabled": true,
