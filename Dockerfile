@@ -24,8 +24,9 @@ COPY . .
 # Build the application with optimizations:
 # CGO_ENABLED=0 - Disable CGO for static binary
 # GOOS=linux - Target Linux OS
+# GOARCH=amd64 - Target 64-bit Intel/AMD architecture
 # -ldflags="-w -s" - Strip debug info for smaller binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o main .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o main .
 
 # Stage 2: Create the minimal runtime image
 FROM alpine:latest
