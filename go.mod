@@ -8,7 +8,7 @@ require (
 	github.com/launchdarkly/go-sdk-common/v3 v3.2.0
 	github.com/launchdarkly/go-server-sdk/v7 v7.9.0
 	github.com/mailersend/mailersend-go v1.5.1
-	github.com/pocketbase/pocketbase v0.26.2
+	github.com/pocketbase/pocketbase v0.26.3
 )
 
 require (
