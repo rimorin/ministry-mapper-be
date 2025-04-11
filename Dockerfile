@@ -1,6 +1,6 @@
 # Stage 1: Build the Go application
 # Uses golang alpine as base image for smaller size
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 # Metadata and version information
 LABEL maintainer="John Eric"
@@ -21,12 +21,14 @@ RUN go mod download
 # This layer changes when any source file changes
 COPY . .
 
-# Build the application with optimizations:
-# CGO_ENABLED=0 - Disable CGO for static binary
-# GOOS=linux - Target Linux OS
-# GOARCH=amd64 - Target 64-bit Intel/AMD architecture
-# -ldflags="-w -s" - Strip debug info for smaller binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o main .
+# Generate build info with timestamp and git commit info
+ARG BUILD_TIME
+ARG COMMIT_SHA
+
+# Build the application with optimizations
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-w -s" \
+    -o main .
 
 # Stage 2: Create the minimal runtime image
 FROM alpine:latest

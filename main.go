@@ -18,6 +18,12 @@ import (
 )
 
 func main() {
+	// Coolify sets the SOURCE_COMMIT environment variable to the commit hash of the current build.
+	buildVersion := os.Getenv("SOURCE_COMMIT")
+	if buildVersion == "" {
+		buildVersion = "development-build"
+	}
+	log.Printf("Starting Ministry Mapper build %s\n", buildVersion)
 
 	errorSampleRate := 1.0
 	traceSampleRate := 1.0
@@ -33,6 +39,7 @@ func main() {
 		Environment:      sentryEnv,
 		SampleRate:       errorSampleRate,
 		TracesSampleRate: traceSampleRate,
+		Release:          buildVersion,
 	})
 	if err != nil {
 		log.Fatalf("sentry.Init: %s", err)
