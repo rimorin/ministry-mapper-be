@@ -35,11 +35,11 @@ func main() {
 
 	err := sentry.Init(sentry.ClientOptions{
 		Dsn:              os.Getenv("SENTRY_DSN"),
-		Debug:            sentryEnv == "development",
 		Environment:      sentryEnv,
 		SampleRate:       errorSampleRate,
 		TracesSampleRate: traceSampleRate,
 		Release:          buildVersion,
+		EnableTracing:    true,
 	})
 	if err != nil {
 		log.Fatalf("sentry.Init: %s", err)
