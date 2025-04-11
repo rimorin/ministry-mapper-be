@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"github.com/getsentry/sentry-go"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -18,6 +19,7 @@ import (
 func CreateAddress(app *pocketbase.PocketBase, event *core.RequestEvent) error {
 	collection, err := app.FindCollectionByNameOrId("addresses")
 	if err != nil {
+		sentry.CaptureException(err)
 		return err
 	}
 

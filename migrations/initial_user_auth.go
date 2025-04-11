@@ -3,6 +3,7 @@ package migrations
 import (
 	"os"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/pocketbase/pocketbase/core"
 	m "github.com/pocketbase/pocketbase/migrations"
 )
@@ -11,6 +12,7 @@ func init() {
 	m.Register(func(app core.App) error {
 		collection, err := app.FindCollectionByNameOrId("users")
 		if err != nil {
+			sentry.CaptureException(err)
 			return err
 		}
 

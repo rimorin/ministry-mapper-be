@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -42,21 +43,25 @@ func HandleMapAdd(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 
 	floors, err := fetchMapFloors(app, mapId)
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error fetching floors", nil)
 	}
 
 	sequence, err := fetchMapMaxSequence(app, mapId)
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error fetching sequence", nil)
 	}
 
 	mapData, err := fetchMapData(app, mapId)
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error fetching map data", nil)
 	}
 
 	defaultCode, err := fetchDefaultCongregationOption(app, mapData.Get("congregation").(string))
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error fetching default code", nil)
 	}
 
@@ -80,6 +85,7 @@ func HandleMapAdd(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 		return nil
 	})
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error inserting records", nil)
 	}
 	ProcessMapAggregates(mapId, app)

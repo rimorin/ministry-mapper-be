@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -35,11 +36,13 @@ func HandleMapTerritoryUpdate(e *core.RequestEvent, app *pocketbase.PocketBase) 
 	// Fetch the existing address records and map details
 	addressRecords, err := fetchAddressesByMap(app, mapId)
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error fetching address", nil)
 	}
 
 	mapDetails, err := fetchMapData(app, mapId)
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error fetching map details", nil)
 	}
 
@@ -59,6 +62,7 @@ func HandleMapTerritoryUpdate(e *core.RequestEvent, app *pocketbase.PocketBase) 
 	})
 
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewApiError(500, "Error updating map territory", nil)
 	}
 

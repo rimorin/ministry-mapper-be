@@ -6,6 +6,7 @@ import (
 
 	"ministry-mapper/internal/handlers"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 )
@@ -34,6 +35,7 @@ func updateTerritoryAggregates(app *pocketbase.PocketBase, timeIntervalMinutes i
 		Where(dbx.NewExp("maps.updated > {:updated}", dbx.Params{"updated": time.Now().UTC().Add(timeBuffer)})).
 		All(&territories)
 	if err != nil {
+		sentry.CaptureException(err)
 		log.Println("Error fetching territories:", err)
 		return err
 	}
@@ -49,6 +51,7 @@ func updateTerritoryAggregates(app *pocketbase.PocketBase, timeIntervalMinutes i
 	for _, t := range territories {
 		err := handlers.ProcessTerritoryAggregates(t.ID, app)
 		if err != nil {
+			sentry.CaptureException(err)
 			log.Printf("Error processing territory ID %s: %v\n", t.ID, err)
 		}
 	}

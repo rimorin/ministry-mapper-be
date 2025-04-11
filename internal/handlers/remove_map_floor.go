@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
@@ -39,6 +40,7 @@ func HandleRemoveMapFloor(e *core.RequestEvent, app *pocketbase.PocketBase) erro
 	// count floors and ensure that there is more than one floor
 	floorCount, err := countFloorsInMap(app, mapId)
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error counting floors", nil)
 	}
 
@@ -48,6 +50,7 @@ func HandleRemoveMapFloor(e *core.RequestEvent, app *pocketbase.PocketBase) erro
 
 	addresses, err := fetchMapAddressCodes(app, mapId, int(floor))
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error fetching addresses", nil)
 	}
 
@@ -61,6 +64,7 @@ func HandleRemoveMapFloor(e *core.RequestEvent, app *pocketbase.PocketBase) erro
 	})
 
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Transaction failed", nil)
 	}
 	ProcessMapAggregates(mapId, app)

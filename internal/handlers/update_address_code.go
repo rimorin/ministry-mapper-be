@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -38,6 +39,7 @@ func HandleMapUpdateSequence(e *core.RequestEvent, app *pocketbase.PocketBase) e
 	// Fetch the existing address record by code and map ID
 	addressRecords, err := fetchAddressesByCode(app, code, mapId)
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error fetching address", nil)
 	}
 
@@ -53,6 +55,7 @@ func HandleMapUpdateSequence(e *core.RequestEvent, app *pocketbase.PocketBase) e
 	})
 
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewApiError(500, "Error updating address sequence", nil)
 	}
 
@@ -80,6 +83,7 @@ func HandleMapDelete(c *core.RequestEvent, app *pocketbase.PocketBase) error {
 	// Fetch the existing address record by code and map ID
 	addressRecords, err := fetchAddressesByCode(app, code, mapId)
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error fetching address", nil)
 	}
 
@@ -94,6 +98,7 @@ func HandleMapDelete(c *core.RequestEvent, app *pocketbase.PocketBase) error {
 	})
 
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewApiError(500, "Error deleting address", nil)
 	}
 	ProcessMapAggregates(mapId, app)

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"github.com/getsentry/sentry-go"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
@@ -34,6 +35,7 @@ func fetchMapFloors(app *pocketbase.PocketBase, mapId string) ([]int, error) {
 	}{}
 	err := app.DB().NewQuery("SELECT DISTINCT floor FROM addresses WHERE map = {:id}").Bind(dbx.Params{"id": mapId}).All(&floors)
 	if err != nil {
+		sentry.CaptureException(err)
 		return nil, err
 	}
 	result := make([]int, len(floors))

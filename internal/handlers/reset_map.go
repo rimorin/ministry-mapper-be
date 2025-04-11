@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
@@ -29,6 +30,7 @@ func HandleResetMap(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 	records, err := app.FindRecordsByFilter("addresses", "map = {:id} && (status = 'not_home' || status = 'done')", "", 0, 0, dbx.Params{"id": mapId})
 
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error fetching addresses", nil)
 	}
 
@@ -45,6 +47,7 @@ func HandleResetMap(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 	})
 
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error resetting map", nil)
 	}
 
@@ -56,6 +59,7 @@ func HandleResetMap(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 func ResetMapTerritory(mapId string, app *pocketbase.PocketBase) error {
 	mapDetails, err := app.FindRecordById("maps", mapId)
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error fetching map details", nil)
 	}
 	ProcessTerritoryAggregates(mapDetails.Get("territory").(string), app)
@@ -88,6 +92,7 @@ func HandleResetTerritory(c *core.RequestEvent, app *pocketbase.PocketBase) erro
 	records, err := app.FindRecordsByFilter("addresses", "territory = {:id} && (status = 'not_home' || status = 'done')", "", 0, 0, dbx.Params{"id": territoryId})
 
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error fetching addresses", nil)
 	}
 
@@ -104,12 +109,14 @@ func HandleResetTerritory(c *core.RequestEvent, app *pocketbase.PocketBase) erro
 	})
 
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error resetting territory", nil)
 	}
 
 	maps, err := app.FindRecordsByFilter("maps", "territory = {:id}", "", 0, 0, dbx.Params{"id": territoryId})
 
 	if err != nil {
+		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error fetching maps", nil)
 	}
 

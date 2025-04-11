@@ -10,6 +10,7 @@ import (
 
 	_ "ministry-mapper/migrations"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -17,6 +18,29 @@ import (
 )
 
 func main() {
+
+	errorSampleRate := 1.0
+	traceSampleRate := 1.0
+	sentryEnv := os.Getenv("SENTRY_ENV")
+	if sentryEnv == "production" {
+		errorSampleRate = 0.2
+		traceSampleRate = 0.2
+	}
+
+	err := sentry.Init(sentry.ClientOptions{
+		Dsn:              os.Getenv("SENTRY_DSN"),
+		Debug:            sentryEnv == "development",
+		Environment:      sentryEnv,
+		SampleRate:       errorSampleRate,
+		TracesSampleRate: traceSampleRate,
+	})
+	if err != nil {
+		log.Fatalf("sentry.Init: %s", err)
+	}
+	// Flush buffered events before the program terminates.
+	// Set the timeout to the maximum duration the program can afford to wait.
+	defer sentry.Flush(2 * time.Second)
+
 	app := pocketbase.New()
 
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
@@ -130,6 +154,7 @@ func main() {
 	})
 
 	if err := app.Start(); err != nil {
+		sentry.CaptureException(err)
 		log.Fatal(err)
 	}
 }
