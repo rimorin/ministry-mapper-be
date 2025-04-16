@@ -24,22 +24,12 @@ func main() {
 		buildVersion = "development-build"
 	}
 	log.Printf("Starting Ministry Mapper build %s\n", buildVersion)
-
-	errorSampleRate := 1.0
-	traceSampleRate := 1.0
 	sentryEnv := os.Getenv("SENTRY_ENV")
-	if sentryEnv == "production" {
-		errorSampleRate = 0.2
-		traceSampleRate = 0.2
-	}
 
 	err := sentry.Init(sentry.ClientOptions{
-		Dsn:              os.Getenv("SENTRY_DSN"),
-		Environment:      sentryEnv,
-		SampleRate:       errorSampleRate,
-		TracesSampleRate: traceSampleRate,
-		Release:          buildVersion,
-		EnableTracing:    true,
+		Dsn:         os.Getenv("SENTRY_DSN"),
+		Environment: sentryEnv,
+		Release:     buildVersion,
 	})
 	if err != nil {
 		log.Fatalf("sentry.Init: %s", err)
