@@ -7,9 +7,9 @@ toolchain go1.23.3
 require (
 	github.com/getsentry/sentry-go v0.32.0
 	github.com/launchdarkly/go-sdk-common/v3 v3.2.0
-	github.com/launchdarkly/go-server-sdk/v7 v7.10.0
+	github.com/launchdarkly/go-server-sdk/v7 v7.10.1
 	github.com/mailersend/mailersend-go v1.6.1
-	github.com/pocketbase/pocketbase v0.27.0
+	github.com/pocketbase/pocketbase v0.27.1
 )
 
 require (
@@ -36,7 +36,7 @@ require (
 	github.com/domodwyer/mailyak/v3 v3.6.2 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fatih/color v1.18.0 // indirect
-	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
 	github.com/ganigeorgiev/fexpr v0.5.0 // indirect
 	github.com/go-ozzo/ozzo-validation/v4 v4.3.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -59,6 +59,6 @@ require (
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.9.1 // indirect
+	modernc.org/memory v1.10.0 // indirect
 	modernc.org/sqlite v1.37.0 // indirect
 )
