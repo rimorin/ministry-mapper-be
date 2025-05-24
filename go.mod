@@ -5,11 +5,11 @@ go 1.23.0
 toolchain go1.23.3
 
 require (
-	github.com/getsentry/sentry-go v0.32.0
-	github.com/launchdarkly/go-sdk-common/v3 v3.2.0
+	github.com/getsentry/sentry-go v0.33.0
+	github.com/launchdarkly/go-sdk-common/v3 v3.3.0
 	github.com/launchdarkly/go-server-sdk/v7 v7.10.1
 	github.com/mailersend/mailersend-go v1.6.1
-	github.com/pocketbase/pocketbase v0.28.1
+	github.com/pocketbase/pocketbase v0.28.2
 )
 
 require (
@@ -27,7 +27,7 @@ require (
 	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.1 // indirect
 	github.com/mailru/easyjson v0.9.0 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
-	modernc.org/libc v1.62.1 // indirect
+	modernc.org/libc v1.65.7 // indirect
 )
 
 require (
@@ -59,6 +59,6 @@ require (
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.10.0 // indirect
-	modernc.org/sqlite v1.37.0 // indirect
+	modernc.org/memory v1.11.0 // indirect
+	modernc.org/sqlite v1.37.1 // indirect
 )
