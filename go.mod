@@ -5,16 +5,16 @@ go 1.23.0
 toolchain go1.23.3
 
 require (
-	github.com/getsentry/sentry-go v0.34.1
-	github.com/launchdarkly/go-sdk-common/v3 v3.3.0
-	github.com/launchdarkly/go-server-sdk/v7 v7.13.0
+	github.com/getsentry/sentry-go v0.35.0
+	github.com/launchdarkly/go-sdk-common/v3 v3.4.0
+	github.com/launchdarkly/go-server-sdk/v7 v7.13.1
 	github.com/mailersend/mailersend-go v1.6.1
-	github.com/pocketbase/pocketbase v0.29.0
+	github.com/pocketbase/pocketbase v0.29.2
 )
 
 require (
 	github.com/go-sql-driver/mysql v1.8.1 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.3 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
@@ -27,7 +27,7 @@ require (
 	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.1 // indirect
 	github.com/mailru/easyjson v0.9.0 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
-	modernc.org/libc v1.65.10 // indirect
+	modernc.org/libc v1.66.3 // indirect
 )
 
 require (
@@ -50,15 +50,15 @@ require (
 	github.com/spf13/cast v1.9.2 // indirect
 	github.com/spf13/cobra v1.9.1 // indirect
 	github.com/spf13/pflag v1.0.7 // indirect
-	golang.org/x/crypto v0.40.0 // indirect
-	golang.org/x/exp v0.0.0-20250718183923-645b1fa84792 // indirect
-	golang.org/x/image v0.29.0 // indirect
-	golang.org/x/net v0.42.0 // indirect
+	golang.org/x/crypto v0.41.0 // indirect
+	golang.org/x/exp v0.0.0-20250811191247-51f88131bc50 // indirect
+	golang.org/x/image v0.30.0 // indirect
+	golang.org/x/net v0.43.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
-	golang.org/x/sys v0.34.0 // indirect
-	golang.org/x/text v0.27.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/text v0.28.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
-	modernc.org/sqlite v1.38.0 // indirect
+	modernc.org/sqlite v1.38.2 // indirect
 )
