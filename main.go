@@ -83,6 +83,10 @@ func main() {
 			return handlers.HandleResetTerritory(c, app)
 		})
 
+		bindAuthenticatedRoute("/territory/link", func(c *core.RequestEvent) error {
+			return handlers.HandleTerritoryQuicklink(c, app)
+		})
+
 		bindAuthenticatedRoute("/map/add", func(c *core.RequestEvent) error {
 			return handlers.HandleNewMap(c, app)
 		})
