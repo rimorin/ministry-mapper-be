@@ -529,7 +529,7 @@ func init() {
 				"manageRule": null,
 				"mfa": {
 					"duration": 1800,
-					"enabled": false,
+					"enabled": true,
 					"rule": ""
 				},
 				"name": "_superusers",
@@ -548,8 +548,8 @@ func init() {
 						"body": "<p>Hello,</p>\n<p>Your one-time password is: <strong>{OTP}</strong></p>\n<p><i>If you didn't ask for the one-time password, you can ignore this email.</i></p>\n<p>\n  Thanks,<br/>\n  {APP_NAME} team\n</p>",
 						"subject": "OTP for {APP_NAME}"
 					},
-					"enabled": false,
-					"length": 8
+					"enabled": true,
+					"length": 4
 				},
 				"passwordAuth": {
 					"enabled": true,
@@ -617,7 +617,7 @@ func init() {
 						"hidden": true,
 						"id": "password901924565",
 						"max": 0,
-						"min": 8,
+						"min": 6,
 						"name": "password",
 						"pattern": "",
 						"presentable": false,
@@ -746,7 +746,7 @@ func init() {
 					"CREATE UNIQUE INDEX ` + "`" + `_flm2xtzrt82ltf7_email_idx` + "`" + ` ON ` + "`" + `users` + "`" + ` (` + "`" + `email` + "`" + `) WHERE ` + "`" + `email` + "`" + ` != ''",
 					"CREATE UNIQUE INDEX ` + "`" + `_flm2xtzrt82ltf7_tokenKey_idx` + "`" + ` ON ` + "`" + `users` + "`" + ` (` + "`" + `tokenKey` + "`" + `)"
 				],
-				"listRule": "@request.auth.id != \"\"&& @collection.roles.user ?= @request.auth.id",
+				"listRule": "@request.auth.id != \"\" && @request.query.filter:isset = true",
 				"manageRule": null,
 				"mfa": {
 					"duration": 1800,
@@ -788,7 +788,7 @@ func init() {
 				},
 				"system": false,
 				"type": "auth",
-				"updateRule": "@request.auth.id != \"\" && @collection.roles.user ?= @request.auth.id",
+				"updateRule": "@request.auth.id != \"\" && id = @request.auth.id",
 				"verificationTemplate": {
 					"body": "<p>Hello,</p>\n<p>Thank you for joining us at {APP_NAME}.</p>\n<p>Click on the button below to verify your email address.</p>\n<p>\n  <a class=\"btn\" href=\"{APP_URL}/usermgmt?mode=verifyEmail&oobCode={TOKEN}\" target=\"_blank\" rel=\"noopener\">Verify</a>\n</p>\n<p>\n  Thanks,<br/>\n  {APP_NAME} team\n</p>",
 					"subject": "Verify your {APP_NAME} email"
@@ -796,7 +796,7 @@ func init() {
 				"verificationToken": {
 					"duration": 604800
 				},
-				"viewRule": "@request.auth.id != \"\" && @collection.roles.user ?= @request.auth.id"
+				"viewRule": "@request.auth.id != \"\""
 			},
 			{
 				"createRule": null,
@@ -1040,7 +1040,7 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_124WdYx7Ri` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `congregation` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_kJtt908M2s` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `last_notes_updated_by` + "`" + `\n)"
 				],
-				"listRule": "@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id",
+				"listRule": "(@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id) && (@request.query.filter:isset = true && @request.query.expand:isset = true && @request.query.fields:isset = true)",
 				"name": "addresses",
 				"system": false,
 				"type": "base",
@@ -1157,12 +1157,12 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_RuF9QNcKE2` + "`" + ` ON ` + "`" + `assignments` + "`" + ` (` + "`" + `expiry_date` + "`" + `)",
 					"CREATE INDEX ` + "`" + `idx_6V9YIvnGqD` + "`" + ` ON ` + "`" + `assignments` + "`" + ` (\n  ` + "`" + `user` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)"
 				],
-				"listRule": "@request.auth.id != \"\" && @collection.roles.user ?= @request.auth.id",
+				"listRule": "@request.auth.id != \"\" && (@request.query.filter:isset = true && @request.query.fields:isset = true)",
 				"name": "assignments",
 				"system": false,
 				"type": "base",
 				"updateRule": null,
-				"viewRule": "@request.auth.id != \"\" && @collection.roles.user ?= @request.auth.id || @request.headers.link_id ?= @collection.assignments.id"
+				"viewRule": "(@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id) && (@request.query.expand:isset = true && @request.query.fields:isset = true)"
 			},
 			{
 				"createRule": null,
@@ -1285,12 +1285,12 @@ func init() {
 				],
 				"id": "zzljam3htisq5tv",
 				"indexes": [],
-				"listRule": "@request.auth.id != \"\" && @collection.roles.user ?= @request.auth.id",
+				"listRule": "@request.auth.id != \"\"",
 				"name": "congregations",
 				"system": false,
 				"type": "base",
 				"updateRule": "@request.auth.id != \"\" && @collection.roles.user ?= @request.auth.id",
-				"viewRule": "@request.auth.id != \"\" && @collection.roles.user ?= @request.auth.id || @request.headers.link_id ?= @collection.assignments.id"
+				"viewRule": "@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id"
 			},
 			{
 				"createRule": null,
@@ -1436,12 +1436,12 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_QjY4Y2c` + "`" + ` ON ` + "`" + `maps` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `code` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_O2TlLJr` + "`" + ` ON ` + "`" + `maps` + "`" + ` (` + "`" + `territory` + "`" + `)"
 				],
-				"listRule": "@request.auth.id != \"\" && @collection.roles.user ?= @request.auth.id || @request.headers.link_id ?= @collection.assignments.id",
+				"listRule": "@request.auth.id != \"\" && (@request.query.filter:isset = true && @request.query.fields:isset = true)",
 				"name": "maps",
 				"system": false,
 				"type": "base",
 				"updateRule": "@request.auth.id != \"\" && @collection.roles.user ?= @request.auth.id",
-				"viewRule": "@request.auth.id != \"\" && @collection.roles.user ?= @request.auth.id || @request.headers.link_id ?= @collection.assignments.id"
+				"viewRule": "@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id"
 			},
 			{
 				"createRule": "@request.auth.id != \"\" && @collection.roles.user ?= @request.auth.id || @request.headers.link_id ?= @collection.assignments.id",
@@ -1562,7 +1562,7 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_4xBZkdzeoM` + "`" + ` ON ` + "`" + `messages` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `pinned` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_IFmnqzx737` + "`" + ` ON ` + "`" + `messages` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `read` + "`" + `\n)"
 				],
-				"listRule": "@request.auth.id != \"\" && @collection.roles.user ?= @request.auth.id || @request.headers.link_id ?= @collection.assignments.id",
+				"listRule": "(@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id) && (@request.query.filter:isset = true && @request.query.fields:isset = true)",
 				"name": "messages",
 				"system": false,
 				"type": "base",
@@ -1684,7 +1684,7 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_oBkThEt` + "`" + ` ON ` + "`" + `options` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `sequence` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_LDPjOnA` + "`" + ` ON ` + "`" + `options` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `is_default` + "`" + `\n)"
 				],
-				"listRule": "@request.auth.id != \"\" && @collection.roles.user ?= @request.auth.id || @request.headers.link_id ?= @collection.assignments.id",
+				"listRule": "(@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id) && (@request.query.filter:isset = true && @request.query.sort:isset = true && @request.query.fields:isset = true)",
 				"name": "options",
 				"system": false,
 				"type": "base",
@@ -1776,7 +1776,7 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_u9wr0mg` + "`" + ` ON ` + "`" + `roles` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `role` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_iPooFW46s8` + "`" + ` ON ` + "`" + `roles` + "`" + ` (` + "`" + `user` + "`" + `)"
 				],
-				"listRule": "@request.auth.id != \"\" && @collection.roles.user ?= @request.auth.id",
+				"listRule": "@request.auth.id != \"\" && (@request.query.filter:isset = true && @request.query.fields:isset = true && @request.query.expand:isset = true)",
 				"name": "roles",
 				"system": false,
 				"type": "base",
@@ -1880,7 +1880,7 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_fMh5sfU` + "`" + ` ON ` + "`" + `territories` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `code` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_Otsl0yR` + "`" + ` ON ` + "`" + `territories` + "`" + ` (` + "`" + `congregation` + "`" + `)"
 				],
-				"listRule": "@request.auth.id != \"\" && @collection.roles.user ?= @request.auth.id",
+				"listRule": "@request.auth.id != \"\" && (@request.query.filter:isset = true && @request.query.sort:isset = true && @request.query.fields:isset = true)",
 				"name": "territories",
 				"system": false,
 				"type": "base",
