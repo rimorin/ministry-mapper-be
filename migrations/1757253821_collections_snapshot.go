@@ -1040,7 +1040,7 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_124WdYx7Ri` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `congregation` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_kJtt908M2s` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `last_notes_updated_by` + "`" + `\n)"
 				],
-				"listRule": "(@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id) && (@request.query.filter:isset = true && @request.query.expand:isset = true && @request.query.fields:isset = true)",
+				"listRule": "(@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id) && (@request.query.filter:isset = true && @request.query.fields:isset = true)",
 				"name": "addresses",
 				"system": false,
 				"type": "base",
