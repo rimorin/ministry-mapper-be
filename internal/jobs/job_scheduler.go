@@ -52,6 +52,11 @@ func ConfigureScheduler(app *pocketbase.PocketBase) {
 		ProcessNotes(app, 60)
 	})
 
+	// Generate an excel report of congregations (every month on the 1st at midnight)
+	addTask("generateMonthlyReport", "0 0 1 * *", "enable-monthly-report", func() {
+		GenerateMonthlyReport(app)
+	})
+
 	// Start the scheduler to begin processing all configured tasks
 	scheduler.Start()
 }
