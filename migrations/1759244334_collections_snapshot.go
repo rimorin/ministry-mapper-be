@@ -1040,7 +1040,7 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_124WdYx7Ri` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `congregation` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_kJtt908M2s` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `last_notes_updated_by` + "`" + `\n)"
 				],
-				"listRule": "(@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id) && (@request.query.filter:isset = true && @request.query.fields:isset = true)",
+				"listRule": "(@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id) && @request.query.filter:isset = true",
 				"name": "addresses",
 				"system": false,
 				"type": "base",
@@ -1157,12 +1157,12 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_RuF9QNcKE2` + "`" + ` ON ` + "`" + `assignments` + "`" + ` (` + "`" + `expiry_date` + "`" + `)",
 					"CREATE INDEX ` + "`" + `idx_6V9YIvnGqD` + "`" + ` ON ` + "`" + `assignments` + "`" + ` (\n  ` + "`" + `user` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)"
 				],
-				"listRule": "@request.auth.id != \"\" && (@request.query.filter:isset = true && @request.query.fields:isset = true)",
+				"listRule": "@request.auth.id != \"\" && @request.query.filter:isset = true",
 				"name": "assignments",
 				"system": false,
 				"type": "base",
 				"updateRule": null,
-				"viewRule": "(@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id) && (@request.query.expand:isset = true && @request.query.fields:isset = true)"
+				"viewRule": "@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id"
 			},
 			{
 				"createRule": null,
@@ -1436,7 +1436,7 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_QjY4Y2c` + "`" + ` ON ` + "`" + `maps` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `code` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_O2TlLJr` + "`" + ` ON ` + "`" + `maps` + "`" + ` (` + "`" + `territory` + "`" + `)"
 				],
-				"listRule": "@request.auth.id != \"\" && (@request.query.filter:isset = true && @request.query.fields:isset = true)",
+				"listRule": "@request.auth.id != \"\" && @request.query.filter:isset = true",
 				"name": "maps",
 				"system": false,
 				"type": "base",
@@ -1562,7 +1562,7 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_4xBZkdzeoM` + "`" + ` ON ` + "`" + `messages` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `pinned` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_IFmnqzx737` + "`" + ` ON ` + "`" + `messages` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `read` + "`" + `\n)"
 				],
-				"listRule": "(@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id) && (@request.query.filter:isset = true && @request.query.fields:isset = true)",
+				"listRule": "(@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id) && @request.query.filter:isset = true",
 				"name": "messages",
 				"system": false,
 				"type": "base",
@@ -1684,7 +1684,7 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_oBkThEt` + "`" + ` ON ` + "`" + `options` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `sequence` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_LDPjOnA` + "`" + ` ON ` + "`" + `options` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `is_default` + "`" + `\n)"
 				],
-				"listRule": "(@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id) && (@request.query.filter:isset = true && @request.query.sort:isset = true && @request.query.fields:isset = true)",
+				"listRule": "(@request.auth.id != \"\" || @request.headers.link_id ?= @collection.assignments.id) && @request.query.filter:isset = true",
 				"name": "options",
 				"system": false,
 				"type": "base",
@@ -1776,7 +1776,7 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_u9wr0mg` + "`" + ` ON ` + "`" + `roles` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `role` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_iPooFW46s8` + "`" + ` ON ` + "`" + `roles` + "`" + ` (` + "`" + `user` + "`" + `)"
 				],
-				"listRule": "@request.auth.id != \"\" && (@request.query.filter:isset = true && @request.query.fields:isset = true && @request.query.expand:isset = true)",
+				"listRule": "@request.auth.id != \"\" && @request.query.filter:isset = true",
 				"name": "roles",
 				"system": false,
 				"type": "base",
@@ -1880,7 +1880,7 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_fMh5sfU` + "`" + ` ON ` + "`" + `territories` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `code` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_Otsl0yR` + "`" + ` ON ` + "`" + `territories` + "`" + ` (` + "`" + `congregation` + "`" + `)"
 				],
-				"listRule": "@request.auth.id != \"\" && (@request.query.filter:isset = true && @request.query.sort:isset = true && @request.query.fields:isset = true)",
+				"listRule": "@request.auth.id != \"\" && @request.query.filter:isset = true",
 				"name": "territories",
 				"system": false,
 				"type": "base",
