@@ -55,11 +55,15 @@ func main() {
 			e.Router.POST(path, handler).Bind(apis.RequireAuth())
 		}
 
+		bindAuthenticatedRoute("/map/codes", func(c *core.RequestEvent) error {
+			return handlers.HandleGetMapCodes(c, app)
+		})
+
 		bindAuthenticatedRoute("/map/code/add", func(c *core.RequestEvent) error {
 			return handlers.HandleMapAdd(c, app)
 		})
 
-		bindAuthenticatedRoute("/map/code/update", func(c *core.RequestEvent) error {
+		bindAuthenticatedRoute("/map/codes/update", func(c *core.RequestEvent) error {
 			return handlers.HandleMapUpdateSequence(c, app)
 		})
 
@@ -98,13 +102,6 @@ func main() {
 		bindAuthenticatedRoute("/options/update", func(c *core.RequestEvent) error {
 			return handlers.HandleOptionUpdate(c, app)
 		})
-
-		e.Router.POST("/batch/addresses", func(c *core.RequestEvent) error {
-			if err := handlers.CreateAddress(app, c); err != nil {
-				return err
-			}
-			return e.Next()
-		}).Bind(apis.RequireSuperuserAuth())
 
 		jobs.ConfigureScheduler(app)
 
