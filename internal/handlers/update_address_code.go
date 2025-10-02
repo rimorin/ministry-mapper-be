@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/getsentry/sentry-go"
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -18,6 +19,16 @@ type CodeSequenceUpdate struct {
 type UpdateMapSequenceRequest struct {
 	MapId string               `json:"map"`
 	Codes []CodeSequenceUpdate `json:"codes"`
+}
+
+// countUniqueAddressCodes counts the number of distinct address codes in a map
+func countUniqueAddressCodes(app *pocketbase.PocketBase, mapId string) (int, error) {
+	result := struct {
+		Count int `db:"count"`
+	}{}
+	query := app.DB().NewQuery("SELECT COUNT(DISTINCT code) as count FROM addresses WHERE map = {:map}")
+	err := query.Bind(dbx.Params{"map": mapId}).One(&result)
+	return result.Count, err
 }
 
 // HandleMapUpdateSequence handles the update of sequence numbers for multiple address codes within a map.
@@ -90,6 +101,7 @@ func HandleMapUpdateSequence(e *core.RequestEvent, app *pocketbase.PocketBase) e
 }
 
 // HandleMapDelete handles the deletion of addresses associated with a specific code and map ID.
+// It ensures that there is more than one address code before allowing the deletion.
 // It fetches the existing address records by code and map ID, and deletes them within a transaction.
 // After successful deletion, it processes map aggregates.
 //
@@ -106,6 +118,17 @@ func HandleMapDelete(c *core.RequestEvent, app *pocketbase.PocketBase) error {
 	mapId := data["map"].(string)
 
 	log.Println("Deleting addresses for code", code, "in map", mapId)
+
+	// count address codes and ensure that there is more than one code
+	codeCount, err := countUniqueAddressCodes(app, mapId)
+	if err != nil {
+		sentry.CaptureException(err)
+		return apis.NewNotFoundError("Error counting address codes", nil)
+	}
+
+	if codeCount <= 1 {
+		return apis.NewBadRequestError("Cannot delete the last address code", nil)
+	}
 
 	// Fetch the existing address record by code and map ID
 	addressRecords, err := fetchAddressesByCode(app, code, mapId)
