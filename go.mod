@@ -7,7 +7,7 @@ require (
 	github.com/launchdarkly/go-sdk-common/v3 v3.4.0
 	github.com/launchdarkly/go-server-sdk/v7 v7.13.4
 	github.com/mailersend/mailersend-go v1.6.1
-	github.com/pocketbase/pocketbase v0.30.0
+	github.com/pocketbase/pocketbase v0.30.1
 	github.com/xuri/excelize/v2 v2.9.1
 )
 
@@ -55,7 +55,7 @@ require (
 	github.com/spf13/cobra v1.10.1 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	golang.org/x/crypto v0.42.0 // indirect
-	golang.org/x/exp v0.0.0-20250911091902-df9299821621 // indirect
+	golang.org/x/exp v0.0.0-20251002181428-27f1f14c8bb9 // indirect
 	golang.org/x/image v0.31.0 // indirect
 	golang.org/x/net v0.44.0 // indirect
 	golang.org/x/oauth2 v0.31.0 // indirect
@@ -64,5 +64,5 @@ require (
 	golang.org/x/text v0.29.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
-	modernc.org/sqlite v1.38.2 // indirect
+	modernc.org/sqlite v1.39.0 // indirect
 )
