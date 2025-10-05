@@ -80,6 +80,39 @@ func init() {
 		settings.SMTP.Password = smtpPassword
 		settings.Meta.HideControls = hideControlsBool
 		settings.RateLimits.Enabled = rateLimitingEnabledBool
+		// Define default rate limit rules
+		settings.RateLimits.Rules = []core.RateLimitRule{
+			{
+				Label:       "*:create",
+				MaxRequests: 20,
+				Duration:    5,
+			},
+			{
+				Label:       "*:auth",
+				MaxRequests: 3,
+				Duration:    5,
+			},
+			{
+				Label:       "/territory/",
+				MaxRequests: 20,
+				Duration:    5,
+			},
+			{
+				Label:       "/options/",
+				MaxRequests: 10,
+				Duration:    5,
+			},
+			{
+				Label:       "/api/",
+				MaxRequests: 100,
+				Duration:    5,
+			},
+			{
+				Label:       "/map/",
+				MaxRequests: 20,
+				Duration:    5,
+			},
+		}
 
 		return app.Save(settings)
 	}, nil)
