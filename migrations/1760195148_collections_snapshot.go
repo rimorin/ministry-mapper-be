@@ -669,27 +669,13 @@ func init() {
 						"type": "bool"
 					},
 					{
-						"autogeneratePattern": "users[0-9]{6}",
-						"hidden": false,
-						"id": "text4166911607",
-						"max": 150,
-						"min": 3,
-						"name": "username",
-						"pattern": "^[\\w][\\w\\.\\-]*$",
-						"presentable": false,
-						"primaryKey": false,
-						"required": true,
-						"system": false,
-						"type": "text"
-					},
-					{
-						"autogeneratePattern": "",
+						"autogeneratePattern": "user[0-9]{5}[A-Za-z]",
 						"hidden": false,
 						"id": "s4xgbyzv",
-						"max": 0,
-						"min": 0,
+						"max": 50,
+						"min": 5,
 						"name": "name",
-						"pattern": "",
+						"pattern": "^[A-Za-z][\\w\\s\\.\\-']*$",
 						"presentable": false,
 						"primaryKey": false,
 						"required": true,
@@ -742,7 +728,6 @@ func init() {
 				},
 				"id": "flm2xtzrt82ltf7",
 				"indexes": [
-					"CREATE UNIQUE INDEX ` + "`" + `_flm2xtzrt82ltf7_username_idx` + "`" + ` ON ` + "`" + `users` + "`" + ` (username COLLATE NOCASE)",
 					"CREATE UNIQUE INDEX ` + "`" + `_flm2xtzrt82ltf7_email_idx` + "`" + ` ON ` + "`" + `users` + "`" + ` (` + "`" + `email` + "`" + `) WHERE ` + "`" + `email` + "`" + ` != ''",
 					"CREATE UNIQUE INDEX ` + "`" + `_flm2xtzrt82ltf7_tokenKey_idx` + "`" + ` ON ` + "`" + `users` + "`" + ` (` + "`" + `tokenKey` + "`" + `)"
 				],
@@ -760,7 +745,7 @@ func init() {
 						"avatarURL": "",
 						"id": "",
 						"name": "",
-						"username": "username"
+						"username": ""
 					}
 				},
 				"otp": {
@@ -775,8 +760,7 @@ func init() {
 				"passwordAuth": {
 					"enabled": true,
 					"identityFields": [
-						"email",
-						"username"
+						"email"
 					]
 				},
 				"passwordResetToken": {
