@@ -8,7 +8,7 @@ import (
 
 // CreateAddress handles the creation of a new address record in the "addresses" collection.
 // It retrieves the collection by name or ID, extracts the request body data, and sets the
-// corresponding fields in the new record. The record is then saved without validation.
+// corresponding fields in the new record. The record is then saved with validation.
 //
 // Parameters:
 // - app: A pointer to the PocketBase application instance.
@@ -49,5 +49,5 @@ func CreateAddress(app *pocketbase.PocketBase, event *core.RequestEvent) error {
 		}
 	}
 
-	return app.SaveNoValidate(record)
+	return app.Save(record)
 }
