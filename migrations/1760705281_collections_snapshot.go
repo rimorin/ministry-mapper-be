@@ -592,7 +592,7 @@ func init() {
 					"body": "<p>Hello,</p>\n<p>Click on the button below to confirm your new email address.</p>\n<p>\n  <a class=\"btn\" href=\"{APP_URL}/_/#/auth/confirm-email-change/{TOKEN}\" target=\"_blank\" rel=\"noopener\">Confirm new email</a>\n</p>\n<p><i>If you didn't ask to change your email address, you can ignore this email.</i></p>\n<p>\n  Thanks,<br/>\n  {APP_NAME} team\n</p>",
 					"subject": "Confirm your {APP_NAME} new email address"
 				},
-				"createRule": "@request.body.email:isset = true && @request.body.name:isset = true && @request.body.password:isset = true && @request.body.email:isset = true && @request.body.emailVisibility = true",
+				"createRule": "@request.context = 'oauth2' || (@request.body.email:isset = true && @request.body.name:isset = true && @request.body.password:isset = true && @request.body.email:isset = true && @request.body.emailVisibility = true)",
 				"deleteRule": null,
 				"emailChangeToken": {
 					"duration": 1800
@@ -736,15 +736,15 @@ func init() {
 				"mfa": {
 					"duration": 1800,
 					"enabled": true,
-					"rule": ""
+					"rule": "@request.context != 'oauth2'"
 				},
 				"name": "users",
 				"oauth2": {
-					"enabled": false,
+					"enabled": true,
 					"mappedFields": {
 						"avatarURL": "",
 						"id": "",
-						"name": "",
+						"name": "name",
 						"username": ""
 					}
 				},
