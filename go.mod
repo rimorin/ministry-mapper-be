@@ -3,11 +3,11 @@ module ministry-mapper
 go 1.24.7
 
 require (
-	github.com/getsentry/sentry-go v0.36.0
+	github.com/getsentry/sentry-go v0.36.1
 	github.com/launchdarkly/go-sdk-common/v3 v3.4.0
 	github.com/launchdarkly/go-server-sdk/v7 v7.13.4
 	github.com/mailersend/mailersend-go v1.6.1
-	github.com/pocketbase/pocketbase v0.30.4
+	github.com/pocketbase/pocketbase v0.31.0
 	github.com/xuri/excelize/v2 v2.10.0
 )
 
@@ -55,7 +55,7 @@ require (
 	github.com/spf13/cobra v1.10.1 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	golang.org/x/crypto v0.43.0 // indirect
-	golang.org/x/exp v0.0.0-20251009144603-d2f985daa21b // indirect
+	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
 	golang.org/x/image v0.32.0 // indirect
 	golang.org/x/net v0.46.0 // indirect
 	golang.org/x/oauth2 v0.32.0 // indirect
