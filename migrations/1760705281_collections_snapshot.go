@@ -673,7 +673,7 @@ func init() {
 						"hidden": false,
 						"id": "s4xgbyzv",
 						"max": 50,
-						"min": 5,
+						"min": 2,
 						"name": "name",
 						"pattern": "^[A-Za-z][\\w\\s\\.\\-']*$",
 						"presentable": false,
