@@ -112,7 +112,7 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app *pocketbase.PocketBase) 
 	}
 
 	// Create assignment record
-	assignmentId, err := createAssignment(app, bestMap.ID, userId, publisher, expiryHours)
+	assignmentId, err := createAssignment(app, bestMap.ID, userId, publisher, congregationId, expiryHours)
 	if err != nil {
 		sentry.CaptureException(err)
 		return apis.NewBadRequestError("Error creating assignment", nil)
@@ -287,7 +287,7 @@ func getCongregationExpiryHours(app *pocketbase.PocketBase, congregationId strin
 }
 
 // createAssignment creates a new assignment record linking a user to a map with expiry.
-func createAssignment(app *pocketbase.PocketBase, mapId, userId, publisher string, expiryHours float64) (string, error) {
+func createAssignment(app *pocketbase.PocketBase, mapId, userId, publisher, congId string, expiryHours float64) (string, error) {
 	collection, err := app.FindCollectionByNameOrId("assignments")
 	if err != nil {
 		return "", err
@@ -298,6 +298,7 @@ func createAssignment(app *pocketbase.PocketBase, mapId, userId, publisher strin
 	assignment.Set("user", userId)
 	assignment.Set("type", "normal")
 	assignment.Set("publisher", publisher)
+	assignment.Set("congregation", congId)
 
 	// Calculate expiry date
 	expiryDate := time.Now().UTC().Add(time.Duration(expiryHours) * time.Hour)
