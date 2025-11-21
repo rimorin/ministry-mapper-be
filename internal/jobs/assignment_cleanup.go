@@ -4,7 +4,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
@@ -30,7 +29,6 @@ func assignmentsCleanup(app *pocketbase.PocketBase) error {
 	assignments := []AssignmentData{}
 	err := app.DB().Select("assignments.id").From("assignments").Where(dbx.NewExp("expiry_date < {:current_date}", dbx.Params{"current_date": time.Now().UTC()})).All(&assignments)
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Printf("Cleanup failed: %v", err)
 		return err
 	}
@@ -54,7 +52,6 @@ func assignmentsCleanup(app *pocketbase.PocketBase) error {
 	})
 
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Printf("Cleanup failed: %v", err)
 		return err
 	}

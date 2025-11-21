@@ -5,7 +5,6 @@ import (
 	"log"
 	"strconv"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/labstack/echo/v5"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
@@ -96,7 +95,6 @@ func replaceAddressOptionsWithDefault(txDao core.App, oldOptionId, defaultOption
 	log.Printf("Replacing address options: oldOptionId=%s, defaultOptionId=%s, congregation=%s", oldOptionId, defaultOptionId, congregation)
 	records, err := txDao.FindRecordsByFilter("addresses", "type ~ {:oldOptionId} && congregation = {:congregation}", "", 0, 0, dbx.Params{"oldOptionId": oldOptionId, "congregation": congregation})
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Printf("Error finding records: %v", err)
 		return err
 	}
@@ -149,7 +147,6 @@ func handleOptionDeletion(txDao core.App, id, defaultId, congregation string) er
 
 	optionRecordToBeDeleted, err := txDao.FindRecordById("options", id)
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Printf("Error finding option record: %v", err)
 		return err
 	}
@@ -226,7 +223,6 @@ func HandleOptionUpdate(c *core.RequestEvent, app *pocketbase.PocketBase) error 
 					}
 					optionRecord, err := txApp.FindRecordById("options", id)
 					if err != nil {
-						sentry.CaptureException(err)
 						return err
 					}
 					optionRecord.Set("is_default", isDefault)
@@ -273,7 +269,6 @@ func HandleOptionUpdate(c *core.RequestEvent, app *pocketbase.PocketBase) error 
 	})
 
 	if err != nil {
-		sentry.CaptureException(err)
 		return apis.NewApiError(500, "Error processing options", nil)
 	}
 

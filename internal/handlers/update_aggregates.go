@@ -3,7 +3,6 @@ package handlers
 import (
 	"log"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
@@ -61,7 +60,6 @@ func ProcessMapAggregates(mapID string, app *pocketbase.PocketBase, resetTerrito
         AND a.map = {:map}
     `).Bind(dbx.Params{"map": mapID}).One(&aggregates)
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Printf("Error finding records by filter for mapID %s: %v", mapID, err)
 		return err
 	}
@@ -83,7 +81,6 @@ func ProcessMapAggregates(mapID string, app *pocketbase.PocketBase, resetTerrito
 
 	mapRecord, err := app.FindRecordById("maps", mapID)
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Printf("Error finding map record by ID %s: %v", mapID, err)
 		return err
 	}
@@ -160,7 +157,6 @@ func ProcessTerritoryAggregates(territoryID string, app *pocketbase.PocketBase) 
 		AND a.territory = {:territory}
 	`).Bind(dbx.Params{"territory": territoryID}).One(&aggregates)
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Printf("Error finding records by filter for territoryID %s: %v", territoryID, err)
 		return err
 	}
@@ -174,7 +170,6 @@ func ProcessTerritoryAggregates(territoryID string, app *pocketbase.PocketBase) 
 
 	territoryRecord, err := app.FindRecordById("territories", territoryID)
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Printf("Error finding territory record by ID %s: %v", territoryID, err)
 		return err
 	}

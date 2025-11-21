@@ -6,7 +6,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
@@ -83,7 +82,6 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app *pocketbase.PocketBase) 
 	// Get all maps with assignment counts
 	maps, err := getMapsWithAssignmentCount(app, territoryId)
 	if err != nil {
-		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error fetching maps", nil)
 	}
 
@@ -101,27 +99,23 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app *pocketbase.PocketBase) 
 	// Get congregation settings
 	congregationId, err := getCongregationIdFromTerritory(app, territoryId)
 	if err != nil {
-		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error fetching congregation", nil)
 	}
 
 	expiryHours, err := getCongregationExpiryHours(app, congregationId)
 	if err != nil {
-		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error fetching expiry hours", nil)
 	}
 
 	// Create assignment record
 	assignmentId, err := createAssignment(app, bestMap.ID, userId, publisher, congregationId, expiryHours)
 	if err != nil {
-		sentry.CaptureException(err)
 		return apis.NewBadRequestError("Error creating assignment", nil)
 	}
 
 	// Get other assignees for coordination
 	assignees, err := getMapAssignees(app, bestMap.ID, assignmentId)
 	if err != nil {
-		sentry.CaptureException(err)
 		return apis.NewNotFoundError("Error fetching assignees", nil)
 	}
 

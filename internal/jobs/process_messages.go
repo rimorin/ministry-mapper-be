@@ -8,7 +8,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/mailersend/mailersend-go"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
@@ -66,7 +65,6 @@ func processMessage(mapID string, app *pocketbase.PocketBase) error {
 	// Get map record to get publisher info
 	mapRecord, err := app.FindRecordById("maps", mapID)
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Println("Error finding map:", err)
 		return err
 	}
@@ -75,7 +73,6 @@ func processMessage(mapID string, app *pocketbase.PocketBase) error {
 
 	congRecord, err := app.FindRecordById("congregations", congregation)
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Println("Error finding congregation:", err)
 		return err
 	}
@@ -83,7 +80,6 @@ func processMessage(mapID string, app *pocketbase.PocketBase) error {
 	territoryRecord, err := app.FindRecordById("territories", mapRecord.Get("territory").(string))
 
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Println("Error finding territory:", err)
 		return err
 	}
@@ -93,7 +89,6 @@ func processMessage(mapID string, app *pocketbase.PocketBase) error {
 	// Get messages
 	messages, err := app.FindRecordsByFilter("messages", "map = {:map} && read = false && type != 'administrator'", "created", 0, 0, dbx.Params{"map": mapID})
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Println("Error finding messages by filter:", err)
 		return err
 	}
@@ -107,7 +102,6 @@ func processMessage(mapID string, app *pocketbase.PocketBase) error {
 	err = app.DB().Select("users.*").From("users").InnerJoin("roles", dbx.NewExp("roles.user = users.id and roles.role = 'administrator'")).Where(dbx.NewExp("roles.congregation = {:congregation}", dbx.Params{"congregation": congregation})).All(&recipients)
 
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Println("Error fetching recipients:", err)
 		return err
 	}
@@ -120,7 +114,6 @@ func processMessage(mapID string, app *pocketbase.PocketBase) error {
 	// Load template
 	tmpl, err := template.ParseFiles("templates/messages.html")
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Println("Error parsing template:", err)
 		return err
 	}
@@ -135,7 +128,6 @@ func processMessage(mapID string, app *pocketbase.PocketBase) error {
 
 	location, err := time.LoadLocation(congregationTz)
 	if err != nil {
-		sentry.CaptureException(err)
 		location = time.UTC // fallback
 	}
 
@@ -187,7 +179,6 @@ func processMessage(mapID string, app *pocketbase.PocketBase) error {
 	// Send email
 	_, err = ms.Email.Send(ctx, message)
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Println("Error sending email:", err)
 		return err
 	}
@@ -217,7 +208,6 @@ func processMessages(app *pocketbase.PocketBase, timeIntervalMinutes int) error 
 	err := app.DB().Select("maps.id").Distinct(true).From("maps").InnerJoin("messages", dbx.NewExp("messages.map = maps.id and messages.read = false and messages.type != 'administrator'")).Where(dbx.NewExp("messages.created > {:created}", dbx.Params{"created": time.Now().UTC().Add(timeBuffer)})).All(&maps)
 
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Println("Error fetching maps:", err)
 		return err
 	}
@@ -233,7 +223,6 @@ func processMessages(app *pocketbase.PocketBase, timeIntervalMinutes int) error 
 	for _, m := range maps {
 		err := processMessage(m.ID, app)
 		if err != nil {
-			sentry.CaptureException(err)
 			log.Printf("Error processing map ID %s: %v\n", m.ID, err)
 		}
 	}

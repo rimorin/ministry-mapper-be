@@ -12,7 +12,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/mailersend/mailersend-go"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
@@ -1383,7 +1382,6 @@ func sendReportEmailFromBuffer(app *pocketbase.PocketBase, congregation *core.Re
 	err := app.DB().Select("users.*").From("users").InnerJoin("roles", dbx.NewExp("roles.user = users.id and roles.role = 'administrator'")).Where(dbx.NewExp("roles.congregation = {:congregation}", dbx.Params{"congregation": congregation.Id})).All(&recipients)
 
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Println("Error fetching recipients:", err)
 		return err
 	}
@@ -1398,7 +1396,6 @@ func sendReportEmailFromBuffer(app *pocketbase.PocketBase, congregation *core.Re
 	// Load template
 	tmpl, err := template.ParseFiles("templates/report.html")
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Println("Error parsing template:", err)
 		return err
 	}
@@ -1415,7 +1412,6 @@ func sendReportEmailFromBuffer(app *pocketbase.PocketBase, congregation *core.Re
 	// Execute template
 	var body bytes.Buffer
 	if err := tmpl.Execute(&body, emailData); err != nil {
-		sentry.CaptureException(err)
 		log.Println("Error executing template:", err)
 		return err
 	}
@@ -1463,7 +1459,6 @@ func sendReportEmailFromBuffer(app *pocketbase.PocketBase, congregation *core.Re
 	// Send email
 	_, err = ms.Email.Send(ctx, message)
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Printf("Error sending email: %v", err)
 		return err
 	}

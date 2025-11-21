@@ -4,7 +4,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/pocketbase/pocketbase/core"
 	m "github.com/pocketbase/pocketbase/migrations"
 )
@@ -33,7 +32,6 @@ func init() {
 		smtpPortStr := os.Getenv("PB_SMTP_PORT")
 		smtpPort, err := strconv.Atoi(smtpPortStr)
 		if err != nil {
-			sentry.CaptureException(err)
 			smtpPort = 587 // fallback value
 		}
 

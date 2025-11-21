@@ -10,7 +10,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/mailersend/mailersend-go"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
@@ -64,13 +63,11 @@ func ProcessNote(congID string, app *pocketbase.PocketBase, timeBuffer time.Dura
 
 	congRecord, err := app.FindRecordById("congregations", congID)
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Println("Error finding congregation:", err)
 	}
 
 	notes, err := app.FindRecordsByFilter("addresses", "congregation = {:congregation} && last_notes_updated > {:created} && notes != NULL && notes != ''", "last_notes_updated", 0, 0, dbx.Params{"congregation": congID, "created": time.Now().UTC().Add(timeBuffer)})
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Println("Error finding notes by filter:", err)
 		return err
 	}
@@ -86,7 +83,6 @@ func ProcessNote(congID string, app *pocketbase.PocketBase, timeBuffer time.Dura
 	err = app.DB().Select("users.*").From("users").InnerJoin("roles", dbx.NewExp("roles.user = users.id and roles.role = 'administrator'")).Where(dbx.NewExp("roles.congregation = {:congregation}", dbx.Params{"congregation": congID})).All(&recipients)
 
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Println("Error fetching recipients:", err)
 		return err
 	}
@@ -99,7 +95,6 @@ func ProcessNote(congID string, app *pocketbase.PocketBase, timeBuffer time.Dura
 	// Load template
 	tmpl, err := template.ParseFiles("templates/notes.html")
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Println("Error parsing template:", err)
 		return err
 	}
@@ -113,7 +108,6 @@ func ProcessNote(congID string, app *pocketbase.PocketBase, timeBuffer time.Dura
 
 	location, err := time.LoadLocation(congregationTz)
 	if err != nil {
-		sentry.CaptureException(err)
 		location = time.UTC // fallback
 	}
 
@@ -178,7 +172,6 @@ func ProcessNote(congID string, app *pocketbase.PocketBase, timeBuffer time.Dura
 	// Send email
 	_, err = ms.Email.Send(ctx, message)
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Println("Error sending email:", err)
 		return err
 	}
@@ -206,7 +199,6 @@ func ProcessNotes(app *pocketbase.PocketBase, timeIntervalMinutes int) error {
 	err := app.DB().NewQuery("SELECT DISTINCT congregation FROM addresses WHERE last_notes_updated > {:created} and notes IS NOT NULL and notes != ''").Bind(dbx.Params{"created": time.Now().UTC().Add(timeBuffer)}).All(&congregations)
 	log.Printf("congregations: %v\n", congregations)
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Println("Error fetching maps:", err)
 		return err
 	}
@@ -223,7 +215,6 @@ func ProcessNotes(app *pocketbase.PocketBase, timeIntervalMinutes int) error {
 		log.Printf("Processing congregation ID %s\n", m)
 		err := ProcessNote(m.ID, app, timeBuffer)
 		if err != nil {
-			sentry.CaptureException(err)
 			log.Printf("Error processing congregation ID %s: %v\n", m.ID, err)
 		}
 	}

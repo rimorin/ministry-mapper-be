@@ -5,7 +5,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -65,7 +64,6 @@ func HandleNewMap(c *core.RequestEvent, app *pocketbase.PocketBase) error {
 
 	option, err := fetchDefaultCongregationOption(app, congregation)
 	if err != nil {
-		sentry.CaptureException(err)
 		log.Println("Error fetching default congregation option:", err)
 		return apis.NewNotFoundError("Error fetching default congregation option", nil)
 	}

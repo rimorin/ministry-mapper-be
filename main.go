@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"ministry-mapper/internal/handlers"
 	"ministry-mapper/internal/jobs"
+	"ministry-mapper/internal/middleware"
 	"os"
 	"strings"
 	"time"
@@ -25,12 +27,29 @@ func main() {
 	}
 	log.Printf("Starting Ministry Mapper build %s\n", buildVersion)
 	sentryEnv := os.Getenv("SENTRY_ENV")
+	if sentryEnv == "" {
+		sentryEnv = "development"
+	}
 
-	err := sentry.Init(sentry.ClientOptions{
-		Dsn:         os.Getenv("SENTRY_DSN"),
-		Environment: sentryEnv,
-		Release:     buildVersion,
-	})
+	sentryOptions := sentry.ClientOptions{
+		Dsn:              os.Getenv("SENTRY_DSN"),
+		Environment:      sentryEnv,
+		Release:          buildVersion,
+		AttachStacktrace: true,
+		EnableLogs:       true,
+		SampleRate:       1.0,
+	}
+
+	switch sentryEnv {
+	case "production":
+		sentryOptions.TracesSampleRate = 0.2
+	case "staging":
+		sentryOptions.TracesSampleRate = 0.5
+	default:
+		sentryOptions.Debug = true
+	}
+
+	err := sentry.Init(sentryOptions)
 	if err != nil {
 		log.Fatalf("sentry.Init: %s", err)
 	}
@@ -52,7 +71,7 @@ func main() {
 		}))
 
 		bindAuthenticatedRoute := func(path string, handler func(*core.RequestEvent) error) {
-			e.Router.POST(path, handler).Bind(apis.RequireAuth())
+			e.Router.POST(path, middleware.WrapHandler(handler)).Bind(apis.RequireAuth())
 		}
 
 		bindAuthenticatedRoute("/map/codes", func(c *core.RequestEvent) error {
@@ -145,6 +164,36 @@ func main() {
 		return e.Next()
 	})
 
+	app.OnModelCreate(core.LogsTableName).BindFunc(func(e *core.ModelEvent) error {
+		l := e.Model.(*core.Log)
+
+		var entry sentry.LogEntry
+		switch l.Level {
+		case -4:
+			entry = sentry.NewLogger(e.Context).Error()
+		case -3:
+			entry = sentry.NewLogger(e.Context).Warn()
+		case -2:
+			entry = sentry.NewLogger(e.Context).Info()
+		case -1:
+			entry = sentry.NewLogger(e.Context).Debug()
+		default:
+			entry = sentry.NewLogger(e.Context).Info()
+		}
+
+		entry = entry.WithCtx(e.Context).
+			String("id", l.Id).
+			Int("level", l.Level).
+			String("created", l.Created.Time().Format(time.RFC3339))
+
+		for key, value := range l.Data {
+			entry = entry.String("data_"+key, fmt.Sprint(value))
+		}
+
+		entry.Emit(l.Message)
+		return e.Next()
+	})
+
 	isGoRun := strings.HasPrefix(os.Args[0], os.TempDir())
 
 	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{
@@ -152,7 +201,6 @@ func main() {
 	})
 
 	if err := app.Start(); err != nil {
-		sentry.CaptureException(err)
 		log.Fatal(err)
 	}
 }
