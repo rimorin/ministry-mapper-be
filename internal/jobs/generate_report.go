@@ -41,7 +41,7 @@ func GenerateMonthlyReport(app *pocketbase.PocketBase) {
 	}
 
 	for _, congregation := range congregations {
-		if err := generateAndSendCongregationReport(app, congregation); err != nil {
+		if err := GenerateAndSendCongregationReport(app, congregation); err != nil {
 			log.Printf("Failed to generate and send report for congregation %s: %v", congregation.Get("code"), err)
 			continue
 		}
@@ -50,7 +50,7 @@ func GenerateMonthlyReport(app *pocketbase.PocketBase) {
 	log.Println("Monthly report generation completed.")
 }
 
-func generateAndSendCongregationReport(app *pocketbase.PocketBase, congregation *core.Record) error {
+func GenerateAndSendCongregationReport(app *pocketbase.PocketBase, congregation *core.Record) error {
 	f := excelize.NewFile()
 
 	congregationOptions, err := app.FindRecordsByFilter(
@@ -69,8 +69,8 @@ func generateAndSendCongregationReport(app *pocketbase.PocketBase, congregation 
 		return fmt.Errorf("failed to create details sheet: %v", err)
 	}
 
-	if err := createDNCSheet(app, f, congregation); err != nil {
-		return fmt.Errorf("failed to create DNC sheet: %v", err)
+	if err := createAddressSheet(app, f, congregation); err != nil {
+		return fmt.Errorf("failed to create address sheet: %v", err)
 	}
 
 	territories, err := app.FindRecordsByFilter(
@@ -441,30 +441,29 @@ func createDetailsSheet(app *pocketbase.PocketBase, f *excelize.File, congregati
 	return nil
 }
 
-func createDNCSheet(app *pocketbase.PocketBase, f *excelize.File, congregation *core.Record) error {
-	sheetName := "DNC"
+func createAddressSheet(app *pocketbase.PocketBase, f *excelize.File, congregation *core.Record) error {
+	sheetName := "Addresses"
 	index, err := f.NewSheet(sheetName)
 	if err != nil {
-		return fmt.Errorf("failed to create DNC sheet: %v", err)
+		return fmt.Errorf("failed to create address sheet: %v", err)
 	}
 	f.SetActiveSheet(index)
 
-	mainHeaderStyle, _ := getMainHeaderStyle(f)
 	tableHeaderStyle, _ := getTableHeaderStyle(f)
 
-	f.SetCellValue(sheetName, "A1", "Do Not Call Addresses")
-	f.MergeCell(sheetName, "A1", "E1")
-	f.SetCellStyle(sheetName, "A1", "E1", mainHeaderStyle)
-	f.SetRowHeight(sheetName, 1, 40)
-
-	dncAddresses := []struct {
-		MapDescription string `db:"map_description"`
-		MapType        string `db:"map_type"`
-		Floor          int    `db:"floor"`
-		Code           string `db:"code"`
-		Notes          string `db:"notes"`
-		DncTime        string `db:"dnc_time"`
-		Updated        string `db:"updated"`
+	addresses := []struct {
+		MapDescription      string `db:"map_description"`
+		MapType             string `db:"map_type"`
+		Floor               int    `db:"floor"`
+		Code                string `db:"code"`
+		Status              string `db:"status"`
+		TypeCodes           string `db:"type_codes"`
+		Notes               string `db:"notes"`
+		LastNotesUpdated    string `db:"last_notes_updated"`
+		LastNotesUpdatedBy  string `db:"last_notes_updated_by"`
+		Updated             string `db:"updated"`
+		UpdatedBy           string `db:"updated_by"`
+		DncTime             string `db:"dnc_time"`
 	}{}
 
 	err = app.DB().
@@ -473,125 +472,112 @@ func createDNCSheet(app *pocketbase.PocketBase, f *excelize.File, congregation *
 			"maps.type as map_type",
 			"addresses.floor as floor",
 			"addresses.code as code",
+			"addresses.status as status",
+			`COALESCE(
+				(SELECT GROUP_CONCAT(o.code, ', ')
+				FROM options o
+				JOIN json_each(addresses.type) jt ON o.id = jt.value
+				WHERE o.congregation = addresses.congregation),
+				'N/A'
+			) as type_codes`,
 			"addresses.notes as notes",
-			"addresses.dnc_time as dnc_time",
+			"addresses.last_notes_updated as last_notes_updated",
+			"addresses.last_notes_updated_by as last_notes_updated_by",
 			"addresses.updated as updated",
+			"addresses.updated_by as updated_by",
+			"addresses.dnc_time as dnc_time",
 		).
 		From("addresses").
 		InnerJoin("maps", dbx.NewExp("maps.id = addresses.map")).
 		Where(dbx.HashExp{
 			"addresses.congregation": congregation.Id,
-			"addresses.status":       "do_not_call",
 		}).
-		OrderBy("maps.description", "addresses.floor DESC").
-		All(&dncAddresses)
+		OrderBy("maps.description", "addresses.floor DESC", "addresses.sequence").
+		All(&addresses)
 
 	if err != nil {
-		return fmt.Errorf("failed to fetch do not call addresses: %v", err)
+		return fmt.Errorf("failed to fetch addresses: %v", err)
 	}
 
-	row := 3
-	if len(dncAddresses) == 0 {
-		f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), "No do not call addresses found")
+	row := 1
+	if len(addresses) == 0 {
+		f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), "No addresses found")
 		return nil
 	}
 
 	f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), "Map")
 	f.SetCellValue(sheetName, fmt.Sprintf("B%d", row), "Address")
-	f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), "Note")
-	f.SetCellValue(sheetName, fmt.Sprintf("D%d", row), "Date")
-	f.SetCellValue(sheetName, fmt.Sprintf("E%d", row), "Duration")
-	f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("E%d", row), tableHeaderStyle)
+	f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), "Status")
+	f.SetCellValue(sheetName, fmt.Sprintf("D%d", row), "Type")
+	f.SetCellValue(sheetName, fmt.Sprintf("E%d", row), "Note")
+	f.SetCellValue(sheetName, fmt.Sprintf("F%d", row), "Note Updated")
+	f.SetCellValue(sheetName, fmt.Sprintf("G%d", row), "Note By")
+	f.SetCellValue(sheetName, fmt.Sprintf("H%d", row), "Last Updated")
+	f.SetCellValue(sheetName, fmt.Sprintf("I%d", row), "Updated By")
+	f.SetCellValue(sheetName, fmt.Sprintf("J%d", row), "DNC Date")
+	f.SetCellValue(sheetName, fmt.Sprintf("K%d", row), "DNC Duration")
+	f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("K%d", row), tableHeaderStyle)
 	f.SetRowHeight(sheetName, row, 28)
 	row++
 
-	for i, addr := range dncAddresses {
-		mapDesc := addr.MapDescription
-		if mapDesc == "" {
-			mapDesc = "N/A"
-		}
-
-		var address string
-		if addr.MapType == "single" {
-			address = addr.Code
-			if address == "" {
-				address = "N/A"
-			}
-		} else {
-			code := addr.Code
-			if code == "" {
-				code = "N/A"
-			}
-			address = fmt.Sprintf("%d - %s", addr.Floor, code)
-		}
-
-		notes := addr.Notes
-		if notes == "" {
-			notes = "N/A"
-		}
-
-		timeStr := addr.DncTime
-		if timeStr == "" {
-			timeStr = addr.Updated
-		}
-
-		var dncDate, duration string
-		if timeStr != "" {
-			dncTimeParsed, err := time.Parse("2006-01-02 15:04:05.999Z", timeStr)
-			if err != nil {
-				dncTimeParsed, err = time.Parse(time.RFC3339, timeStr)
-			}
-
-			if err == nil {
-				dncDate = dncTimeParsed.Format("02-01-2006")
-				days := int(time.Since(dncTimeParsed).Hours() / 24)
-
-				if days >= 365 {
-					years := days / 365
-					duration = fmt.Sprintf("%d year", years)
-					if years > 1 {
-						duration += "s"
-					}
-				} else if days >= 30 {
-					months := days / 30
-					duration = fmt.Sprintf("%d month", months)
-					if months > 1 {
-						duration += "s"
-					}
-				} else if days > 0 {
-					duration = fmt.Sprintf("%d day", days)
-					if days > 1 {
-						duration += "s"
-					}
-				} else {
-					duration = "Today"
-				}
-			} else {
-				dncDate = "N/A"
-				duration = "N/A"
-			}
-		} else {
-			dncDate = "N/A"
-			duration = "N/A"
+	for i, addr := range addresses {
+		mapDesc := defaultIfEmpty(addr.MapDescription, "N/A")
+		
+		address := formatAddress(addr.MapType, addr.Code, addr.Floor)
+		status := defaultIfEmpty(addr.Status, "N/A")
+		typeDesc := defaultIfEmpty(addr.TypeCodes, "N/A")
+		notes := defaultIfEmpty(addr.Notes, "N/A")
+		noteUpdated := formatDate(addr.LastNotesUpdated)
+		lastUpdated := formatDate(addr.Updated)
+		
+		dncDate, dncDuration := "", ""
+		if addr.Status == "do_not_call" {
+			timeStr := defaultIfEmpty(addr.DncTime, addr.Updated)
+			dncDate, dncDuration = formatDNCInfo(timeStr)
 		}
 
 		f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), mapDesc)
 		f.SetCellValue(sheetName, fmt.Sprintf("B%d", row), address)
-		f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), notes)
-		f.SetCellValue(sheetName, fmt.Sprintf("D%d", row), dncDate)
-		f.SetCellValue(sheetName, fmt.Sprintf("E%d", row), duration)
+		f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), status)
+		f.SetCellValue(sheetName, fmt.Sprintf("D%d", row), typeDesc)
+		f.SetCellValue(sheetName, fmt.Sprintf("E%d", row), notes)
+		f.SetCellValue(sheetName, fmt.Sprintf("F%d", row), noteUpdated)
+		f.SetCellValue(sheetName, fmt.Sprintf("G%d", row), addr.LastNotesUpdatedBy)
+		f.SetCellValue(sheetName, fmt.Sprintf("H%d", row), lastUpdated)
+		f.SetCellValue(sheetName, fmt.Sprintf("I%d", row), addr.UpdatedBy)
+		f.SetCellValue(sheetName, fmt.Sprintf("J%d", row), dncDate)
+		f.SetCellValue(sheetName, fmt.Sprintf("K%d", row), dncDuration)
 
 		rowStyle, _ := getDataCellStyle(f, i%2 == 0)
-		f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("E%d", row), rowStyle)
+		f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("K%d", row), rowStyle)
 		f.SetRowHeight(sheetName, row, 25)
 		row++
 	}
 
 	f.SetColWidth(sheetName, "A", "A", 25)
 	f.SetColWidth(sheetName, "B", "B", 20)
-	f.SetColWidth(sheetName, "C", "C", 40)
-	f.SetColWidth(sheetName, "D", "D", 15)
-	f.SetColWidth(sheetName, "E", "E", 18)
+	f.SetColWidth(sheetName, "C", "C", 15)
+	f.SetColWidth(sheetName, "D", "D", 20)
+	f.SetColWidth(sheetName, "E", "E", 40)
+	f.SetColWidth(sheetName, "F", "F", 15)
+	f.SetColWidth(sheetName, "G", "G", 20)
+	f.SetColWidth(sheetName, "H", "H", 15)
+	f.SetColWidth(sheetName, "I", "I", 20)
+	f.SetColWidth(sheetName, "J", "J", 15)
+	f.SetColWidth(sheetName, "K", "K", 18)
+
+	if err := f.SetPanes(sheetName, &excelize.Panes{
+		Freeze:      true,
+		YSplit:      1,
+		TopLeftCell: "A2",
+		ActivePane:  "bottomLeft",
+	}); err != nil {
+		return fmt.Errorf("failed to set freeze panes: %v", err)
+	}
+
+	if err := f.AutoFilter(sheetName, "A1:K1", nil); err != nil {
+		return fmt.Errorf("failed to set auto filter: %v", err)
+	}
 
 	return nil
 }
@@ -1465,4 +1451,76 @@ func sendReportEmailFromBuffer(app *pocketbase.PocketBase, congregation *core.Re
 
 	log.Println("Report email sent successfully")
 	return nil
+}
+
+func defaultIfEmpty(value, defaultValue string) string {
+	if value == "" {
+		return defaultValue
+	}
+	return value
+}
+
+func formatAddress(mapType, code string, floor int) string {
+	code = defaultIfEmpty(code, "N/A")
+	if mapType == "single" {
+		return code
+	}
+	return fmt.Sprintf("%d - %s", floor, code)
+}
+
+func formatDate(dateStr string) string {
+	if dateStr == "" {
+		return ""
+	}
+	
+	if parsed, err := time.Parse("2006-01-02 15:04:05.999Z", dateStr); err == nil {
+		return parsed.Format("02-01-2006")
+	}
+	if parsed, err := time.Parse(time.RFC3339, dateStr); err == nil {
+		return parsed.Format("02-01-2006")
+	}
+	return ""
+}
+
+func formatDNCInfo(timeStr string) (dateStr, duration string) {
+	if timeStr == "" {
+		return "N/A", "N/A"
+	}
+
+	var parsed time.Time
+	var err error
+	
+	parsed, err = time.Parse("2006-01-02 15:04:05.999Z", timeStr)
+	if err != nil {
+		parsed, err = time.Parse(time.RFC3339, timeStr)
+	}
+	
+	if err != nil {
+		return "N/A", "N/A"
+	}
+
+	dateStr = parsed.Format("02-01-2006")
+	days := int(time.Since(parsed).Hours() / 24)
+
+	switch {
+	case days >= 365:
+		years := days / 365
+		duration = pluralize(years, "year")
+	case days >= 30:
+		months := days / 30
+		duration = pluralize(months, "month")
+	case days > 0:
+		duration = pluralize(days, "day")
+	default:
+		duration = "Today"
+	}
+
+	return dateStr, duration
+}
+
+func pluralize(count int, unit string) string {
+	if count == 1 {
+		return fmt.Sprintf("%d %s", count, unit)
+	}
+	return fmt.Sprintf("%d %ss", count, unit)
 }
