@@ -1024,11 +1024,11 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_124WdYx7Ri` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `congregation` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_kJtt908M2s` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `last_notes_updated_by` + "`" + `\n)"
 				],
-				"listRule": "// Reduce role joins for registered users as adds are huge\n@request.auth.id != \"\" || (@collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map && @collection.assignments:link.expiry_date > @now)",
+				"listRule": "// Reduce role joins for registered users as adds are huge\n@request.auth.id != \"\" || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)",
 				"name": "addresses",
 				"system": false,
 				"type": "base",
-				"updateRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map && @collection.assignments:link.expiry_date > @now)",
+				"updateRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)",
 				"viewRule": null
 			},
 			{
@@ -1152,14 +1152,15 @@ func init() {
 				"indexes": [
 					"CREATE INDEX ` + "`" + `idx_pI4sxv2` + "`" + ` ON ` + "`" + `assignments` + "`" + ` (` + "`" + `map` + "`" + `)",
 					"CREATE INDEX ` + "`" + `idx_RuF9QNcKE2` + "`" + ` ON ` + "`" + `assignments` + "`" + ` (` + "`" + `expiry_date` + "`" + `)",
-					"CREATE INDEX ` + "`" + `idx_6V9YIvnGqD` + "`" + ` ON ` + "`" + `assignments` + "`" + ` (\n  ` + "`" + `user` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)"
+					"CREATE INDEX ` + "`" + `idx_6V9YIvnGqD` + "`" + ` ON ` + "`" + `assignments` + "`" + ` (\n  ` + "`" + `user` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)",
+					"CREATE INDEX ` + "`" + `idx_Su1rP10S5r` + "`" + ` ON ` + "`" + `assignments` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `expiry_date` + "`" + `\n)"
 				],
-				"listRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && expiry_date > @now",
+				"listRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation",
 				"name": "assignments",
 				"system": false,
 				"type": "base",
 				"updateRule": null,
-				"viewRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id = id && expiry_date > @now)"
+				"viewRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @request.headers.link_id = id && expiry_date > @now)"
 			},
 			{
 				"createRule": null,
@@ -1287,7 +1288,7 @@ func init() {
 				"system": false,
 				"type": "base",
 				"updateRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= id && @collection.roles:access.role ?= 'administrator'",
-				"viewRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= id) || (@collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.congregation ?= id && @collection.assignments:link.expiry_date > @now)"
+				"viewRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= id) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.congregation ?= id)"
 			},
 			{
 				"createRule": null,
@@ -1438,10 +1439,10 @@ func init() {
 				"system": false,
 				"type": "base",
 				"updateRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && @collection.roles:access.role ?= 'administrator'",
-				"viewRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) ||(@collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= id && @collection.assignments:link.expiry_date > @now)"
+				"viewRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= id)"
 			},
 			{
-				"createRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map && @collection.assignments:link.expiry_date > @now)",
+				"createRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)",
 				"deleteRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && @collection.roles:access.role ?= 'administrator'",
 				"fields": [
 					{
@@ -1572,7 +1573,7 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_4xBZkdzeoM` + "`" + ` ON ` + "`" + `messages` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `pinned` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_IFmnqzx737` + "`" + ` ON ` + "`" + `messages` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `read` + "`" + `\n)"
 				],
-				"listRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map && @collection.assignments:link.expiry_date > @now)",
+				"listRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)",
 				"name": "messages",
 				"system": false,
 				"type": "base",
@@ -1694,7 +1695,7 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_oBkThEt` + "`" + ` ON ` + "`" + `options` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `sequence` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_LDPjOnA` + "`" + ` ON ` + "`" + `options` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `is_default` + "`" + `\n)"
 				],
-				"listRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.congregation ?= congregation && @collection.assignments:link.expiry_date > @now)",
+				"listRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.congregation ?= congregation)",
 				"name": "options",
 				"system": false,
 				"type": "base",
@@ -1784,7 +1785,9 @@ func init() {
 				"id": "xln2af1in0pdo30",
 				"indexes": [
 					"CREATE INDEX ` + "`" + `idx_u9wr0mg` + "`" + ` ON ` + "`" + `roles` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `role` + "`" + `\n)",
-					"CREATE INDEX ` + "`" + `idx_iPooFW46s8` + "`" + ` ON ` + "`" + `roles` + "`" + ` (` + "`" + `user` + "`" + `)"
+					"CREATE INDEX ` + "`" + `idx_iPooFW46s8` + "`" + ` ON ` + "`" + `roles` + "`" + ` (` + "`" + `user` + "`" + `)",
+					"CREATE INDEX ` + "`" + `idx_Dya44KEsGS` + "`" + ` ON ` + "`" + `roles` + "`" + ` (\n  ` + "`" + `user` + "`" + `,\n  ` + "`" + `congregation` + "`" + `\n)",
+					"CREATE INDEX ` + "`" + `idx_PUEoaq44d4` + "`" + ` ON ` + "`" + `roles` + "`" + ` (\n  ` + "`" + `user` + "`" + `,\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `role` + "`" + `\n)"
 				],
 				"listRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation",
 				"name": "roles",
