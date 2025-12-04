@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -13,7 +14,6 @@ import (
 func HandleNewMap(c *core.RequestEvent, app *pocketbase.PocketBase) error {
 	requestInfo, _ := c.RequestInfo()
 	data := requestInfo.Body
-	code := data["code"].(string)
 	territory := data["territory"].(string)
 	mapType := data["type"].(string)
 	floors := int(data["floors"].(float64))
@@ -44,18 +44,24 @@ func HandleNewMap(c *core.RequestEvent, app *pocketbase.PocketBase) error {
 	}
 
 	sequenceArray := splitSequence(sequence)
+	// Get max sequence for this territory
+	maxSeq, err := fetchTerritoryMaxSequence(app, territory)
+	if err != nil {
+		log.Println("Error fetching max sequence:", err)
+		return apis.NewBadRequestError("Error fetching max sequence", nil)
+	}
 
 	var mapRecord *core.Record
 
 	err = app.RunInTransaction(func(txApp core.App) error {
 		collection, _ := txApp.FindCollectionByNameOrId("maps")
 		mapRecord = core.NewRecord(collection)
-		mapRecord.Set("code", code)
 		mapRecord.Set("territory", territory)
 		mapRecord.Set("type", mapType)
 		mapRecord.Set("description", name)
 		mapRecord.Set("congregation", congregation)
 		mapRecord.Set("coordinates", coordinates)
+		mapRecord.Set("sequence", maxSeq)
 
 		if err := txApp.Save(mapRecord); err != nil {
 			log.Printf("Error creating map: %v", err)
@@ -110,4 +116,19 @@ func isValidSequence(sequence string) bool {
 
 	re := regexp.MustCompile(`^([a-zA-Z0-9-]+,?)*[a-zA-Z0-9-]+$`)
 	return re.MatchString(sequence)
+}
+
+func fetchTerritoryMaxSequence(app *pocketbase.PocketBase, territoryId string) (int, error) {
+	result := struct {
+		MaxSequence int `db:"max_sequence"`
+	}{}
+	query := app.DB().NewQuery("SELECT COALESCE(MAX(sequence), 0) + 1 as max_sequence FROM maps WHERE territory = {:territory}")
+	err := query.Bind(dbx.Params{"territory": territoryId}).One(&result)
+	if err != nil {
+		return 1, err
+	}
+	if result.MaxSequence == 0 {
+		return 1, nil
+	}
+	return result.MaxSequence, nil
 }

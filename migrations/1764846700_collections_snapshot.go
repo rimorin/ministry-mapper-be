@@ -1335,7 +1335,19 @@ func init() {
 						"type": "relation"
 					},
 					{
-						"autogeneratePattern": "",
+						"hidden": false,
+						"id": "number1384568619",
+						"max": null,
+						"min": null,
+						"name": "sequence",
+						"onlyInt": true,
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "number"
+					},
+					{
+						"autogeneratePattern": "0",
 						"hidden": false,
 						"id": "kzw1eles",
 						"max": 0,
@@ -1432,7 +1444,8 @@ func init() {
 				"id": "rupq6yj561mghrr",
 				"indexes": [
 					"CREATE INDEX ` + "`" + `idx_QjY4Y2c` + "`" + ` ON ` + "`" + `maps` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `code` + "`" + `\n)",
-					"CREATE INDEX ` + "`" + `idx_O2TlLJr` + "`" + ` ON ` + "`" + `maps` + "`" + ` (` + "`" + `territory` + "`" + `)"
+					"CREATE INDEX ` + "`" + `idx_O2TlLJr` + "`" + ` ON ` + "`" + `maps` + "`" + ` (` + "`" + `territory` + "`" + `)",
+					"CREATE INDEX ` + "`" + `idx_TzbzxPXi9e` + "`" + ` ON ` + "`" + `maps` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `sequence` + "`" + `\n)"
 				],
 				"listRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation",
 				"name": "maps",

@@ -736,7 +736,7 @@ func createTerritorySheet(app *pocketbase.PocketBase, f *excelize.File, territor
 	maps, err := app.FindRecordsByFilter(
 		"maps",
 		"territory = {:territory}",
-		"code",
+		"sequence",
 		0,
 		0,
 		dbx.Params{"territory": territory.Id},
@@ -747,7 +747,7 @@ func createTerritorySheet(app *pocketbase.PocketBase, f *excelize.File, territor
 
 	row := 7
 	f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), "Maps Overview")
-	f.MergeCell(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("D%d", row))
+	f.MergeCell(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row))
 
 	mapsOverviewHeaderStyle, _ := f.NewStyle(&excelize.Style{
 		Font: &excelize.Font{Bold: true, Size: 14, Color: "FFFFFF", Family: "Calibri"},
@@ -764,7 +764,7 @@ func createTerritorySheet(app *pocketbase.PocketBase, f *excelize.File, territor
 			{Type: "right", Color: "4A90B8", Style: 1},
 		},
 	})
-	f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("D%d", row), mapsOverviewHeaderStyle)
+	f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row), mapsOverviewHeaderStyle)
 	f.SetRowHeight(sheetName, row, 30)
 	row++
 
@@ -774,9 +774,8 @@ func createTerritorySheet(app *pocketbase.PocketBase, f *excelize.File, territor
 	} else {
 		// Add overview table headers
 		f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), "Name")
-		f.SetCellValue(sheetName, fmt.Sprintf("B%d", row), "Description")
-		f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), "Type")
-		f.SetCellValue(sheetName, fmt.Sprintf("D%d", row), "Progress")
+		f.SetCellValue(sheetName, fmt.Sprintf("B%d", row), "Type")
+		f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), "Progress")
 
 		overviewHeaderStyle, _ := f.NewStyle(&excelize.Style{
 			Font: &excelize.Font{Bold: true, Size: 12, Color: "FFFFFF", Family: "Calibri"},
@@ -792,30 +791,14 @@ func createTerritorySheet(app *pocketbase.PocketBase, f *excelize.File, territor
 				{Type: "right", Color: "1F4E79", Style: 2},  // Strong dark border
 			},
 		})
-		f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("D%d", row), overviewHeaderStyle)
+		f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row), overviewHeaderStyle)
 		f.SetRowHeight(sheetName, row, 28)
 		row++
 
 		// Add each map to the overview table
 		for i, mapRecord := range maps {
-			mapName := fmt.Sprintf("%v", mapRecord.Get("code"))
-			if mapName == "<nil>" {
-				mapName = ""
-			}
-
-			mapDescription := fmt.Sprintf("%v", mapRecord.Get("description"))
-			if mapDescription == "<nil>" {
-				mapDescription = ""
-			}
-
-			mapType := fmt.Sprintf("%v", mapRecord.Get("type"))
-			if mapType == "<nil>" {
-				mapType = ""
-			}
-
-			f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), mapName)
-			f.SetCellValue(sheetName, fmt.Sprintf("B%d", row), mapDescription)
-			f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), mapType)
+			f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), mapRecord.Get("description"))
+			f.SetCellValue(sheetName, fmt.Sprintf("B%d", row), mapRecord.Get("type"))
 
 			// Handle map progress and format as percentage
 			mapProgressValue := mapRecord.Get("progress")
@@ -838,20 +821,20 @@ func createTerritorySheet(app *pocketbase.PocketBase, f *excelize.File, territor
 				}
 
 				if isNumeric {
-					f.SetCellValue(sheetName, fmt.Sprintf("D%d", row), mapProgressNum/100)
+					f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), mapProgressNum/100)
 				} else {
 					if progressStr := fmt.Sprintf("%v", mapProgressValue); progressStr != "" && progressStr != "<nil>" {
 						if num, err := strconv.ParseFloat(progressStr, 64); err == nil {
-							f.SetCellValue(sheetName, fmt.Sprintf("D%d", row), num/100)
+							f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), num/100)
 						} else {
-							f.SetCellValue(sheetName, fmt.Sprintf("D%d", row), progressStr)
+							f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), progressStr)
 						}
 					} else {
-						f.SetCellValue(sheetName, fmt.Sprintf("D%d", row), "N/A")
+						f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), "N/A")
 					}
 				}
 			} else {
-				f.SetCellValue(sheetName, fmt.Sprintf("D%d", row), "N/A")
+				f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), "N/A")
 			}
 
 			var overviewRowStyle int
@@ -886,10 +869,10 @@ func createTerritorySheet(app *pocketbase.PocketBase, f *excelize.File, territor
 					},
 				})
 			}
-			f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row), overviewRowStyle)
+			f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("B%d", row), overviewRowStyle)
 
 			progressStyle, _ := getPercentageCellStyle(f, i%2 == 0)
-			f.SetCellStyle(sheetName, fmt.Sprintf("D%d", row), fmt.Sprintf("D%d", row), progressStyle)
+			f.SetCellStyle(sheetName, fmt.Sprintf("C%d", row), fmt.Sprintf("C%d", row), progressStyle)
 
 			f.SetRowHeight(sheetName, row, 25)
 			row++
@@ -917,22 +900,16 @@ func createTerritorySheet(app *pocketbase.PocketBase, f *excelize.File, territor
 	f.SetRowHeight(sheetName, 6, 20)
 
 	for _, mapRecord := range maps {
-		mapCode := mapRecord.Get("code")
-		mapProgress := mapRecord.Get("progress")
 		mapDescription := mapRecord.Get("description")
+		mapProgress := mapRecord.Get("progress")
+		mapType := mapRecord.Get("type")
 
-		mapType := fmt.Sprintf("%v", mapRecord.Get("type"))
-
-		mapHeader := fmt.Sprintf("Map: %s", mapCode)
+		mapHeader := fmt.Sprintf("Map: %s", mapDescription)
 		if mapProgress != nil && fmt.Sprintf("%v", mapProgress) != "" && fmt.Sprintf("%v", mapProgress) != "<nil>" {
-			mapHeader = fmt.Sprintf("Map: %s (Progress: %v%%)", mapCode, mapProgress)
+			mapHeader = fmt.Sprintf("Map: %s (Progress: %v%%)", mapDescription, mapProgress)
 		}
 
-		if mapDescription != nil && fmt.Sprintf("%v", mapDescription) != "" && fmt.Sprintf("%v", mapDescription) != "<nil>" {
-			mapHeader = fmt.Sprintf("%s - %v", mapHeader, mapDescription)
-		}
-
-		if mapType != "" && mapType != "<nil>" {
+		if mapType != nil && mapType != "" {
 			mapHeader = fmt.Sprintf("%s - %s", mapHeader, mapType)
 		}
 
@@ -974,7 +951,7 @@ func createTerritorySheet(app *pocketbase.PocketBase, f *excelize.File, territor
 		row++
 
 		if err := createAddressTable(app, f, sheetName, mapRecord, options, &row); err != nil {
-			log.Printf("Failed to create address table for map %s: %v", mapRecord.Get("code"), err)
+			log.Printf("Failed to create address table for map %s: %v", mapRecord.Get("description"), err)
 		}
 
 		if len(maps) > 1 {
