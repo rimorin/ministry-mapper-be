@@ -2,7 +2,7 @@
 
 > Self-hosted territory management system built on PocketBase.
 
-[![Go Version](https://img.shields.io/badge/Go-1.24.7-00ADD8?logo=go)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go)](https://go.dev/)
 [![PocketBase](https://img.shields.io/badge/PocketBase-0.35.0-B8DBE4)](https://pocketbase.io/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -24,7 +24,7 @@
 
 ### Prerequisites
 
-- [Go 1.24+](https://go.dev/dl/)
+- [Go 1.25+](https://go.dev/dl/)
 - Git
 
 ### Installation

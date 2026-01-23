@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/labstack/echo/v5"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
@@ -412,5 +411,5 @@ func HandleOptionUpdate(c *core.RequestEvent, app *pocketbase.PocketBase) error 
 	}
 
 	log.Printf("Options update completed for congregation: %s", congregation)
-	return c.JSON(200, echo.Map{"message": "Options processed successfully"})
+	return c.JSON(200, map[string]any{"message": "Options processed successfully"})
 }
