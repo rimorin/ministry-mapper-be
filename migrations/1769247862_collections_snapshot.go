@@ -1036,11 +1036,11 @@ func init() {
 				"deleteRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && (@collection.roles:access.role ?= 'administrator' || @collection.roles:access.role ?= 'conductor')",
 				"fields": [
 					{
-						"autogeneratePattern": "[a-zA-Z0-9]{20}",
+						"autogeneratePattern": "[a-zA-Z0-9]{25}",
 						"hidden": false,
 						"id": "text3208210256",
-						"max": 20,
-						"min": 20,
+						"max": 25,
+						"min": 25,
 						"name": "id",
 						"pattern": "^[a-zA-Z0-9]+$",
 						"presentable": false,
@@ -1242,6 +1242,17 @@ func init() {
 						"system": false,
 						"type": "select",
 						"values": [
+							"us",
+							"cn",
+							"in",
+							"mx",
+							"eg",
+							"sa",
+							"bd",
+							"br",
+							"id",
+							"jp",
+							"kr",
 							"sg",
 							"my"
 						]
@@ -1256,8 +1267,26 @@ func init() {
 						"system": false,
 						"type": "select",
 						"values": [
+							"America/New_York",
+							"America/Chicago",
+							"America/Denver",
+							"America/Los_Angeles",
+							"America/Mexico_City",
+							"America/Sao_Paulo",
+							"Asia/Shanghai",
+							"Asia/Kolkata",
+							"Asia/Dhaka",
+							"Asia/Jakarta",
+							"Asia/Tokyo",
+							"Asia/Seoul",
 							"Asia/Singapore",
-							"Asia/Kuala_Lumpur"
+							"Asia/Kuala_Lumpur",
+							"Asia/Riyadh",
+							"Asia/Dubai",
+							"Africa/Cairo",
+							"Africa/Johannesburg",
+							"Australia/Sydney",
+							"Pacific/Auckland"
 						]
 					},
 					{
