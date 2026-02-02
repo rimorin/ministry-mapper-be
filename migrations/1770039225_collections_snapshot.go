@@ -651,7 +651,7 @@ func init() {
 						"type": "email"
 					},
 					{
-						"hidden": true,
+						"hidden": false,
 						"id": "bool1547992806",
 						"name": "emailVisibility",
 						"presentable": false,
@@ -660,7 +660,7 @@ func init() {
 						"type": "bool"
 					},
 					{
-						"hidden": true,
+						"hidden": false,
 						"id": "bool256245529",
 						"name": "verified",
 						"presentable": false,
@@ -683,7 +683,7 @@ func init() {
 						"type": "text"
 					},
 					{
-						"hidden": true,
+						"hidden": false,
 						"id": "deehajec",
 						"name": "disabled",
 						"presentable": false,
@@ -692,7 +692,7 @@ func init() {
 						"type": "bool"
 					},
 					{
-						"hidden": true,
+						"hidden": false,
 						"id": "date3359898891",
 						"max": "",
 						"min": "",
@@ -703,7 +703,7 @@ func init() {
 						"type": "date"
 					},
 					{
-						"hidden": true,
+						"hidden": false,
 						"id": "autodate2990389176",
 						"name": "created",
 						"onCreate": true,
@@ -713,7 +713,7 @@ func init() {
 						"type": "autodate"
 					},
 					{
-						"hidden": true,
+						"hidden": false,
 						"id": "autodate3332085495",
 						"name": "updated",
 						"onCreate": true,
