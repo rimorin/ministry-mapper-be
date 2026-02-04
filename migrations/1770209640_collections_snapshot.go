@@ -1911,6 +1911,16 @@ func init() {
 					},
 					{
 						"hidden": false,
+						"id": "json2551633526",
+						"maxSize": 0,
+						"name": "coordinates",
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "json"
+					},
+					{
+						"hidden": false,
 						"id": "autodate2990389176",
 						"name": "created",
 						"onCreate": true,
