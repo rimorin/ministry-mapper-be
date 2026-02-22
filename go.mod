@@ -7,7 +7,7 @@ require (
 	github.com/launchdarkly/go-sdk-common/v3 v3.5.0
 	github.com/launchdarkly/go-server-sdk/v7 v7.14.5
 	github.com/mailersend/mailersend-go v1.6.3
-	github.com/pocketbase/pocketbase v0.36.4
+	github.com/pocketbase/pocketbase v0.36.5
 	github.com/xuri/excelize/v2 v2.10.0
 )
 
@@ -63,5 +63,5 @@ require (
 	golang.org/x/text v0.34.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
-	modernc.org/sqlite v1.45.0 // indirect
+	modernc.org/sqlite v1.46.1 // indirect
 )
