@@ -46,7 +46,7 @@ func ProcessMapAggregates(mapID string, app *pocketbase.PocketBase, resetTerrito
 			COALESCE(SUM(CASE WHEN a.status = 'done' THEN 1 ELSE 0 END), 0) AS done,
 			COALESCE(SUM(CASE WHEN a.status = 'not_home' AND a.not_home_tries >= c.max_tries THEN 1 ELSE 0 END), 0) AS not_home_max_tries,
 			COALESCE(SUM(CASE WHEN a.status = 'not_home' AND a.not_home_tries < c.max_tries THEN 1 ELSE 0 END), 0) AS not_home_less_tries,
-			COALESCE(SUM(CASE WHEN a.status = 'dnc' THEN 1 ELSE 0 END), 0) AS dnc,
+			COALESCE(SUM(CASE WHEN a.status = 'do_not_call' THEN 1 ELSE 0 END), 0) AS dnc,
 			COALESCE(SUM(CASE WHEN a.status = 'invalid' THEN 1 ELSE 0 END), 0) AS invalid
         FROM addresses a 
         LEFT JOIN congregations c ON a.congregation = c.id 
@@ -56,7 +56,7 @@ func ProcessMapAggregates(mapID string, app *pocketbase.PocketBase, resetTerrito
             JOIN json_each(a.type) AS jt ON jt.value = co.id
             AND co.congregation = a.congregation
         ) 
-        AND a.status IN ('done', 'not_done', 'dnc', 'invalid', 'not_home') 
+        AND a.status IN ('done', 'not_done', 'do_not_call', 'invalid', 'not_home') 
         AND a.map = {:map}
     `).Bind(dbx.Params{"map": mapID}).One(&aggregates)
 	if err != nil {
@@ -143,7 +143,7 @@ func ProcessTerritoryAggregates(territoryID string, app *pocketbase.PocketBase) 
 			COALESCE(SUM(CASE WHEN a.status = 'done' THEN 1 ELSE 0 END), 0) AS done,
 			COALESCE(SUM(CASE WHEN a.status = 'not_home' AND a.not_home_tries >= c.max_tries THEN 1 ELSE 0 END), 0) AS not_home_max_tries,
 			COALESCE(SUM(CASE WHEN a.status = 'not_home' AND a.not_home_tries < c.max_tries THEN 1 ELSE 0 END), 0) AS not_home_less_tries,
-			COALESCE(SUM(CASE WHEN a.status = 'dnc' THEN 1 ELSE 0 END), 0) AS dnc,
+			COALESCE(SUM(CASE WHEN a.status = 'do_not_call' THEN 1 ELSE 0 END), 0) AS dnc,
 			COALESCE(SUM(CASE WHEN a.status = 'invalid' THEN 1 ELSE 0 END), 0) AS invalid
 		FROM addresses a
 		LEFT JOIN congregations c ON a.congregation = c.id
@@ -153,7 +153,7 @@ func ProcessTerritoryAggregates(territoryID string, app *pocketbase.PocketBase) 
             JOIN json_each(a.type) AS jt ON jt.value = co.id
             AND co.congregation = a.congregation
         )
-		AND a.status IN ('done', 'not_done', 'dnc', 'invalid', 'not_home')
+		AND a.status IN ('done', 'not_done', 'do_not_call', 'invalid', 'not_home')
 		AND a.territory = {:territory}
 	`).Bind(dbx.Params{"territory": territoryID}).One(&aggregates)
 	if err != nil {
