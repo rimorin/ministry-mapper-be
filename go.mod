@@ -3,12 +3,12 @@ module ministry-mapper
 go 1.25.0
 
 require (
-	github.com/getsentry/sentry-go v0.42.0
+	github.com/getsentry/sentry-go v0.43.0
 	github.com/launchdarkly/go-sdk-common/v3 v3.5.0
-	github.com/launchdarkly/go-server-sdk/v7 v7.14.5
+	github.com/launchdarkly/go-server-sdk/v7 v7.14.6
 	github.com/mailersend/mailersend-go v1.6.3
-	github.com/pocketbase/pocketbase v0.36.5
-	github.com/xuri/excelize/v2 v2.10.0
+	github.com/pocketbase/pocketbase v0.36.6
+	github.com/xuri/excelize/v2 v2.10.1
 )
 
 require (
@@ -31,6 +31,8 @@ require (
 	github.com/tiendc/go-deepcopy v1.7.2 // indirect
 	github.com/xuri/efp v0.0.1 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
+	golang.org/x/exp v0.0.0-20260112195511-716be5621a96 // indirect
+	golang.org/x/tools v0.42.0 // indirect
 	modernc.org/libc v1.67.6 // indirect
 )
 
@@ -54,9 +56,8 @@ require (
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
-	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
 	golang.org/x/image v0.36.0 // indirect
-	golang.org/x/net v0.50.0 // indirect
+	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
