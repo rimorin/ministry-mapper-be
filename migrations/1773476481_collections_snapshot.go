@@ -1951,6 +1951,156 @@ func init() {
 				"type": "base",
 				"updateRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && @collection.roles:access.role ?= 'administrator'",
 				"viewRule": null
+			},
+			{
+				"createRule": null,
+				"deleteRule": null,
+				"fields": [
+					{
+						"autogeneratePattern": "[a-z0-9]{15}",
+						"hidden": false,
+						"id": "text3208210256",
+						"max": 15,
+						"min": 15,
+						"name": "id",
+						"pattern": "^[a-z0-9]+$",
+						"presentable": false,
+						"primaryKey": true,
+						"required": true,
+						"system": true,
+						"type": "text"
+					},
+					{
+						"cascadeDelete": false,
+						"collectionId": "thnq0jvp13lr8ct",
+						"hidden": false,
+						"id": "relation223244161",
+						"maxSelect": 1,
+						"minSelect": 0,
+						"name": "address",
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "relation"
+					},
+					{
+						"cascadeDelete": false,
+						"collectionId": "zzljam3htisq5tv",
+						"hidden": false,
+						"id": "relation2104863268",
+						"maxSelect": 1,
+						"minSelect": 0,
+						"name": "congregation",
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "relation"
+					},
+					{
+						"autogeneratePattern": "",
+						"hidden": false,
+						"id": "text3916708198",
+						"max": 0,
+						"min": 0,
+						"name": "territory",
+						"pattern": "",
+						"presentable": false,
+						"primaryKey": false,
+						"required": false,
+						"system": false,
+						"type": "text"
+					},
+					{
+						"autogeneratePattern": "",
+						"hidden": false,
+						"id": "text2477632187",
+						"max": 0,
+						"min": 0,
+						"name": "map",
+						"pattern": "",
+						"presentable": false,
+						"primaryKey": false,
+						"required": false,
+						"system": false,
+						"type": "text"
+					},
+					{
+						"autogeneratePattern": "",
+						"hidden": false,
+						"id": "text852473499",
+						"max": 0,
+						"min": 0,
+						"name": "old_status",
+						"pattern": "",
+						"presentable": false,
+						"primaryKey": false,
+						"required": false,
+						"system": false,
+						"type": "text"
+					},
+					{
+						"autogeneratePattern": "",
+						"hidden": false,
+						"id": "text2207931702",
+						"max": 0,
+						"min": 0,
+						"name": "new_status",
+						"pattern": "",
+						"presentable": false,
+						"primaryKey": false,
+						"required": false,
+						"system": false,
+						"type": "text"
+					},
+					{
+						"autogeneratePattern": "",
+						"hidden": false,
+						"id": "text280784287",
+						"max": 0,
+						"min": 0,
+						"name": "changed_by",
+						"pattern": "",
+						"presentable": false,
+						"primaryKey": false,
+						"required": false,
+						"system": false,
+						"type": "text"
+					},
+					{
+						"hidden": false,
+						"id": "autodate2990389176",
+						"name": "created",
+						"onCreate": true,
+						"onUpdate": false,
+						"presentable": false,
+						"system": false,
+						"type": "autodate"
+					},
+					{
+						"hidden": false,
+						"id": "autodate3332085495",
+						"name": "updated",
+						"onCreate": true,
+						"onUpdate": true,
+						"presentable": false,
+						"system": false,
+						"type": "autodate"
+					}
+				],
+				"id": "pbc_3761286587",
+				"indexes": [
+					"CREATE INDEX ` + "`" + `idx_zJ75UsEjFK` + "`" + ` ON ` + "`" + `addresses_log` + "`" + ` (` + "`" + `address` + "`" + `)",
+					"CREATE INDEX ` + "`" + `idx_g8Vt8JC1av` + "`" + ` ON ` + "`" + `addresses_log` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)",
+					"CREATE INDEX ` + "`" + `idx_2gqasRAvRc` + "`" + ` ON ` + "`" + `addresses_log` + "`" + ` (\n  ` + "`" + `new_status` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)",
+					"CREATE INDEX ` + "`" + `idx_RQh6UExsxs` + "`" + ` ON ` + "`" + `addresses_log` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)",
+					"CREATE INDEX ` + "`" + `idx_BOxiQNfT5i` + "`" + ` ON ` + "`" + `addresses_log` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)"
+				],
+				"listRule": null,
+				"name": "addresses_log",
+				"system": false,
+				"type": "base",
+				"updateRule": null,
+				"viewRule": null
 			}
 		]`
 

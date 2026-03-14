@@ -146,6 +146,11 @@ func main() {
 		return e.Next()
 	})
 
+	app.OnRecordAfterUpdateSuccess("addresses").BindFunc(func(e *core.RecordEvent) error {
+		handlers.LogAddressStatusChange(e)
+		return e.Next()
+	})
+
 	app.OnRecordAuthRequest("users").BindFunc(func(e *core.RecordAuthRequestEvent) error {
 		e.Record.Set("last_login", time.Now())
 		if err := e.App.SaveNoValidate(e.Record); err != nil {
