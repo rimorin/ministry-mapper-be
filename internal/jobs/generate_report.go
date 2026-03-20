@@ -24,6 +24,7 @@ type ReportTemplateData struct {
 	CongregationCode string
 	ReportDate       string
 	FileName         string
+	RecipientName    string
 }
 
 type ReportRecipient struct {
@@ -50,7 +51,9 @@ func GenerateMonthlyReport(app *pocketbase.PocketBase) {
 	log.Println("Monthly report generation completed.")
 }
 
-func GenerateAndSendCongregationReport(app *pocketbase.PocketBase, congregation *core.Record) error {
+// generateReportBuffer builds the Excel report for a congregation and returns
+// the filename and raw bytes. Shared by both send variants below.
+func generateReportBuffer(app *pocketbase.PocketBase, congregation *core.Record) (string, []byte, error) {
 	f := excelize.NewFile()
 
 	congregationOptions, err := app.FindRecordsByFilter(
@@ -62,15 +65,15 @@ func GenerateAndSendCongregationReport(app *pocketbase.PocketBase, congregation 
 		dbx.Params{"congregation": congregation.Id},
 	)
 	if err != nil {
-		return fmt.Errorf("failed to fetch congregation options: %v", err)
+		return "", nil, fmt.Errorf("failed to fetch congregation options: %v", err)
 	}
 
 	if err := createDetailsSheet(app, f, congregation, congregationOptions); err != nil {
-		return fmt.Errorf("failed to create details sheet: %v", err)
+		return "", nil, fmt.Errorf("failed to create details sheet: %v", err)
 	}
 
 	if err := createAddressSheet(app, f, congregation); err != nil {
-		return fmt.Errorf("failed to create address sheet: %v", err)
+		return "", nil, fmt.Errorf("failed to create address sheet: %v", err)
 	}
 
 	territories, err := app.FindRecordsByFilter(
@@ -82,7 +85,7 @@ func GenerateAndSendCongregationReport(app *pocketbase.PocketBase, congregation 
 		dbx.Params{"congregation": congregation.Id},
 	)
 	if err != nil {
-		return fmt.Errorf("failed to fetch territories: %v", err)
+		return "", nil, fmt.Errorf("failed to fetch territories: %v", err)
 	}
 
 	for _, territory := range territories {
@@ -96,16 +99,39 @@ func GenerateAndSendCongregationReport(app *pocketbase.PocketBase, congregation 
 	currentTime := time.Now()
 	filename := fmt.Sprintf("%s_%s_%s.xlsx", congregation.Get("code"), currentTime.Format("01"), currentTime.Format("06"))
 
-	// Generate Excel file in memory
 	buffer, err := f.WriteToBuffer()
 	if err != nil {
-		return fmt.Errorf("failed to generate Excel buffer: %v", err)
+		return "", nil, fmt.Errorf("failed to generate Excel buffer: %v", err)
 	}
 
 	log.Printf("Generated report for congregation %s", congregation.Get("code"))
+	return filename, buffer.Bytes(), nil
+}
 
-	// Send email with the report attached
-	if err := sendReportEmailFromBuffer(app, congregation, filename, buffer.Bytes()); err != nil {
+// GenerateAndSendCongregationReport generates the Excel report and emails it
+// to all administrators of the congregation. Used by the monthly scheduled job.
+func GenerateAndSendCongregationReport(app *pocketbase.PocketBase, congregation *core.Record) error {
+	filename, content, err := generateReportBuffer(app, congregation)
+	if err != nil {
+		return err
+	}
+
+	if err := sendReportEmailFromBuffer(app, congregation, filename, content); err != nil {
+		return fmt.Errorf("failed to send email for congregation %s: %v", congregation.Get("code"), err)
+	}
+
+	return nil
+}
+
+// GenerateAndSendCongregationReportToUser generates the Excel report and emails it
+// only to the specified recipient. Used by the on-demand report endpoint.
+func GenerateAndSendCongregationReportToUser(app *pocketbase.PocketBase, congregation *core.Record, recipient *core.Record) error {
+	filename, content, err := generateReportBuffer(app, congregation)
+	if err != nil {
+		return err
+	}
+
+	if err := sendReportEmailToRecipient(app, congregation, filename, content, recipient); err != nil {
 		return fmt.Errorf("failed to send email for congregation %s: %v", congregation.Get("code"), err)
 	}
 
@@ -1427,6 +1453,66 @@ func sendReportEmailFromBuffer(app *pocketbase.PocketBase, congregation *core.Re
 	}
 
 	log.Println("Report email sent successfully")
+	return nil
+}
+
+// sendReportEmailToRecipient sends the report to a single specified recipient
+// instead of all congregation administrators. Used for on-demand report requests.
+func sendReportEmailToRecipient(app *pocketbase.PocketBase, congregation *core.Record, filename string, content []byte, recipient *core.Record) error {
+	name, _ := recipient.Get("name").(string)
+	email, _ := recipient.Get("email").(string)
+	if email == "" {
+		return fmt.Errorf("recipient has no email address")
+	}
+
+	log.Printf("Sending on-demand report for congregation %s to %s", congregation.Get("code"), email)
+
+	tmpl, err := template.ParseFiles("templates/report.html")
+	if err != nil {
+		log.Println("Error parsing template:", err)
+		return err
+	}
+
+	congregationName, _ := congregation.Get("name").(string)
+	congregationCode, _ := congregation.Get("code").(string)
+	currentDate := time.Now().Format("January 2006")
+	emailData := ReportTemplateData{
+		CongregationName: congregationName,
+		CongregationCode: congregationCode,
+		ReportDate:       currentDate,
+		FileName:         filename,
+		RecipientName:    name,
+	}
+
+	var body bytes.Buffer
+	if err := tmpl.Execute(&body, emailData); err != nil {
+		log.Println("Error executing template:", err)
+		return err
+	}
+
+	encoded := base64.StdEncoding.EncodeToString(content)
+
+	ms := mailersend.NewMailersend(os.Getenv("MAILERSEND_API_KEY"))
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	message := ms.Email.NewMessage()
+	message.SetFrom(mailersend.From{
+		Email: os.Getenv("MAILERSEND_FROM_EMAIL"),
+		Name:  "Ministry Mapper",
+	})
+	message.SetRecipients([]mailersend.Recipient{{Email: email, Name: name}})
+	message.SetSubject(fmt.Sprintf("Monthly Report for %s - %s", congregationName, currentDate))
+	message.SetHTML(body.String())
+	message.AddAttachment(mailersend.Attachment{Filename: filename, Content: encoded})
+
+	_, err = ms.Email.Send(ctx, message)
+	if err != nil {
+		log.Printf("Error sending on-demand report email: %v", err)
+		return err
+	}
+
+	log.Println("On-demand report email sent successfully")
 	return nil
 }
 

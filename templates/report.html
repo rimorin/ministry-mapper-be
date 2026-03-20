@@ -148,7 +148,7 @@
         </div>
 
         <div class="content">
-            <p>Hello Administrators,</p>
+            <p>Hello {{if .RecipientName}}{{.RecipientName}}{{else}}Administrators{{end}},</p>
             <p>The monthly report for <span class="congregation-name">{{.CongregationName}}</span> is ready and attached below.</p>
 
             <div class="report-details">
