@@ -170,6 +170,7 @@ func main() {
 		// Clean up and lower case the email
 		email = strings.ToLower(strings.TrimSpace(email))
 		e.Record.Set("email", email)
+		e.Record.SetEmailVisibility(true)
 		return e.Next()
 	})
 

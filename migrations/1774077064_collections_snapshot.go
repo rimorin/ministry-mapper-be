@@ -592,7 +592,7 @@ func init() {
 					"body": "<p>Hello,</p>\n<p>Click on the button below to confirm your new email address.</p>\n<p>\n  <a class=\"btn\" href=\"{APP_URL}/_/#/auth/confirm-email-change/{TOKEN}\" target=\"_blank\" rel=\"noopener\">Confirm new email</a>\n</p>\n<p><i>If you didn't ask to change your email address, you can ignore this email.</i></p>\n<p>\n  Thanks,<br/>\n  {APP_NAME} team\n</p>",
 					"subject": "Confirm your {APP_NAME} new email address"
 				},
-				"createRule": "@request.context = 'oauth2' || (@request.body.email:isset = true && @request.body.name:isset = true && @request.body.password:isset = true && @request.body.email:isset = true && @request.body.emailVisibility = true)",
+				"createRule": "@request.context = 'oauth2' || (@request.body.email:isset = true && @request.body.name:isset = true && @request.body.password:isset = true && @request.body.email:isset = true)",
 				"deleteRule": null,
 				"emailChangeToken": {
 					"duration": 1800
@@ -2123,7 +2123,7 @@ func init() {
 					{
 						"autogeneratePattern": "0",
 						"hidden": false,
-						"id": "_clone_D8Cr",
+						"id": "_clone_duNl",
 						"max": 0,
 						"min": 0,
 						"name": "code",
@@ -2136,7 +2136,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_30Uz",
+						"id": "_clone_Sx7F",
 						"maxSelect": 1,
 						"name": "type",
 						"presentable": false,
@@ -2152,7 +2152,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "kyfdlowtckhj9wm",
 						"hidden": false,
-						"id": "_clone_sJAJ",
+						"id": "_clone_SCgv",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "territory",
@@ -2165,7 +2165,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
 						"hidden": false,
-						"id": "_clone_gW4R",
+						"id": "_clone_Lm15",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2176,7 +2176,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_T3x8",
+						"id": "_clone_ONtv",
 						"max": null,
 						"min": null,
 						"name": "progress",
@@ -2188,7 +2188,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_iI6H",
+						"id": "_clone_LdSS",
 						"max": null,
 						"min": null,
 						"name": "sequence",
@@ -2200,7 +2200,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_cZKB",
+						"id": "_clone_cCJV",
 						"name": "created",
 						"onCreate": true,
 						"onUpdate": false,
@@ -2210,7 +2210,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_RMxV",
+						"id": "_clone_OHK3",
 						"name": "updated",
 						"onCreate": true,
 						"onUpdate": true,
@@ -2320,7 +2320,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_f43o",
+						"id": "_clone_1dEV",
 						"max": 0,
 						"min": 0,
 						"name": "code",
@@ -2334,7 +2334,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_7WPV",
+						"id": "_clone_Gowh",
 						"max": 0,
 						"min": 0,
 						"name": "description",
@@ -2349,7 +2349,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
 						"hidden": false,
-						"id": "_clone_tk9q",
+						"id": "_clone_w0qa",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2360,7 +2360,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_BZEB",
+						"id": "_clone_Mrbk",
 						"max": 100,
 						"min": 0,
 						"name": "progress",
@@ -2373,7 +2373,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_OuHP",
+						"id": "_clone_PD9v",
 						"max": 0,
 						"min": 0,
 						"name": "congregation_name",
@@ -2489,7 +2489,7 @@ func init() {
 						"cascadeDelete": false,
 						"collectionId": "zzljam3htisq5tv",
 						"hidden": false,
-						"id": "_clone_iM9H",
+						"id": "_clone_3Krb",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2501,7 +2501,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_he0x",
+						"id": "_clone_FiO5",
 						"max": 0,
 						"min": 0,
 						"name": "territory",
@@ -2515,7 +2515,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_R026",
+						"id": "_clone_P7GS",
 						"max": 0,
 						"min": 0,
 						"name": "new_status",
@@ -2571,7 +2571,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
 						"hidden": false,
-						"id": "_clone_HVnw",
+						"id": "_clone_UrCm",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2584,7 +2584,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "kyfdlowtckhj9wm",
 						"hidden": false,
-						"id": "_clone_WPh6",
+						"id": "_clone_UjFZ",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "territory",
@@ -2597,7 +2597,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "rupq6yj561mghrr",
 						"hidden": false,
-						"id": "_clone_Gnqs",
+						"id": "_clone_LWCu",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "map",
@@ -2608,7 +2608,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_CyRC",
+						"id": "_clone_zZvA",
 						"max": null,
 						"min": null,
 						"name": "not_home_tries",
@@ -2620,7 +2620,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_Bt4x",
+						"id": "_clone_JDjY",
 						"max": null,
 						"min": null,
 						"name": "max_tries",
@@ -2642,7 +2642,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_DWnu",
+						"id": "_clone_Ql9T",
 						"name": "updated",
 						"onCreate": true,
 						"onUpdate": true,
@@ -2682,7 +2682,7 @@ func init() {
 					{
 						"autogeneratePattern": "user[0-9]{5}[A-Za-z]",
 						"hidden": false,
-						"id": "_clone_gOdg",
+						"id": "_clone_hR5A",
 						"max": 50,
 						"min": 2,
 						"name": "name",
@@ -2696,7 +2696,7 @@ func init() {
 					{
 						"exceptDomains": null,
 						"hidden": false,
-						"id": "_clone_GOgQ",
+						"id": "_clone_srje",
 						"name": "email",
 						"onlyDomains": null,
 						"presentable": false,
@@ -2706,7 +2706,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_Mmvk",
+						"id": "_clone_RJYi",
 						"max": "",
 						"min": "",
 						"name": "last_login",
@@ -2729,7 +2729,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_3GHd",
+						"id": "_clone_9aEn",
 						"name": "disabled",
 						"presentable": false,
 						"required": false,
@@ -2738,7 +2738,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_UzrW",
+						"id": "_clone_h1Fk",
 						"name": "verified",
 						"presentable": false,
 						"required": false,
@@ -2747,7 +2747,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_lAqE",
+						"id": "_clone_QhBh",
 						"name": "created",
 						"onCreate": true,
 						"onUpdate": false,
