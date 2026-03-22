@@ -25,6 +25,7 @@ type ReportTemplateData struct {
 	ReportDate       string
 	FileName         string
 	RecipientName    string
+	Summary          SummaryData
 }
 
 type ReportRecipient struct {
@@ -32,7 +33,7 @@ type ReportRecipient struct {
 	Email string `db:"email"`
 }
 
-func GenerateMonthlyReport(app *pocketbase.PocketBase) {
+func GenerateMonthlyReport(app *pocketbase.PocketBase, aiEnabled bool) {
 	log.Println("Starting monthly report generation...")
 
 	congregations, err := app.FindRecordsByFilter("congregations", "", "", 0, 0)
@@ -42,7 +43,7 @@ func GenerateMonthlyReport(app *pocketbase.PocketBase) {
 	}
 
 	for _, congregation := range congregations {
-		if err := GenerateAndSendCongregationReport(app, congregation); err != nil {
+		if err := GenerateAndSendCongregationReport(app, congregation, aiEnabled); err != nil {
 			log.Printf("Failed to generate and send report for congregation %s: %v", congregation.Get("code"), err)
 			continue
 		}
@@ -96,8 +97,7 @@ func generateReportBuffer(app *pocketbase.PocketBase, congregation *core.Record)
 		}
 	}
 
-	currentTime := time.Now()
-	filename := fmt.Sprintf("%s_%s_%s.xlsx", congregation.Get("code"), currentTime.Format("01"), currentTime.Format("06"))
+	filename := fmt.Sprintf("%s_%s_%s.xlsx", congregation.Get("code"), reportMonth().Format("01"), reportMonth().Format("06"))
 
 	buffer, err := f.WriteToBuffer()
 	if err != nil {
@@ -110,13 +110,13 @@ func generateReportBuffer(app *pocketbase.PocketBase, congregation *core.Record)
 
 // GenerateAndSendCongregationReport generates the Excel report and emails it
 // to all administrators of the congregation. Used by the monthly scheduled job.
-func GenerateAndSendCongregationReport(app *pocketbase.PocketBase, congregation *core.Record) error {
+func GenerateAndSendCongregationReport(app *pocketbase.PocketBase, congregation *core.Record, aiEnabled bool) error {
 	filename, content, err := generateReportBuffer(app, congregation)
 	if err != nil {
 		return err
 	}
 
-	if err := sendReportEmailFromBuffer(app, congregation, filename, content); err != nil {
+	if err := sendReportEmailFromBuffer(app, congregation, filename, content, aiEnabled); err != nil {
 		return fmt.Errorf("failed to send email for congregation %s: %v", congregation.Get("code"), err)
 	}
 
@@ -131,11 +131,47 @@ func GenerateAndSendCongregationReportToUser(app *pocketbase.PocketBase, congreg
 		return err
 	}
 
-	if err := sendReportEmailToRecipient(app, congregation, filename, content, recipient); err != nil {
+	if err := sendReportEmailToRecipient(app, congregation, filename, content, recipient, generateAISummary(app, congregation, IsAISummaryEnabled())); err != nil {
 		return fmt.Errorf("failed to send email for congregation %s: %v", congregation.Get("code"), err)
 	}
 
 	return nil
+}
+
+// generateAISummary builds the summary data from analytics views and requests a narrative
+// from the OpenAI API. When aiEnabled is false, or OPENAI_API_KEY is unset, or the call
+// fails for any reason, it returns a SummaryData with Available=false so the email template
+// gracefully omits the section rather than erroring.
+func generateAISummary(app *pocketbase.PocketBase, congregation *core.Record, aiEnabled bool) SummaryData {
+	if !aiEnabled {
+		return SummaryData{}
+	}
+
+	client := newLLMClient()
+	if client == nil {
+		log.Printf("AI summary skipped for %s: OPENAI_API_KEY not set", congregation.Get("code"))
+		return SummaryData{}
+	}
+
+	data, err := BuildSummaryData(app, congregation)
+	if err != nil {
+		log.Printf("AI summary: failed to build data for %s: %v", congregation.Get("code"), err)
+		return SummaryData{}
+	}
+
+	systemMsg, userMsg := BuildPrompt(data)
+
+	llmResp, err := client.generateSummary(systemMsg, userMsg)
+	if err != nil {
+		log.Printf("AI summary: LLM call failed for %s: %v", congregation.Get("code"), err)
+		return SummaryData{}
+	}
+
+	data.Available = true
+	data.CoveredActivity = llmResp.CoveredActivity
+	data.TerritoryAnalysis = llmResp.TerritoryAnalysis
+	data.Conclusion = llmResp.Conclusion
+	return data
 }
 
 func getMainHeaderStyle(f *excelize.File) (int, error) {
@@ -1363,7 +1399,7 @@ func getStatusSymbol(status string) string {
 	}
 }
 
-func sendReportEmailFromBuffer(app *pocketbase.PocketBase, congregation *core.Record, filename string, content []byte) error {
+func sendReportEmailFromBuffer(app *pocketbase.PocketBase, congregation *core.Record, filename string, content []byte, aiEnabled bool) error {
 	log.Printf("Sending report email for congregation: %s", congregation.Get("code"))
 
 	// Get recipients (administrators) for the congregation
@@ -1390,12 +1426,15 @@ func sendReportEmailFromBuffer(app *pocketbase.PocketBase, congregation *core.Re
 	}
 
 	// Prepare email data
-	currentDate := time.Now().Format("January 2006")
+	reportDate := previousMonthLabel()
+	congregationName, _ := congregation.Get("name").(string)
+	congregationCode, _ := congregation.Get("code").(string)
 	emailData := ReportTemplateData{
-		CongregationName: congregation.Get("name").(string),
-		CongregationCode: congregation.Get("code").(string),
-		ReportDate:       currentDate,
+		CongregationName: congregationName,
+		CongregationCode: congregationCode,
+		ReportDate:       reportDate,
 		FileName:         filename,
+		Summary:          generateAISummary(app, congregation, aiEnabled),
 	}
 
 	// Execute template
@@ -1434,7 +1473,7 @@ func sendReportEmailFromBuffer(app *pocketbase.PocketBase, congregation *core.Re
 	message.SetRecipients(emailRecipients)
 
 	// Set subject and body
-	subject := fmt.Sprintf("Monthly Report for %s - %s", congregation.Get("name"), currentDate)
+	subject := fmt.Sprintf("Monthly Report for %s - %s", congregation.Get("name"), reportDate)
 	message.SetSubject(subject)
 	message.SetHTML(body.String())
 
@@ -1458,7 +1497,7 @@ func sendReportEmailFromBuffer(app *pocketbase.PocketBase, congregation *core.Re
 
 // sendReportEmailToRecipient sends the report to a single specified recipient
 // instead of all congregation administrators. Used for on-demand report requests.
-func sendReportEmailToRecipient(app *pocketbase.PocketBase, congregation *core.Record, filename string, content []byte, recipient *core.Record) error {
+func sendReportEmailToRecipient(app *pocketbase.PocketBase, congregation *core.Record, filename string, content []byte, recipient *core.Record, summary SummaryData) error {
 	name, _ := recipient.Get("name").(string)
 	email, _ := recipient.Get("email").(string)
 	if email == "" {
@@ -1475,13 +1514,14 @@ func sendReportEmailToRecipient(app *pocketbase.PocketBase, congregation *core.R
 
 	congregationName, _ := congregation.Get("name").(string)
 	congregationCode, _ := congregation.Get("code").(string)
-	currentDate := time.Now().Format("January 2006")
+	reportDate := previousMonthLabel()
 	emailData := ReportTemplateData{
 		CongregationName: congregationName,
 		CongregationCode: congregationCode,
-		ReportDate:       currentDate,
+		ReportDate:       reportDate,
 		FileName:         filename,
 		RecipientName:    name,
+		Summary:          summary,
 	}
 
 	var body bytes.Buffer
@@ -1502,7 +1542,7 @@ func sendReportEmailToRecipient(app *pocketbase.PocketBase, congregation *core.R
 		Name:  "Ministry Mapper",
 	})
 	message.SetRecipients([]mailersend.Recipient{{Email: email, Name: name}})
-	message.SetSubject(fmt.Sprintf("Monthly Report for %s - %s", congregationName, currentDate))
+	message.SetSubject(fmt.Sprintf("Monthly Report for %s - %s", congregationName, reportDate))
 	message.SetHTML(body.String())
 	message.AddAttachment(mailersend.Attachment{Filename: filename, Content: encoded})
 

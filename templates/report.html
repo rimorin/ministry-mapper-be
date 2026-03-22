@@ -28,15 +28,15 @@
             text-align: center;
         }
         .header h1 {
-            margin: 0 0 15px;
-            font-size: 28px;
+            margin: 0 0 6px;
+            font-size: 26px;
             font-weight: 700;
             letter-spacing: 0.5px;
         }
         .header p {
             margin: 0;
-            font-size: 16px;
-            opacity: 0.9;
+            font-size: 15px;
+            opacity: 0.8;
         }
         .content {
             padding: 30px 25px;
@@ -45,20 +45,10 @@
             margin: 0 0 15px;
             font-size: 16px;
         }
-        .congregation-name {
-            font-weight: 600;
-            color: #2c3e50;
-            background: #f8f9fa;
-            padding: 4px 12px;
-            border-radius: 6px;
-            border: 1px solid #e1e4e8;
-            display: inline-block;
-            margin: 0 4px;
-        }
         .report-details {
             background: #f8f9fa;
-            border-radius: 12px;
-            padding: 20px;
+            border-radius: 10px;
+            padding: 14px 18px;
             margin: 20px 0;
             border-left: 4px solid #27ae60;
         }
@@ -66,7 +56,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px 0;
+            padding: 6px 0;
             border-bottom: 1px solid #e1e4e8;
         }
         .report-item:last-child {
@@ -75,67 +65,115 @@
         .report-label {
             font-weight: 600;
             color: #2c3e50;
+            font-size: 14px;
         }
         .report-value {
             color: #666;
             font-size: 14px;
         }
-        .attachment-notice {
-            background: #e8f5e8;
-            border: 2px solid #27ae60;
+        .ai-summary {
+            background: #f0f7ff;
             border-radius: 12px;
             padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #3498db;
+        }
+        .ai-summary-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1a5276;
+            margin: 0 0 16px;
+        }
+        .ai-section {
+            border-left: 3px solid #d6eaf8;
+            padding-left: 12px;
+            margin: 0 0 14px;
+        }
+        .ai-section-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #4A90B8;
+            letter-spacing: 0.6px;
+            margin: 0 0 4px;
+            text-transform: uppercase;
+        }
+        .ai-narrative {
+            font-size: 15px;
+            color: #2c3e50;
+            line-height: 1.7;
+            margin: 0;
+        }
+        .ai-stats-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 16px 0;
+        }
+        .ai-stat {
+            background: #ffffff;
+            border: 1px solid #d6eaf8;
+            border-radius: 8px;
+            padding: 8px 14px;
+            text-align: center;
+            min-width: 76px;
+        }
+        .ai-stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1a5276;
+        }
+        .ai-stat-label {
+            font-size: 11px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .ai-section > p {
+            font-size: 14px;
+            color: #2c3e50;
+            line-height: 1.6;
+            margin: 0;
+        }
+        .attachment-notice {
+            background: #f0faf0;
+            border: 1px solid #a9dfbf;
+            border-radius: 10px;
+            padding: 14px 18px;
             margin: 20px 0;
             text-align: center;
         }
         .attachment-icon {
-            font-size: 48px;
-            color: #27ae60;
-            margin-bottom: 10px;
+            font-size: 22px;
+            display: inline;
+            margin-right: 8px;
+            vertical-align: middle;
         }
         .attachment-text {
             font-weight: 600;
-            color: #2c3e50;
-            font-size: 16px;
-            margin-bottom: 5px;
-        }
-        .attachment-description {
-            color: #666;
-            font-size: 14px;
+            color: #1e8449;
+            font-size: 15px;
+            display: inline;
+            vertical-align: middle;
         }
         .footer {
             background: #f8f9fa;
-            padding: 25px;
+            padding: 20px 25px;
             text-align: center;
             border-top: 1px solid #e1e4e8;
         }
         .footer p {
-            margin: 5px 0;
-            font-size: 14px;
-            color: #666;
+            margin: 4px 0;
+            font-size: 13px;
+            color: #999;
         }
 
         @media (max-width: 600px) {
-            body {
-                padding: 10px;
-            }
-            .container {
-                border-radius: 8px;
-            }
-            .header {
-                padding: 20px 15px;
-            }
-            .header h1 {
-                font-size: 20px;
-            }
-            .content {
-                padding: 20px 15px;
-            }
-            .report-item {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 5px;
-            }
+            body { padding: 10px; }
+            .container { border-radius: 8px; }
+            .header { padding: 20px 15px; }
+            .header h1 { font-size: 20px; }
+            .content { padding: 20px 15px; }
+            .report-item { flex-direction: column; align-items: flex-start; gap: 2px; }
         }
     </style>
 </head>
@@ -143,36 +181,83 @@
     <div class="container">
         <div class="header">
             <img src="https://utfs.io/f/bVgrXJoWK1jGDTTaL1pCQvoZy96OGp3idmtuIMAB2PfK7RjS" alt="App Logo" style="width: 25%; height: auto; margin-bottom: 20px;">
-            <h1>Monthly Report Ready</h1>
-            <p>Your congregation's detailed monthly report is attached</p>
+            <h1>{{.CongregationName}}</h1>
+            <p>Monthly Report — {{.ReportDate}}</p>
         </div>
 
         <div class="content">
             <p>Hello {{if .RecipientName}}{{.RecipientName}}{{else}}Administrators{{end}},</p>
-            <p>The monthly report for <span class="congregation-name">{{.CongregationName}}</span> is ready and attached below.</p>
 
+            {{if .Summary.Available}}
+            <div class="ai-summary">
+                <p class="ai-summary-title">📋 Territory Overview</p>
+
+                {{if .Summary.CoveredActivity}}
+                <div class="ai-section">
+                    <p class="ai-section-label">This Month's Coverage</p>
+                    <p class="ai-narrative">{{.Summary.CoveredActivity}}</p>
+                </div>
+                {{end}}
+
+                {{if .Summary.TerritoryAnalysis}}
+                <div class="ai-section">
+                    <p class="ai-section-label">Territory Analysis</p>
+                    <p class="ai-narrative">{{.Summary.TerritoryAnalysis}}</p>
+                </div>
+                {{end}}
+
+                {{if .Summary.Conclusion}}
+                <div class="ai-section">
+                    <p class="ai-section-label">Overall Progress</p>
+                    <p class="ai-narrative">{{.Summary.Conclusion}}</p>
+                </div>
+                {{end}}
+
+                {{if .Summary.Activity}}
+                <div class="ai-stats-row">
+                    <div class="ai-stat">
+                        <div class="ai-stat-value">{{.Summary.TotalChanges}}</div>
+                        <div class="ai-stat-label">All Visits</div>
+                    </div>
+                    {{range .Summary.Activity}}{{if eq .Status "done"}}
+                    <div class="ai-stat">
+                        <div class="ai-stat-value">{{.Count}}</div>
+                        <div class="ai-stat-label">Completed</div>
+                    </div>
+                    {{end}}{{end}}
+                    {{range .Summary.Activity}}{{if eq .Status "not_home"}}
+                    <div class="ai-stat">
+                        <div class="ai-stat-value">{{.Count}}</div>
+                        <div class="ai-stat-label">Not Home</div>
+                    </div>
+                    {{end}}{{end}}
+                    {{range .Summary.Activity}}{{if eq .Status "do_not_call"}}
+                    <div class="ai-stat">
+                        <div class="ai-stat-value">{{.Count}}</div>
+                        <div class="ai-stat-label">DNC</div>
+                    </div>
+                    {{end}}{{end}}
+                </div>
+                {{end}}
+
+            </div>
+            {{else}}
             <div class="report-details">
                 <div class="report-item">
-                    <span class="report-label">Report Month:</span>
+                    <span class="report-label">Report Month</span>
                     <span class="report-value">{{.ReportDate}}</span>
                 </div>
-                <div class="report-item">
-                    <span class="report-label">File Name:</span>
-                    <span class="report-value">{{.FileName}}</span>
-                </div>
             </div>
+            {{end}}
 
             <div class="attachment-notice">
                 <div class="attachment-icon">📊</div>
                 <div class="attachment-text">Excel Report Attached</div>
-                <div class="attachment-description">
-                    Comprehensive territory details, maps overview, address tables, and congregation roles data.
-                </div>
             </div>
         </div>
 
         <div class="footer">
-            <p>© 2025 Ministry Mapper. All rights reserved.</p>
+            <p>© 2026 Ministry Mapper. All rights reserved.</p>
             <p>You received this email because you're an administrator of your congregation.</p>
         </div>
     </div>

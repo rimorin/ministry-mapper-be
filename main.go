@@ -122,11 +122,11 @@ func main() {
 			return handlers.HandleOptionUpdate(c, app)
 		})
 
+		jobs.ConfigureScheduler(app)
+
 		bindAuthenticatedRoute("/report/generate", func(c *core.RequestEvent) error {
 			return handlers.HandleGenerateReport(c, app, jobs.GenerateAndSendCongregationReportToUser)
 		})
-
-		jobs.ConfigureScheduler(app)
 
 		return e.Next()
 	})
