@@ -3,9 +3,10 @@ package jobs
 import (
 	"bytes"
 	"context"
+	"html/template"
 	"log"
 	"os"
-	"text/template"
+	"strings"
 	"time"
 
 	"github.com/mailersend/mailersend-go"
@@ -14,14 +15,57 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 )
 
+// BuildInstructionsPrompt constructs the system and user messages for the instructions AI overview.
+func BuildInstructionsPrompt(messages []messagesData, mapName string) (systemMsg, userMsg string) {
+	systemMsg = `You are an assistant helping congregation publishers understand instructions ` +
+		`from their administrator about their assigned territory map. ` +
+		`These instructions may include directives, special conditions, access notes, ` +
+		`or other guidance the administrator wants publishers to follow. ` +
+		`Analyse the instructions and return a JSON object with exactly one field: ` +
+		`"overview" (2-3 sentence narrative summarising the key directives and what publishers need to do or be aware of). ` +
+		`Be factual, concise, and respectful.`
+
+	var sb strings.Builder
+	sb.WriteString("Administrator instructions for territory map " + mapName + ":\n\n")
+	for _, m := range messages {
+		sb.WriteString("From: " + m.Publisher + "\n")
+		sb.WriteString("Date: " + m.Date + "\n")
+		sb.WriteString("Instruction: " + m.Message + "\n\n")
+	}
+	userMsg = sb.String()
+	return
+}
+
+// generateInstructionsAISummary builds an OverviewSummary from the instructions list.
+// Returns an empty OverviewSummary (Available=false) if AI is disabled or the call fails.
+func generateInstructionsAISummary(messages []messagesData, mapName string) OverviewSummary {
+	client := newLLMClient()
+	if client == nil {
+		log.Printf("AI overview skipped for instructions (%s): OPENAI_API_KEY not set", mapName)
+		return OverviewSummary{}
+	}
+
+	systemMsg, userMsg := BuildInstructionsPrompt(messages, mapName)
+	resp, err := client.generateOverview(systemMsg, userMsg)
+	if err != nil {
+		log.Printf("AI overview: LLM call failed for instructions (%s): %v", mapName, err)
+		return OverviewSummary{}
+	}
+
+	return OverviewSummary{
+		Available: true,
+		Overview:  resp.Overview,
+	}
+}
+
 func processInstruction(mapID string, app *pocketbase.PocketBase) error {
-	log.Printf("Processing messagess for map: %s", mapID)
+	log.Printf("Processing instructions for map: %s", mapID)
 
 	if mapID == "" {
 		return apis.NewBadRequestError("Map ID is required", nil)
 	}
 
-	// Get map record to get publisher info
+	// Get map record
 	mapRecord, err := app.FindRecordById("maps", mapID)
 	if err != nil {
 		log.Println("Error finding map:", err)
@@ -45,7 +89,7 @@ func processInstruction(mapID string, app *pocketbase.PocketBase) error {
 
 	territoryCode := territoryRecord.Get("code").(string)
 
-	// Get messages
+	// Get instructions
 	messages, err := app.FindRecordsByFilter("messages", "map = {:map} && pinned = true && type = 'administrator'", "created", 0, 0, dbx.Params{"map": mapID})
 	if err != nil {
 		log.Println("Error finding messages by filter:", err)
@@ -53,7 +97,7 @@ func processInstruction(mapID string, app *pocketbase.PocketBase) error {
 	}
 
 	if len(messages) == 0 {
-		log.Println("No messages found")
+		log.Println("No instructions found")
 		return nil
 	}
 	recipients := []Recipient{}
@@ -90,7 +134,7 @@ func processInstruction(mapID string, app *pocketbase.PocketBase) error {
 		location = time.UTC // fallback
 	}
 
-	// Process messagess
+	// Process instructions
 	for _, messages := range messages {
 		messagesData := messagesData{
 			Publisher: messages.Get("created_by").(string),
@@ -98,6 +142,10 @@ func processInstruction(mapID string, app *pocketbase.PocketBase) error {
 			Date:      messages.GetDateTime("created").Time().In(location).Format("03:04 PM, 02 Jan 2006"),
 		}
 		emailData.Messages = append(emailData.Messages, messagesData)
+	}
+
+	if IsAISummaryEnabled() {
+		emailData.Summary = generateInstructionsAISummary(emailData.Messages, emailData.MapName)
 	}
 
 	// Execute template
@@ -133,7 +181,7 @@ func processInstruction(mapID string, app *pocketbase.PocketBase) error {
 
 	message.SetRecipients(emailRecipents)
 
-	message.SetSubject("New instructions Received for " + mapRecord.Get("description").(string))
+	message.SetSubject("New instructions received for " + mapRecord.Get("description").(string))
 	message.SetHTML(body.String())
 
 	// Send email
@@ -146,25 +194,15 @@ func processInstruction(mapID string, app *pocketbase.PocketBase) error {
 	return nil
 }
 
-// processInstructions processes instructions for maps based on a given time interval.
-// It fetches all maps that have associated messages which are pinned, of type 'administrator',
-// and created within the specified time interval. For each map found, it processes the instructions.
-//
-// Parameters:
-// - app: A pointer to the PocketBase application instance.
-// - timeIntervalMinutes: The time interval in minutes to look back for messages.
-//
-// Returns:
-// - error: An error if there is an issue fetching maps or processing instructions, otherwise nil.
 func processInstructions(app *pocketbase.PocketBase, timeIntervalMinutes int) error {
-	log.Println("Starting messages processing")
+	log.Println("Starting instructions processing")
 
 	maps := []MapData{}
 
 	// Calculate the time using the time interval
 	timeBuffer := time.Duration(-timeIntervalMinutes) * time.Minute
 
-	// Fetch all messagess that have not been processed
+	// Fetch all instructions that have not been processed
 	err := app.DB().Select("maps.id").Distinct(true).From("maps").InnerJoin("messages", dbx.NewExp("messages.map = maps.id and messages.pinned = true and messages.type = 'administrator'")).Where(dbx.NewExp("messages.created > {:created}", dbx.Params{"created": time.Now().UTC().Add(timeBuffer)})).All(&maps)
 
 	if err != nil {

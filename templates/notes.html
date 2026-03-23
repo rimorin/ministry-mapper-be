@@ -45,14 +45,6 @@
             margin: 0 0 15px;
             font-size: 16px;
         }
-        .map-name {
-            font-weight: 600;
-            color: #2c3e50;
-            background: #f8f9fa;
-            padding: 2px 8px;
-            border-radius: 4px;
-            border: 1px solid #e1e4e8;
-        }
         .notes-container {
             max-height: 450px;
             overflow-y: auto;
@@ -61,6 +53,25 @@
             margin: 25px 0;
             border-radius: 12px;
             background: #f8f9fa;
+        }
+        .ai-summary {
+            background: #f0f7ff;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #3498db;
+        }
+        .ai-summary-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1a5276;
+            margin: 0 0 16px;
+        }
+        .ai-narrative {
+            font-size: 15px;
+            color: #2c3e50;
+            line-height: 1.7;
+            margin: 0;
         }
         .note-item {
             border: 1px solid #e1e4e8;
@@ -161,6 +172,13 @@
             <p>There are updates on the following notes:</p>
 
             <div class="notes-container">
+                {{if .Summary.Available}}
+                <div class="ai-summary">
+                    <p class="ai-summary-title">📋 Property Notes Overview</p>
+                    <p class="ai-narrative">{{.Summary.Overview}}</p>
+                </div>
+                {{end}}
+
                 {{range .Notes}}
                 <div class="note-item">
                     <div class="publisher">
@@ -181,7 +199,7 @@
         </div>
 
         <div class="footer">
-            <p>© 2025 Ministry Mapper. All rights reserved.</p>
+            <p>© 2026 Ministry Mapper. All rights reserved.</p>
             <p>You received this email because you're an administrator of your congregation.</p>
         </div>
     </div>

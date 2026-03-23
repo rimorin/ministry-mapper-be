@@ -5,7 +5,8 @@ import (
 	"context"
 	"log"
 	"os"
-	"text/template"
+	"strings"
+	"html/template"
 	"time"
 
 	"github.com/mailersend/mailersend-go"
@@ -22,41 +23,69 @@ type messagesData struct {
 type EmailTemplateData struct {
 	Messages []messagesData
 	MapName  string
+	Summary  OverviewSummary
 }
 
-// struct for maps
+// BuildMessagesPrompt constructs the system and user messages for the messages AI overview.
+func BuildMessagesPrompt(messages []messagesData, mapName string) (systemMsg, userMsg string) {
+	systemMsg = `You are an assistant helping congregation administrators review a digest of ` +
+		`recently received feedback messages from publishers about their assigned map territory. ` +
+		`Messages may cover topics like map boundaries, access difficulties, special conditions, ` +
+		`coordination requests, territory observations, or address corrections such as missing ` +
+		`house numbers and incorrect unit details. ` +
+		`Analyse the messages and return a JSON object with exactly two fields: ` +
+		`"overview" (2-3 sentence narrative summarising the recent publisher feedback about the map) and ` +
+		`"key_themes" (1-2 sentences identifying the main concerns or action items administrators ` +
+		`should address, including any address data corrections needed). ` +
+		`Be factual, concise, and respectful.`
+
+	var sb strings.Builder
+	sb.WriteString("Recent publisher feedback for map " + mapName + ":\n\n")
+	for _, m := range messages {
+		sb.WriteString("Publisher: " + m.Publisher + "\n")
+		sb.WriteString("Date: " + m.Date + "\n")
+		sb.WriteString("Message: " + m.Message + "\n\n")
+	}
+	userMsg = sb.String()
+	return
+}
+
+// generateMessagesAISummary builds an OverviewSummary from the messages list.
+// Returns an empty OverviewSummary (Available=false) if AI is disabled or the call fails.
+func generateMessagesAISummary(messages []messagesData, mapName string) OverviewSummary {
+	client := newLLMClient()
+	if client == nil {
+		log.Printf("AI overview skipped for messages (%s): OPENAI_API_KEY not set", mapName)
+		return OverviewSummary{}
+	}
+
+	systemMsg, userMsg := BuildMessagesPrompt(messages, mapName)
+	resp, err := client.generateOverview(systemMsg, userMsg)
+	if err != nil {
+		log.Printf("AI overview: LLM call failed for messages (%s): %v", mapName, err)
+		return OverviewSummary{}
+	}
+
+	return OverviewSummary{
+		Available: true,
+		Overview:  resp.Overview,
+		KeyThemes: resp.KeyThemes,
+	}
+}
+
+// MapData holds a map ID for batch processing.
 type MapData struct {
 	ID string `db:"id"`
 }
 
-// struct for recipients
+// Recipient holds the name and email of an email recipient.
 type Recipient struct {
 	Name  string `db:"name"`
 	Email string `db:"email"`
 }
 
-// processMessage processes messages for a given map ID and sends email notifications to administrators.
-// It performs the following steps:
-// 1. Validates the map ID.
-// 2. Retrieves the map record to get publisher information.
-// 3. Retrieves the congregation and territory records associated with the map.
-// 4. Fetches unread messages for the map that are not from administrators.
-// 5. Retrieves the list of administrator recipients for the congregation.
-// 6. Loads the email template.
-// 7. Prepares the email data with the messages and map information.
-// 8. Executes the email template to generate the email body.
-// 9. Initializes the MailerSend client and creates the email message.
-// 10. Sets the email sender, recipients, subject, and body.
-// 11. Sends the email and logs the result.
-//
-// Parameters:
-// - mapID: The ID of the map to process messages for.
-// - app: The PocketBase application instance.
-//
-// Returns:
-// - error: An error if any step fails, otherwise nil.
 func processMessage(mapID string, app *pocketbase.PocketBase) error {
-	log.Printf("Processing messagess for map: %s", mapID)
+	log.Printf("Processing messages for map: %s", mapID)
 
 	if mapID == "" {
 		return apis.NewBadRequestError("Map ID is required", nil)
@@ -131,7 +160,7 @@ func processMessage(mapID string, app *pocketbase.PocketBase) error {
 		location = time.UTC // fallback
 	}
 
-	// Process messagess
+	// Process messages
 	for _, messages := range messages {
 		messagesData := messagesData{
 			Publisher: messages.Get("created_by").(string),
@@ -139,6 +168,10 @@ func processMessage(mapID string, app *pocketbase.PocketBase) error {
 			Date:      messages.GetDateTime("created").Time().In(location).Format("03:04 PM, 02 Jan 2006"),
 		}
 		emailData.Messages = append(emailData.Messages, messagesData)
+	}
+
+	if IsAISummaryEnabled() {
+		emailData.Summary = generateMessagesAISummary(emailData.Messages, emailData.MapName)
 	}
 
 	// Execute template
@@ -204,7 +237,7 @@ func processMessages(app *pocketbase.PocketBase, timeIntervalMinutes int) error 
 	// Calculate the time using the time interval
 	timeBuffer := time.Duration(-timeIntervalMinutes) * time.Minute
 
-	// Fetch all messagess that have not been processed
+	// Fetch all messages that have not been processed
 	err := app.DB().Select("maps.id").Distinct(true).From("maps").InnerJoin("messages", dbx.NewExp("messages.map = maps.id and messages.read = false and messages.type != 'administrator'")).Where(dbx.NewExp("messages.created > {:created}", dbx.Params{"created": time.Now().UTC().Add(timeBuffer)})).All(&maps)
 
 	if err != nil {

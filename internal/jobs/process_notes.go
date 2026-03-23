@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 	"strings"
-	"text/template"
+	"html/template"
 	"time"
 
 	"github.com/mailersend/mailersend-go"
@@ -23,37 +23,58 @@ type notesData struct {
 	Address   string
 }
 type NotesTemplateData struct {
-	Notes []notesData
+	Notes   []notesData
+	Summary OverviewSummary
+}
+
+// BuildNotesPrompt constructs the system and user messages for the notes AI overview.
+func BuildNotesPrompt(notes []notesData, congregationName string) (systemMsg, userMsg string) {
+	systemMsg = `You are an assistant helping congregation administrators review a digest of ` +
+		`recently updated property notes left by publishers during field ministry. ` +
+		`These notes describe physical characteristics and conditions of the property ` +
+		`(e.g. dogs, gate access, intercom, parking, renovations, unit vacancy). ` +
+		`Analyse the notes and return a JSON object with exactly one field: ` +
+		`"overview" (2-3 sentence narrative summarising the key property observations from this period). ` +
+		`Be factual, concise, and respectful.`
+
+	var sb strings.Builder
+	sb.WriteString("Recent property notes for " + congregationName + " congregation:\n\n")
+	for _, n := range notes {
+		sb.WriteString("Address: " + n.Address + "\n")
+		sb.WriteString("Publisher: " + n.Publisher + "\n")
+		sb.WriteString("Date: " + n.Date + "\n")
+		sb.WriteString("Note: " + n.Message + "\n\n")
+	}
+	userMsg = sb.String()
+	return
+}
+
+// generateNotesAISummary builds an OverviewSummary from the notes list.
+// Returns an empty OverviewSummary (Available=false) if AI is disabled or the call fails.
+func generateNotesAISummary(notes []notesData, congregationName string) OverviewSummary {
+	client := newLLMClient()
+	if client == nil {
+		log.Printf("AI overview skipped for notes (%s): OPENAI_API_KEY not set", congregationName)
+		return OverviewSummary{}
+	}
+
+	systemMsg, userMsg := BuildNotesPrompt(notes, congregationName)
+	resp, err := client.generateOverview(systemMsg, userMsg)
+	if err != nil {
+		log.Printf("AI overview: LLM call failed for notes (%s): %v", congregationName, err)
+		return OverviewSummary{}
+	}
+
+	return OverviewSummary{
+		Available: true,
+		Overview:  resp.Overview,
+	}
 }
 
 type CongregationData struct {
 	ID string `db:"congregation"`
 }
 
-// ProcessNote processes notes for a given congregation, sends an email with the notes to the administrators of the congregation.
-//
-// Parameters:
-//   - congID: The ID of the congregation.
-//   - app: The PocketBase application instance.
-//   - timeBuffer: The duration to filter notes that were updated after the current time minus the timeBuffer.
-//
-// Returns:
-//   - error: An error if something goes wrong, otherwise nil.
-//
-// The function performs the following steps:
-//  1. Logs the start of the note processing for the given congregation.
-//  2. Validates the congID parameter.
-//  3. Retrieves the congregation record by ID.
-//  4. Finds notes for the congregation that were updated after the specified time buffer.
-//  5. Expands the notes with related map data.
-//  6. Retrieves the list of administrator recipients for the congregation.
-//  7. Loads the email template.
-//  8. Prepares the email data with the notes information.
-//  9. Executes the email template with the prepared data.
-//  10. Initializes the MailerSend client and creates the email message.
-//  11. Sets the email recipients and subject.
-//  12. Sends the email with the notes to the recipients.
-//  13. Logs the success or failure of the email sending process.
 func ProcessNote(congID string, app *pocketbase.PocketBase, timeBuffer time.Duration) error {
 	log.Printf("Processing notes for congregation: %s", congID)
 
@@ -132,6 +153,11 @@ func ProcessNote(congID string, app *pocketbase.PocketBase, timeBuffer time.Dura
 			Date:      note.GetDateTime("last_notes_updated").Time().In(location).Format("03:04 PM, 02 Jan 2006"),
 		}
 		emailData.Notes = append(emailData.Notes, notesData)
+	}
+
+	if IsAISummaryEnabled() {
+		congregationName, _ := congRecord.Get("name").(string)
+		emailData.Summary = generateNotesAISummary(emailData.Notes, congregationName)
 	}
 
 	// Execute template

@@ -62,6 +62,38 @@
             border-radius: 12px;
             background: #f8f9fa;
         }
+        .ai-summary {
+            background: #f0f7ff;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #3498db;
+        }
+        .ai-summary-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1a5276;
+            margin: 0 0 16px;
+        }
+        .ai-section {
+            border-left: 3px solid #d6eaf8;
+            padding-left: 12px;
+            margin: 0 0 14px;
+        }
+        .ai-section-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #4A90B8;
+            letter-spacing: 0.6px;
+            margin: 0 0 4px;
+            text-transform: uppercase;
+        }
+        .ai-narrative {
+            font-size: 15px;
+            color: #2c3e50;
+            line-height: 1.7;
+            margin: 0;
+        }
         .feedback-item {
             border: 1px solid #e1e4e8;
             margin-bottom: 15px;
@@ -156,6 +188,26 @@
             <p>You have received the following messages on <span class="map-name">{{.MapName}}</span>:</p>
 
             <div class="feedback-container">
+                {{if .Summary.Available}}
+                <div class="ai-summary">
+                    <p class="ai-summary-title">📋 Map Feedback Overview</p>
+
+                    {{if .Summary.Overview}}
+                    <div class="ai-section">
+                        <p class="ai-section-label">Feedback Summary</p>
+                        <p class="ai-narrative">{{.Summary.Overview}}</p>
+                    </div>
+                    {{end}}
+
+                    {{if .Summary.KeyThemes}}
+                    <div class="ai-section">
+                        <p class="ai-section-label">Action Items</p>
+                        <p class="ai-narrative">{{.Summary.KeyThemes}}</p>
+                    </div>
+                    {{end}}
+                </div>
+                {{end}}
+
                 {{range .Messages}}
                 <div class="feedback-item">
                     <div class="publisher">
@@ -173,7 +225,7 @@
         </div>
 
         <div class="footer">
-            <p>© 2025 Ministry Mapper. All rights reserved.</p>
+            <p>© 2026 Ministry Mapper. All rights reserved.</p>
             <p>You received this email because you're an administrator of your congregation.</p>
         </div>
     </div>
