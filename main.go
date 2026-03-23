@@ -8,6 +8,7 @@ import (
 	"ministry-mapper/internal/middleware"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	_ "ministry-mapper/migrations"
@@ -18,6 +19,60 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/plugins/migratecmd"
 )
+
+// aggregateDebouncer coalesces bursts of address saves (e.g. a map reset saving
+// 836 records one-by-one) into a single ProcessMapAggregates call per map.
+// Each mapID has its own independent timer so concurrent updates to different
+// maps don't interfere with each other.
+//
+// Per-row app.Save() calls are kept intact so PocketBase realtime events still
+// fire for every individual address change — the frontend sees each update.
+// Only the expensive aggregate recalculation is debounced.
+type aggregateDebouncer struct {
+	mu      sync.Mutex
+	pending map[string]*time.Timer
+	delay   time.Duration
+}
+
+func newAggregateDebouncer(delay time.Duration) *aggregateDebouncer {
+	return &aggregateDebouncer{
+		pending: make(map[string]*time.Timer),
+		delay:   delay,
+	}
+}
+
+// schedule arms (or re-arms) the debounce timer for a mapID. Uses Stop() +
+// new AfterFunc rather than Reset() to avoid a subtle edge case: if the timer
+// has just fired but its goroutine hasn't yet removed the entry from pending,
+// Reset() would re-arm the already-expired timer causing a duplicate run.
+func (d *aggregateDebouncer) schedule(mapID string, app *pocketbase.PocketBase) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if timer, ok := d.pending[mapID]; ok {
+		timer.Stop()
+	}
+
+	d.pending[mapID] = time.AfterFunc(d.delay, func() {
+		d.mu.Lock()
+		delete(d.pending, mapID)
+		d.mu.Unlock()
+		if err := handlers.ProcessMapAggregates(mapID, app, false); err != nil {
+			log.Printf("aggregate debounce error for map %s: %v", mapID, err)
+		}
+	})
+}
+
+// cancel stops all pending timers. Call on application shutdown to prevent
+// callbacks from firing against a stopping app.
+func (d *aggregateDebouncer) cancel() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for mapID, timer := range d.pending {
+		timer.Stop()
+		delete(d.pending, mapID)
+	}
+}
 
 func main() {
 	// Coolify sets the SOURCE_COMMIT environment variable to the commit hash of the current build.
@@ -58,6 +113,8 @@ func main() {
 	defer sentry.Flush(2 * time.Second)
 
 	app := pocketbase.New()
+	debouncer := newAggregateDebouncer(500 * time.Millisecond)
+	defer debouncer.cancel()
 
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		allowOrigins := os.Getenv("PB_ALLOW_ORIGINS")
@@ -145,8 +202,18 @@ func main() {
 	})
 
 	app.OnRecordAfterUpdateSuccess("addresses").BindFunc(func(e *core.RecordEvent) error {
+		// Only status and not_home_tries affect aggregates. Skip the debounce
+		// entirely for notes edits, sequence reorders, and other field changes.
+		oldStatus, _ := e.Record.Original().Get("status").(string)
+		newStatus, _ := e.Record.Get("status").(string)
+		oldTries, _ := e.Record.Original().Get("not_home_tries").(float64)
+		newTries, _ := e.Record.Get("not_home_tries").(float64)
+		if oldStatus == newStatus && oldTries == newTries {
+			return e.Next()
+		}
+
 		mapId := e.Record.Get("map").(string)
-		handlers.ProcessMapAggregates(mapId, app, false)
+		debouncer.schedule(mapId, app)
 		return e.Next()
 	})
 
