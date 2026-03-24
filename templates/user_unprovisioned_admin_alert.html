@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Unassigned User Accounts Detected</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 15px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #1e3a5f, #2563eb);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0 0 6px;
+            font-size: 24px;
+            font-weight: 700;
+        }
+        .header p {
+            margin: 0;
+            font-size: 15px;
+            opacity: 0.85;
+        }
+        .content {
+            padding: 30px 25px;
+        }
+        .content p {
+            margin: 0 0 15px;
+            font-size: 16px;
+        }
+        .alert-banner {
+            background: #eff6ff;
+            border-left: 4px solid #2563eb;
+            border-radius: 8px;
+            padding: 14px 18px;
+            margin: 0 0 20px;
+            font-size: 14px;
+            color: #1e40af;
+        }
+        .user-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+        .user-table th {
+            background: #f0f4ff;
+            text-align: left;
+            padding: 10px 12px;
+            font-weight: 600;
+            color: #1e3a5f;
+            border-bottom: 2px solid #c7d7f8;
+        }
+        .user-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+        .user-table tr:last-child td {
+            border-bottom: none;
+        }
+        .action-note {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 16px 18px;
+            margin: 20px 0;
+            font-size: 14px;
+        }
+        .action-note strong {
+            display: block;
+            margin-bottom: 8px;
+            color: #111827;
+        }
+        .action-note ul {
+            margin: 0;
+            padding-left: 20px;
+            color: #4b5563;
+        }
+        .action-note ul li {
+            margin-bottom: 6px;
+        }
+        .timeline-note {
+            background: #fff7ed;
+            border-left: 3px solid #f59e0b;
+            border-radius: 6px;
+            padding: 12px 16px;
+            font-size: 13px;
+            color: #92400e;
+            margin: 16px 0;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px 25px;
+            text-align: center;
+            border-top: 1px solid #e1e4e8;
+        }
+        .footer p {
+            margin: 4px 0;
+            font-size: 13px;
+            color: #999;
+        }
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            .container { border-radius: 8px; }
+            .header { padding: 20px 15px; }
+            .content { padding: 20px 15px; }
+            .user-table th, .user-table td { padding: 8px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="https://utfs.io/f/bVgrXJoWK1jGDTTaL1pCQvoZy96OGp3idmtuIMAB2PfK7RjS" alt="Ministry Mapper" style="width: 20%; height: auto; margin-bottom: 16px;">
+            <h1>⚠️ Security Alert</h1>
+            <p>New unassigned user account(s) detected</p>
+        </div>
+
+        <div class="content">
+            <p>Hello {{.AdminName}},</p>
+
+            <div class="alert-banner">
+                As a Ministry Mapper superadmin, you are receiving this automated security notification. The following new user account(s) were registered but have <strong>not yet been assigned a role or congregation</strong>.
+            </div>
+
+            <table class="user-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Registered</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .NewUsers}}
+                    <tr>
+                        <td>{{.Name}}</td>
+                        <td>{{.Email}}</td>
+                        <td>{{.Created}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+
+            <div class="timeline-note">
+                ⏱️ <strong>Important:</strong> Accounts without a role are automatically disabled after <strong>7 days</strong>. Users receive a warning on day 3 and a final notice on day 6. Please assign roles promptly to avoid disruption.
+            </div>
+
+            <div class="action-note">
+                <strong>What you should do:</strong>
+                <ul>
+                    <li>Contact the congregation administrator(s) who may have guided these users to register. They can confirm whether the account is expected and which congregation the user belongs to.</li>
+                    <li>Once the congregation admin has identified the user, assign the user to the appropriate congregation and role via the admin panel.</li>
+                    <li>If no congregation admin recognises the user, no action is needed — the account will be automatically disabled after 7 days.</li>
+                    <li>If the account appears suspicious, disable it immediately from the admin panel.</li>
+                </ul>
+            </div>
+
+            {{if .AppURL}}
+            <p style="font-size: 14px; color: #6b7280;">Access the admin panel: <a href="{{.AppURL}}" style="color: #2563eb;">{{.AppURL}}</a></p>
+            {{end}}
+        </div>
+
+        <div class="footer">
+            <p>© 2026 Ministry Mapper. All rights reserved.</p>
+            <p>You received this alert because you are a Ministry Mapper superadmin.</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -224,9 +224,14 @@ func main() {
 
 	app.OnRecordAuthRequest("users").BindFunc(func(e *core.RecordAuthRequestEvent) error {
 		e.Record.Set("last_login", time.Now())
+		// Reset inactive warning timestamps so a returning user gets fresh warnings
+		// if they become inactive again in the future.
+		e.Record.Set("inactive_warning_sent_at", nil)
+		e.Record.Set("inactive_final_warning_sent_at", nil)
 		if err := e.App.SaveNoValidate(e.Record); err != nil {
-			log.Printf("error saving last login: %v", err)
-			return err
+			// Log but don't block login — last_login is non-critical metadata.
+			// A transient DB error should not prevent a valid user from authenticating.
+			log.Printf("warning: error saving last_login for user %s: %v", e.Record.Id, err)
 		}
 		return e.Next()
 	})
@@ -238,6 +243,12 @@ func main() {
 		email = strings.ToLower(strings.TrimSpace(email))
 		e.Record.Set("email", email)
 		e.Record.SetEmailVisibility(true)
+		return e.Next()
+	})
+
+	// When a role is deleted, stamp unprovisioned_since if the user has no remaining roles.
+	app.OnRecordAfterDeleteSuccess("roles").BindFunc(func(e *core.RecordEvent) error {
+		handlers.HandleRoleDelete(e)
 		return e.Next()
 	})
 

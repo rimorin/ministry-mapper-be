@@ -96,6 +96,18 @@ func ConfigureScheduler(app *pocketbase.PocketBase) {
 		return nil
 	})
 
+	// Warn and disable users with no role assignment (daily at 01:00 UTC / 09:00 SGT).
+	// Aligns with NIST SP 800-53 AC-2 least-privilege deprovisioning.
+	addTask("processUnprovisionedUsers", "0 1 * * *", "enable-unprovisioned-user-processing", func() error {
+		return processUnprovisionedUsers(app)
+	})
+
+	// Warn and disable inactive users (daily at 01:30 UTC / 09:30 SGT).
+	// Aligns with NIST SP 800-53 AC-2(3) automatic disabling of inactive accounts.
+	addTask("processInactiveUsers", "30 1 * * *", "enable-inactive-user-processing", func() error {
+		return processInactiveUsers(app)
+	})
+
 	// Start the scheduler to begin processing all configured tasks
 	scheduler.Start()
 }

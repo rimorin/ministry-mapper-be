@@ -206,7 +206,7 @@ func processMessage(mapID string, app *pocketbase.PocketBase) error {
 	}
 	message.SetRecipients(emailRecipents)
 
-	message.SetSubject("New messages Received for " + mapRecord.Get("description").(string))
+	message.SetSubject("New messages received for " + mapRecord.Get("description").(string))
 	message.SetHTML(body.String())
 
 	// Send email
