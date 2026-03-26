@@ -721,6 +721,72 @@ func init() {
 						"presentable": false,
 						"system": false,
 						"type": "autodate"
+					},
+					{
+						"hidden": false,
+						"id": "date1895987106",
+						"max": "",
+						"min": "",
+						"name": "inactive_warning_sent_at",
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "date"
+					},
+					{
+						"hidden": false,
+						"id": "date831265623",
+						"max": "",
+						"min": "",
+						"name": "inactive_final_warning_sent_at",
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "date"
+					},
+					{
+						"hidden": false,
+						"id": "date2996491108",
+						"max": "",
+						"min": "",
+						"name": "unprovisioned_warning_sent_at",
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "date"
+					},
+					{
+						"hidden": false,
+						"id": "date2559000314",
+						"max": "",
+						"min": "",
+						"name": "unprovisioned_final_warning_sent_at",
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "date"
+					},
+					{
+						"hidden": false,
+						"id": "date1970400544",
+						"max": "",
+						"min": "",
+						"name": "admin_alerted_at",
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "date"
+					},
+					{
+						"hidden": false,
+						"id": "date3432129150",
+						"max": "",
+						"min": "",
+						"name": "unprovisioned_since",
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "date"
 					}
 				],
 				"fileToken": {
@@ -1472,7 +1538,8 @@ func init() {
 				"indexes": [
 					"CREATE INDEX ` + "`" + `idx_QjY4Y2c` + "`" + ` ON ` + "`" + `maps` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `code` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_O2TlLJr` + "`" + ` ON ` + "`" + `maps` + "`" + ` (` + "`" + `territory` + "`" + `)",
-					"CREATE INDEX ` + "`" + `idx_TzbzxPXi9e` + "`" + ` ON ` + "`" + `maps` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `sequence` + "`" + `\n)"
+					"CREATE INDEX ` + "`" + `idx_TzbzxPXi9e` + "`" + ` ON ` + "`" + `maps` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `sequence` + "`" + `\n)",
+					"CREATE INDEX ` + "`" + `idx_NfI5WhsRsK` + "`" + ` ON ` + "`" + `maps` + "`" + ` (` + "`" + `updated` + "`" + `)"
 				],
 				"listRule": "@request.auth.id != \"\" && @request.query.filter:isset = true && @request.query.filter ~ \"territory=\" && @request.query.fields:isset = true && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation",
 				"name": "maps",
@@ -2121,7 +2188,7 @@ func init() {
 					{
 						"autogeneratePattern": "0",
 						"hidden": false,
-						"id": "_clone_zFId",
+						"id": "_clone_4dZN",
 						"max": 0,
 						"min": 0,
 						"name": "code",
@@ -2134,7 +2201,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_at09",
+						"id": "_clone_fC2O",
 						"maxSelect": 1,
 						"name": "type",
 						"presentable": false,
@@ -2150,7 +2217,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "kyfdlowtckhj9wm",
 						"hidden": false,
-						"id": "_clone_J8Ys",
+						"id": "_clone_914g",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "territory",
@@ -2163,7 +2230,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
 						"hidden": false,
-						"id": "_clone_ayl4",
+						"id": "_clone_ZxbY",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2174,7 +2241,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_S18T",
+						"id": "_clone_mOcY",
 						"max": null,
 						"min": null,
 						"name": "progress",
@@ -2186,7 +2253,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_M4bB",
+						"id": "_clone_q2C1",
 						"max": null,
 						"min": null,
 						"name": "sequence",
@@ -2198,7 +2265,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_Cw59",
+						"id": "_clone_xAR9",
 						"name": "created",
 						"onCreate": true,
 						"onUpdate": false,
@@ -2208,7 +2275,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_OfuU",
+						"id": "_clone_GP31",
 						"name": "updated",
 						"onCreate": true,
 						"onUpdate": true,
@@ -2318,7 +2385,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_Wt8R",
+						"id": "_clone_W1mm",
 						"max": 0,
 						"min": 0,
 						"name": "code",
@@ -2332,7 +2399,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_Nvc8",
+						"id": "_clone_KlZ8",
 						"max": 0,
 						"min": 0,
 						"name": "description",
@@ -2347,7 +2414,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
 						"hidden": false,
-						"id": "_clone_HS5P",
+						"id": "_clone_4Y7T",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2358,7 +2425,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_entj",
+						"id": "_clone_Qw1v",
 						"max": 100,
 						"min": 0,
 						"name": "progress",
@@ -2371,7 +2438,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_2Kn0",
+						"id": "_clone_Nm5m",
 						"max": 0,
 						"min": 0,
 						"name": "congregation_name",
@@ -2487,7 +2554,7 @@ func init() {
 						"cascadeDelete": false,
 						"collectionId": "zzljam3htisq5tv",
 						"hidden": false,
-						"id": "_clone_nt9T",
+						"id": "_clone_guT7",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2499,7 +2566,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_okmY",
+						"id": "_clone_xKOR",
 						"max": 0,
 						"min": 0,
 						"name": "territory",
@@ -2513,7 +2580,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_2kCY",
+						"id": "_clone_oAc8",
 						"max": 0,
 						"min": 0,
 						"name": "new_status",
@@ -2569,7 +2636,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
 						"hidden": false,
-						"id": "_clone_y9H8",
+						"id": "_clone_BkkZ",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2582,7 +2649,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "kyfdlowtckhj9wm",
 						"hidden": false,
-						"id": "_clone_68R5",
+						"id": "_clone_UXhX",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "territory",
@@ -2595,7 +2662,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "rupq6yj561mghrr",
 						"hidden": false,
-						"id": "_clone_yWLd",
+						"id": "_clone_agVr",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "map",
@@ -2606,7 +2673,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_jB1y",
+						"id": "_clone_ywTg",
 						"max": null,
 						"min": null,
 						"name": "not_home_tries",
@@ -2618,7 +2685,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_6Tlb",
+						"id": "_clone_VCxg",
 						"max": null,
 						"min": null,
 						"name": "max_tries",
@@ -2640,7 +2707,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_UM7l",
+						"id": "_clone_mN8D",
 						"name": "updated",
 						"onCreate": true,
 						"onUpdate": true,
@@ -2680,7 +2747,7 @@ func init() {
 					{
 						"autogeneratePattern": "user[0-9]{5}[A-Za-z]",
 						"hidden": false,
-						"id": "_clone_FH4r",
+						"id": "_clone_RXYY",
 						"max": 50,
 						"min": 2,
 						"name": "name",
@@ -2694,7 +2761,7 @@ func init() {
 					{
 						"exceptDomains": null,
 						"hidden": false,
-						"id": "_clone_UYB2",
+						"id": "_clone_wYVT",
 						"name": "email",
 						"onlyDomains": null,
 						"presentable": false,
@@ -2704,7 +2771,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_PBhK",
+						"id": "_clone_3ABN",
 						"max": "",
 						"min": "",
 						"name": "last_login",
@@ -2727,7 +2794,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_bny2",
+						"id": "_clone_l8zV",
 						"name": "disabled",
 						"presentable": false,
 						"required": false,
@@ -2736,7 +2803,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_Blgy",
+						"id": "_clone_ixQw",
 						"name": "verified",
 						"presentable": false,
 						"required": false,
@@ -2745,7 +2812,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_9Bis",
+						"id": "_clone_9odx",
 						"name": "created",
 						"onCreate": true,
 						"onUpdate": false,
