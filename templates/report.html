@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monthly Congregation Report</title>
+    <title>{{.ReportTitle}} for {{.CongregationName}}</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
@@ -53,9 +53,6 @@
             border-left: 4px solid #27ae60;
         }
         .report-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
             padding: 6px 0;
             border-bottom: 1px solid #e1e4e8;
         }
@@ -66,10 +63,13 @@
             font-weight: 600;
             color: #2c3e50;
             font-size: 14px;
+            display: block;
         }
         .report-value {
             color: #666;
             font-size: 14px;
+            display: block;
+            margin-top: 1px;
         }
         .ai-summary {
             background: #f0f7ff;
@@ -182,7 +182,7 @@
         <div class="header">
             <img src="https://utfs.io/f/bVgrXJoWK1jGDTTaL1pCQvoZy96OGp3idmtuIMAB2PfK7RjS" alt="App Logo" style="width: 25%; height: auto; margin-bottom: 20px;">
             <h1>{{.CongregationName}}</h1>
-            <p>Monthly Report — {{.ReportDate}}</p>
+            <p>{{.ReportTitle}} — {{.ReportDate}}</p>
         </div>
 
         <div class="content">
@@ -194,7 +194,7 @@
 
                 {{if .Summary.CoveredActivity}}
                 <div class="ai-section">
-                    <p class="ai-section-label">This Month's Coverage</p>
+                    <p class="ai-section-label">{{if .IsOnDemand}}Coverage Period{{else}}This Month's Coverage{{end}}</p>
                     <p class="ai-narrative">{{.Summary.CoveredActivity}}</p>
                 </div>
                 {{end}}
@@ -242,10 +242,15 @@
 
             </div>
             {{else}}
+            <p>Please find your <strong>{{if .IsOnDemand}}on-demand activity report{{else}}monthly activity report{{end}}</strong> for <strong>{{.ReportDate}}</strong> attached. Open the Excel file for a full breakdown of territory and address activity.</p>
             <div class="report-details">
                 <div class="report-item">
-                    <span class="report-label">Report Month</span>
+                    <span class="report-label">{{if .IsOnDemand}}Report Period{{else}}Report Month{{end}}</span>
                     <span class="report-value">{{.ReportDate}}</span>
+                </div>
+                <div class="report-item">
+                    <span class="report-label">Congregation</span>
+                    <span class="report-value">{{.CongregationName}}</span>
                 </div>
             </div>
             {{end}}
@@ -258,7 +263,7 @@
 
         <div class="footer">
             <p>© 2026 Ministry Mapper. All rights reserved.</p>
-            <p>You received this email because you're an administrator of your congregation.</p>
+            <p>{{if .IsOnDemand}}You requested this report as an administrator of your congregation.{{else}}You received this email because you're an administrator of your congregation.{{end}}</p>
         </div>
     </div>
 </body>

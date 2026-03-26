@@ -9,6 +9,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"sync"
 	"text/template"
 	"time"
 
@@ -19,12 +20,45 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
+// reportTmpl is parsed once on first use and reused for all email sends.
+var (
+	reportTmpl     *template.Template
+	reportTmplOnce sync.Once
+	reportTmplErr  error
+)
+
+func getReportTemplate() (*template.Template, error) {
+	reportTmplOnce.Do(func() {
+		reportTmpl, reportTmplErr = template.ParseFiles("templates/report.html")
+	})
+	return reportTmpl, reportTmplErr
+}
+
+// sendEmailWithRetry retries a MailerSend send call up to 3 times with exponential backoff.
+func sendEmailWithRetry(send func() error) error {
+	delays := []time.Duration{2 * time.Second, 4 * time.Second, 8 * time.Second}
+	var err error
+	for attempt := 0; attempt <= len(delays); attempt++ {
+		err = send()
+		if err == nil {
+			return nil
+		}
+		if attempt < len(delays) {
+			log.Printf("Email send attempt %d failed: %v — retrying in %s", attempt+1, err, delays[attempt])
+			time.Sleep(delays[attempt])
+		}
+	}
+	return fmt.Errorf("email send failed after %d attempts: %w", len(delays)+1, err)
+}
+
 type ReportTemplateData struct {
 	CongregationName string
 	CongregationCode string
 	ReportDate       string
+	ReportTitle      string
 	FileName         string
 	RecipientName    string
+	IsOnDemand       bool
 	Summary          SummaryData
 }
 
@@ -54,7 +88,7 @@ func GenerateMonthlyReport(app *pocketbase.PocketBase, aiEnabled bool) {
 
 // generateReportBuffer builds the Excel report for a congregation and returns
 // the filename and raw bytes. Shared by both send variants below.
-func generateReportBuffer(app *pocketbase.PocketBase, congregation *core.Record) (string, []byte, error) {
+func generateReportBuffer(app *pocketbase.PocketBase, congregation *core.Record, period ReportPeriod) (string, []byte, error) {
 	f := excelize.NewFile()
 
 	congregationOptions, err := app.FindRecordsByFilter(
@@ -97,7 +131,7 @@ func generateReportBuffer(app *pocketbase.PocketBase, congregation *core.Record)
 		}
 	}
 
-	filename := fmt.Sprintf("%s_%s_%s.xlsx", congregation.Get("code"), reportMonth().Format("01"), reportMonth().Format("06"))
+	filename := fmt.Sprintf("%s_%s.xlsx", congregation.Get("code"), period.fileTag)
 
 	buffer, err := f.WriteToBuffer()
 	if err != nil {
@@ -111,12 +145,13 @@ func generateReportBuffer(app *pocketbase.PocketBase, congregation *core.Record)
 // GenerateAndSendCongregationReport generates the Excel report and emails it
 // to all administrators of the congregation. Used by the monthly scheduled job.
 func GenerateAndSendCongregationReport(app *pocketbase.PocketBase, congregation *core.Record, aiEnabled bool) error {
-	filename, content, err := generateReportBuffer(app, congregation)
+	period := PreviousCalendarMonth()
+	filename, content, err := generateReportBuffer(app, congregation, period)
 	if err != nil {
 		return err
 	}
 
-	if err := sendReportEmailFromBuffer(app, congregation, filename, content, aiEnabled); err != nil {
+	if err := sendReportEmailFromBuffer(app, congregation, filename, content, aiEnabled, period); err != nil {
 		return fmt.Errorf("failed to send email for congregation %s: %v", congregation.Get("code"), err)
 	}
 
@@ -126,23 +161,22 @@ func GenerateAndSendCongregationReport(app *pocketbase.PocketBase, congregation 
 // GenerateAndSendCongregationReportToUser generates the Excel report and emails it
 // only to the specified recipient. Used by the on-demand report endpoint.
 func GenerateAndSendCongregationReportToUser(app *pocketbase.PocketBase, congregation *core.Record, recipient *core.Record) error {
-	filename, content, err := generateReportBuffer(app, congregation)
+	period := RollingDays(OnDemandReportDays)
+	filename, content, err := generateReportBuffer(app, congregation, period)
 	if err != nil {
 		return err
 	}
 
-	if err := sendReportEmailToRecipient(app, congregation, filename, content, recipient, generateAISummary(app, congregation, IsAISummaryEnabled())); err != nil {
+	if err := sendReportEmailToRecipient(app, congregation, filename, content, recipient, generateAISummary(app, congregation, IsAISummaryEnabled(), period), period); err != nil {
 		return fmt.Errorf("failed to send email for congregation %s: %v", congregation.Get("code"), err)
 	}
 
 	return nil
 }
 
-// generateAISummary builds the summary data from analytics views and requests a narrative
-// from the OpenAI API. When aiEnabled is false, or OPENAI_API_KEY is unset, or the call
-// fails for any reason, it returns a SummaryData with Available=false so the email template
-// gracefully omits the section rather than erroring.
-func generateAISummary(app *pocketbase.PocketBase, congregation *core.Record, aiEnabled bool) SummaryData {
+// generateAISummary calls the OpenAI API to produce a narrative for the given period.
+// Returns SummaryData{} with Available=false on any failure so the template gracefully omits the section.
+func generateAISummary(app *pocketbase.PocketBase, congregation *core.Record, aiEnabled bool, period ReportPeriod) SummaryData {
 	if !aiEnabled {
 		return SummaryData{}
 	}
@@ -153,7 +187,7 @@ func generateAISummary(app *pocketbase.PocketBase, congregation *core.Record, ai
 		return SummaryData{}
 	}
 
-	data, err := BuildSummaryData(app, congregation)
+	data, err := BuildSummaryData(app, congregation, period)
 	if err != nil {
 		log.Printf("AI summary: failed to build data for %s: %v", congregation.Get("code"), err)
 		return SummaryData{}
@@ -1399,70 +1433,57 @@ func getStatusSymbol(status string) string {
 	}
 }
 
-func sendReportEmailFromBuffer(app *pocketbase.PocketBase, congregation *core.Record, filename string, content []byte, aiEnabled bool) error {
+func sendReportEmailFromBuffer(app *pocketbase.PocketBase, congregation *core.Record, filename string, content []byte, aiEnabled bool, period ReportPeriod) error {
 	log.Printf("Sending report email for congregation: %s", congregation.Get("code"))
+
+	if os.Getenv("MAILERSEND_API_KEY") == "" {
+		return fmt.Errorf("MAILERSEND_API_KEY is not configured")
+	}
+	if os.Getenv("MAILERSEND_FROM_EMAIL") == "" {
+		return fmt.Errorf("MAILERSEND_FROM_EMAIL is not configured")
+	}
 
 	// Get recipients (administrators) for the congregation
 	recipients := []ReportRecipient{}
 	err := app.DB().Select("users.*").From("users").InnerJoin("roles", dbx.NewExp("roles.user = users.id and roles.role = 'administrator'")).Where(dbx.NewExp("roles.congregation = {:congregation}", dbx.Params{"congregation": congregation.Id})).All(&recipients)
-
 	if err != nil {
 		log.Println("Error fetching recipients:", err)
 		return err
 	}
 
 	if len(recipients) == 0 {
-		log.Println("No recipients found")
-		return nil
+		return fmt.Errorf("no administrator recipients found for congregation %s — report not sent", congregation.Get("code"))
 	}
 
 	log.Printf("Processing %d recipients\n", len(recipients))
 
-	// Load template
-	tmpl, err := template.ParseFiles("templates/report.html")
+	tmpl, err := getReportTemplate()
 	if err != nil {
 		log.Println("Error parsing template:", err)
 		return err
 	}
 
-	// Prepare email data
-	reportDate := previousMonthLabel()
 	congregationName, _ := congregation.Get("name").(string)
 	congregationCode, _ := congregation.Get("code").(string)
 	emailData := ReportTemplateData{
 		CongregationName: congregationName,
 		CongregationCode: congregationCode,
-		ReportDate:       reportDate,
+		ReportDate:       period.Label,
+		ReportTitle:      "Monthly Report",
 		FileName:         filename,
-		Summary:          generateAISummary(app, congregation, aiEnabled),
+		IsOnDemand:       false,
+		Summary:          generateAISummary(app, congregation, aiEnabled, period),
 	}
 
-	// Execute template
 	var body bytes.Buffer
 	if err := tmpl.Execute(&body, emailData); err != nil {
 		log.Println("Error executing template:", err)
 		return err
 	}
 
-	// Encode file as base64
 	encoded := base64.StdEncoding.EncodeToString(content)
-
-	// Initialize MailerSend
 	ms := mailersend.NewMailersend(os.Getenv("MAILERSEND_API_KEY"))
 
-	ctx := context.Background()
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	// Create email message
-	message := ms.Email.NewMessage()
-
-	message.SetFrom(mailersend.From{
-		Email: os.Getenv("MAILERSEND_FROM_EMAIL"),
-		Name:  "Ministry Mapper",
-	})
-
-	// Set recipients
 	emailRecipients := []mailersend.Recipient{}
 	for _, r := range recipients {
 		emailRecipients = append(emailRecipients, mailersend.Recipient{
@@ -1470,24 +1491,21 @@ func sendReportEmailFromBuffer(app *pocketbase.PocketBase, congregation *core.Re
 			Name:  r.Name,
 		})
 	}
+
+	message := ms.Email.NewMessage()
+	message.SetFrom(mailersend.From{Email: os.Getenv("MAILERSEND_FROM_EMAIL"), Name: "Ministry Mapper"})
 	message.SetRecipients(emailRecipients)
-
-	// Set subject and body
-	subject := fmt.Sprintf("Monthly Report for %s - %s", congregation.Get("name"), reportDate)
-	message.SetSubject(subject)
+	message.SetSubject(fmt.Sprintf("Monthly Report for %s - %s", congregation.Get("name"), period.Label))
 	message.SetHTML(body.String())
+	message.AddAttachment(mailersend.Attachment{Filename: filename, Content: encoded})
 
-	// Add Excel file as attachment
-	attachment := mailersend.Attachment{
-		Filename: filename,
-		Content:  encoded,
-	}
-	message.AddAttachment(attachment)
-
-	// Send email
-	_, err = ms.Email.Send(ctx, message)
-	if err != nil {
-		log.Printf("Error sending email: %v", err)
+	if err := sendEmailWithRetry(func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		_, err := ms.Email.Send(ctx, message)
+		return err
+	}); err != nil {
+		log.Printf("Error sending report email for %s: %v", congregation.Get("code"), err)
 		return err
 	}
 
@@ -1497,16 +1515,23 @@ func sendReportEmailFromBuffer(app *pocketbase.PocketBase, congregation *core.Re
 
 // sendReportEmailToRecipient sends the report to a single specified recipient
 // instead of all congregation administrators. Used for on-demand report requests.
-func sendReportEmailToRecipient(app *pocketbase.PocketBase, congregation *core.Record, filename string, content []byte, recipient *core.Record, summary SummaryData) error {
+func sendReportEmailToRecipient(app *pocketbase.PocketBase, congregation *core.Record, filename string, content []byte, recipient *core.Record, summary SummaryData, period ReportPeriod) error {
 	name, _ := recipient.Get("name").(string)
 	email, _ := recipient.Get("email").(string)
 	if email == "" {
 		return fmt.Errorf("recipient has no email address")
 	}
 
+	if os.Getenv("MAILERSEND_API_KEY") == "" {
+		return fmt.Errorf("MAILERSEND_API_KEY is not configured")
+	}
+	if os.Getenv("MAILERSEND_FROM_EMAIL") == "" {
+		return fmt.Errorf("MAILERSEND_FROM_EMAIL is not configured")
+	}
+
 	log.Printf("Sending on-demand report for congregation %s to %s", congregation.Get("code"), email)
 
-	tmpl, err := template.ParseFiles("templates/report.html")
+	tmpl, err := getReportTemplate()
 	if err != nil {
 		log.Println("Error parsing template:", err)
 		return err
@@ -1514,13 +1539,14 @@ func sendReportEmailToRecipient(app *pocketbase.PocketBase, congregation *core.R
 
 	congregationName, _ := congregation.Get("name").(string)
 	congregationCode, _ := congregation.Get("code").(string)
-	reportDate := previousMonthLabel()
 	emailData := ReportTemplateData{
 		CongregationName: congregationName,
 		CongregationCode: congregationCode,
-		ReportDate:       reportDate,
+		ReportDate:       period.Label,
+		ReportTitle:      "Activity Report",
 		FileName:         filename,
 		RecipientName:    name,
+		IsOnDemand:       true,
 		Summary:          summary,
 	}
 
@@ -1531,23 +1557,21 @@ func sendReportEmailToRecipient(app *pocketbase.PocketBase, congregation *core.R
 	}
 
 	encoded := base64.StdEncoding.EncodeToString(content)
-
 	ms := mailersend.NewMailersend(os.Getenv("MAILERSEND_API_KEY"))
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	message := ms.Email.NewMessage()
-	message.SetFrom(mailersend.From{
-		Email: os.Getenv("MAILERSEND_FROM_EMAIL"),
-		Name:  "Ministry Mapper",
-	})
+	message.SetFrom(mailersend.From{Email: os.Getenv("MAILERSEND_FROM_EMAIL"), Name: "Ministry Mapper"})
 	message.SetRecipients([]mailersend.Recipient{{Email: email, Name: name}})
-	message.SetSubject(fmt.Sprintf("Monthly Report for %s - %s", congregationName, reportDate))
+	message.SetSubject(fmt.Sprintf("Activity Report for %s - %s", congregationName, period.Label))
 	message.SetHTML(body.String())
 	message.AddAttachment(mailersend.Attachment{Filename: filename, Content: encoded})
 
-	_, err = ms.Email.Send(ctx, message)
-	if err != nil {
+	if err := sendEmailWithRetry(func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		_, err := ms.Email.Send(ctx, message)
+		return err
+	}); err != nil {
 		log.Printf("Error sending on-demand report email: %v", err)
 		return err
 	}

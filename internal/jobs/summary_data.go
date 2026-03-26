@@ -92,22 +92,52 @@ type SummaryData struct {
 	Conclusion          string          // section 3: overall progress and encouragement
 }
 
+// OnDemandReportDays is the default rolling window size for on-demand reports.
+const OnDemandReportDays = 30
+
+// ReportPeriod defines the time window for an activity report.
+// Start is inclusive, End is exclusive (used in SQL: day >= Start AND day < End).
+type ReportPeriod struct {
+	Start      time.Time
+	End        time.Time
+	Label      string // human-readable label, e.g. "February 2026" or "26 Feb – 26 Mar 2026"
+	fileTag    string // used in the Excel filename, e.g. "03_26" or "20260226_20260326"
+	IsOnDemand bool   // true for on-demand reports, false for scheduled monthly reports
+}
+
+// PreviousCalendarMonth returns a ReportPeriod covering the previous full calendar month.
+// Used by the scheduled monthly report job.
+func PreviousCalendarMonth() ReportPeriod {
+	rm := reportMonth()
+	return ReportPeriod{
+		Start:      rm,
+		End:        rm.AddDate(0, 1, 0),
+		Label:      rm.Format("January 2006"),
+		fileTag:    fmt.Sprintf("%s_%s", rm.AddDate(0, 1, 0).Format("01"), rm.AddDate(0, 1, 0).Format("06")),
+		IsOnDemand: false,
+	}
+}
+
+// RollingDays returns a ReportPeriod covering the given number of days up to
+// and including today. Used by the on-demand report endpoint.
+func RollingDays(days int) ReportPeriod {
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	start := today.AddDate(0, 0, -days)
+	end := today.AddDate(0, 0, 1) // exclusive upper bound — includes today
+	return ReportPeriod{
+		Start:      start,
+		End:        end,
+		Label:      fmt.Sprintf("%s – %s", start.Format("2 Jan 2006"), today.Format("2 Jan 2006")),
+		fileTag:    fmt.Sprintf("%s_%s", start.Format("20060102"), today.Format("20060102")),
+		IsOnDemand: true,
+	}
+}
+
 // reportMonth returns the first day of the previous calendar month in UTC.
-// All date-based report functions derive their period from this single source.
 func reportMonth() time.Time {
 	n := time.Now()
 	return time.Date(n.Year(), n.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -1, 0)
-}
-
-// previousMonthRange returns the start (inclusive) and end (exclusive) date strings
-// for the month prior to today.
-func previousMonthRange() (start, end string) {
-	rm := reportMonth()
-	return rm.Format("2006-01-02"), rm.AddDate(0, 1, 0).Format("2006-01-02")
-}
-
-func previousMonthLabel() string {
-	return reportMonth().Format("January 2006")
 }
 
 // queryTerritoryProgress fetches the current territory status snapshot from analytics_territories.
@@ -160,11 +190,10 @@ func queryTerritoryProgress(app *pocketbase.PocketBase, congregationId string, m
 	return result, nil
 }
 
-// queryMonthlyActivity fetches status-change totals for the previous month from analytics_daily_status.
-// Returns activity items, total changes, peak day label, slow-week label, and the raw done count
-// (used as monthly done rate for completion estimates).
-func queryMonthlyActivity(app *pocketbase.PocketBase, congregationId string) (items []ActivityItem, total int, peakDay, slowWeek string, monthlyDoneRate float64, err error) {
-	monthStart, monthEnd := previousMonthRange()
+// queryMonthlyActivity fetches status-change totals for the given period from analytics_daily_status.
+func queryMonthlyActivity(app *pocketbase.PocketBase, congregationId string, period ReportPeriod) (items []ActivityItem, total int, peakDay, slowWeek string, monthlyDoneRate float64, err error) {
+	monthStart := period.Start.Format("2006-01-02")
+	monthEnd := period.End.Format("2006-01-02")
 
 	type statusRow struct {
 		Status string `db:"new_status"`
@@ -249,7 +278,7 @@ func queryMonthlyActivity(app *pocketbase.PocketBase, congregationId string) (it
 	if week.Total > 0 {
 		if t, parseErr := time.Parse("2006-01-02", monthStart); parseErr == nil {
 			t7 := t.AddDate(0, 0, 6)
-			slowWeek = fmt.Sprintf("%s–%s (%d changes)", t.Format("Jan 2"), t7.Format("Jan 2"), week.Total)
+			slowWeek = fmt.Sprintf("Opening week %s–%s (%d changes)", t.Format("Jan 2"), t7.Format("Jan 2"), week.Total)
 		}
 	}
 
@@ -257,10 +286,11 @@ func queryMonthlyActivity(app *pocketbase.PocketBase, congregationId string) (it
 	return items, total, peakDay, slowWeek, monthlyDoneRate, nil
 }
 
-// queryMonthlyActivityByTerritory breaks down the month's status changes per territory.
-// This is the primary "what happened this month" signal for each territory.
-func queryMonthlyActivityByTerritory(app *pocketbase.PocketBase, congregationId string) ([]TerritoryMonthlyActivity, error) {
-	monthStart, monthEnd := previousMonthRange()
+// queryMonthlyActivityByTerritory breaks down the period's status changes per territory.
+// This is the primary "what happened this period" signal for each territory.
+func queryMonthlyActivityByTerritory(app *pocketbase.PocketBase, congregationId string, period ReportPeriod) ([]TerritoryMonthlyActivity, error) {
+	monthStart := period.Start.Format("2006-01-02")
+	monthEnd := period.End.Format("2006-01-02")
 
 	type row struct {
 		TerritoryCode string `db:"territory_code"`
@@ -434,9 +464,10 @@ func queryMapHealth(app *pocketbase.PocketBase, congregationId string) (stalled,
 }
 
 // queryInactiveTerritories returns codes of non-complete territories that had no
-// activity in analytics_daily_status during the previous month.
-func queryInactiveTerritories(app *pocketbase.PocketBase, congregationId string, territories []TerritoryProgress) []string {
-	monthStart, monthEnd := previousMonthRange()
+// activity in analytics_daily_status during the given period.
+func queryInactiveTerritories(app *pocketbase.PocketBase, congregationId string, territories []TerritoryProgress, period ReportPeriod) []string {
+	monthStart := period.Start.Format("2006-01-02")
+	monthEnd := period.End.Format("2006-01-02")
 
 	type row struct {
 		Territory string `db:"territory"`
@@ -470,16 +501,16 @@ func queryInactiveTerritories(app *pocketbase.PocketBase, congregationId string,
 
 // BuildSummaryData queries all four analytics views and assembles a SummaryData struct
 // ready for prompt building. The Available field is left false until the LLM call succeeds.
-func BuildSummaryData(app *pocketbase.PocketBase, congregation *core.Record) (SummaryData, error) {
+func BuildSummaryData(app *pocketbase.PocketBase, congregation *core.Record, period ReportPeriod) (SummaryData, error) {
 	cid := congregation.Id
 	name, _ := congregation.Get("name").(string)
 
-	activity, totalChanges, peakDay, slowWeek, monthlyDoneRate, err := queryMonthlyActivity(app, cid)
+	activity, totalChanges, peakDay, slowWeek, monthlyDoneRate, err := queryMonthlyActivity(app, cid, period)
 	if err != nil {
 		return SummaryData{}, err
 	}
 
-	monthlyByTerritory, err := queryMonthlyActivityByTerritory(app, cid)
+	monthlyByTerritory, err := queryMonthlyActivityByTerritory(app, cid, period)
 	if err != nil {
 		return SummaryData{}, err
 	}
@@ -499,12 +530,12 @@ func BuildSummaryData(app *pocketbase.PocketBase, congregation *core.Record) (Su
 		return SummaryData{}, err
 	}
 
-	inactive := queryInactiveTerritories(app, cid, territories)
+	inactive := queryInactiveTerritories(app, cid, territories, period)
 
 	return SummaryData{
 		Available:           false,
 		CongregationName:    name,
-		Period:              previousMonthLabel(),
+		Period:              period.Label,
 		Territories:         territories,
 		MonthlyByTerritory:  monthlyByTerritory,
 		TotalChanges:        totalChanges,
@@ -523,10 +554,10 @@ func BuildSummaryData(app *pocketbase.PocketBase, congregation *core.Record) (Su
 // All derived metrics must already be populated in data before calling this.
 func BuildPrompt(data SummaryData) (systemMsg, userMsg string) {
 	systemMsg = `You are the territory servant for a Jehovah's Witness congregation, writing the
-monthly territory report for your service overseer and fellow elders.
+territory activity report for your service overseer and fellow elders.
 
 Your role is to give a clear, warm account of how the congregation's house-to-house
-ministry progressed this month — acknowledging the publishers' diligent efforts,
+ministry progressed during this period — acknowledging the publishers' diligent efforts,
 surfacing what needs attention, and encouraging continued zeal in the work of
 sharing the good news of the Kingdom (Matthew 24:14; Acts 20:20).
 
@@ -547,7 +578,7 @@ MINISTRY CONTEXT:
                            or organise a special return visit effort
 - A stalled map (0% progress with unworked addresses) means those householders have
   not yet been reached — it is likely unassigned or inadvertently overlooked
-- Territory progress is cumulative coverage — not just this month's work
+- Territory progress is cumulative coverage — not just this period's work
 
 REPORT READERS:
 - Territory servant: assigns maps to publishers, tracks territory progress,
@@ -557,10 +588,10 @@ REPORT READERS:
   the good news reaching every household
 
 DATA SCOPE:
-- "TERRITORY ACTIVITY" = what happened this month per territory, enriched with each
+- "TERRITORY ACTIVITY" = what happened during the report period per territory, enriched with each
   territory's current overall state (Overall%, Remaining addresses, Est. Months to finish)
   Column key:
-    Done / Not Home / DNC / Re-opened  = this month's counts only
+    Done / Not Home / DNC / Re-opened  = this period's counts only
     Total / Invalid / Overall% / Remaining / Est.Months = cumulative territory state as of report date
   "Re-opened" specifically = individual addresses re-opened for ministry this month
     (status changed back to not_done; small counts are normal and not worth mentioning)
@@ -591,7 +622,7 @@ WRITING STYLE:
 REPORT STRUCTURE — write exactly three sections in this order:
 
 Section 1 — COVERED ACTIVITY (2–3 sentences):
-  Summarise what the congregation accomplished in the field ministry this month.
+  Summarise what the congregation accomplished in the field ministry during this period.
   How many territories saw active house-to-house work? How many households were reached?
   Acknowledge the publishers' faithful efforts warmly — even small steps matter in this work.
 
@@ -605,12 +636,12 @@ Section 2 — TERRITORY ANALYSIS (3–5 sentences):
   that is the territory servant's decision, not the report's role.
 
 Section 3 — CONCLUSION (2–3 sentences):
-  Give an honest overall picture of the congregation's ministry momentum this month.
+  Give an honest overall picture of the congregation's ministry momentum during this period.
   If there was no activity, acknowledge it plainly and briefly.
-  Close with one warm, specific encouragement for the month ahead.
+  Close with one warm, specific encouragement for the period ahead.
 
 RULES:
-- Base analysis primarily on "TERRITORY ACTIVITY" (this month's data)
+- Base analysis primarily on "TERRITORY ACTIVITY" (this period's data)
 - Use not-home standing and map health as supporting context
 - Cite specific numbers from the data — no vague generalisations
 - Do not invent or infer data not present in the input
@@ -620,7 +651,7 @@ RULES:
 - Do not make assignment recommendations — which territory gets assigned next is the
   territory servant's decision, not the report's role
 - Do not mention the "Re-opened" count in narrative — it is an admin-level detail
-  (individual addresses re-opened for ministry) and is not meaningful for the monthly summary
+  (individual addresses re-opened for ministry) and is not meaningful for the activity summary
 - When referencing a map in narrative text, use the map's description as shown in the data
   (e.g. "map [description] in territory [territory]") — never use slash notation like "M05/112 (5)"
 - Respond only in this exact JSON schema:
@@ -631,7 +662,7 @@ RULES:
 }`
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "CONGREGATION: %s\nREPORT MONTH: %s\n\n", data.CongregationName, data.Period)
+	fmt.Fprintf(&sb, "CONGREGATION: %s\nREPORT PERIOD: %s\n\n", data.CongregationName, data.Period)
 
 	// Build a lookup map: territory code → TerritoryProgress for enriching the monthly table
 	territoryByCode := make(map[string]TerritoryProgress, len(data.Territories))
@@ -661,12 +692,12 @@ RULES:
 				t.Progress, t.NotDone, est)
 		}
 	} else {
-		sb.WriteString("No activity recorded this month.\n")
+		sb.WriteString("No activity recorded this period.\n")
 	}
 
 	// Also list territories that exist but had zero activity this month
 	if len(data.InactiveTerritories) > 0 {
-		sb.WriteString("\nTerritories with ZERO activity this month (cumulative state shown):\n")
+		sb.WriteString("\nTerritories with ZERO activity this period (cumulative state shown):\n")
 		sb.WriteString("Territory | Total | Invalid | Overall% | Remaining | Est.Months\n")
 		for _, code := range data.InactiveTerritories {
 			t := territoryByCode[code]
@@ -691,7 +722,7 @@ RULES:
 		fmt.Fprintf(&sb, "Peak day: %s\n", data.PeakDay)
 	}
 	if data.SlowWeek != "" {
-		fmt.Fprintf(&sb, "First week of month: %s\n", data.SlowWeek)
+		fmt.Fprintf(&sb, "Opening week: %s\n", data.SlowWeek)
 	}
 
 	// ── Section 2: Not-home standing (current state) ──

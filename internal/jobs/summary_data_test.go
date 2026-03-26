@@ -6,10 +6,6 @@ import (
 	"time"
 )
 
-// ---------------------------------------------------------------------------
-// truncate
-// ---------------------------------------------------------------------------
-
 func TestTruncate(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -33,10 +29,6 @@ func TestTruncate(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// statusLabel
-// ---------------------------------------------------------------------------
-
 func TestStatusLabel(t *testing.T) {
 	tests := []struct {
 		status   string
@@ -58,80 +50,73 @@ func TestStatusLabel(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// previousMonthRange
-// ---------------------------------------------------------------------------
-
-func TestPreviousMonthRange_Format(t *testing.T) {
-	start, end := previousMonthRange()
-
-	const layout = "2006-01-02"
-	startTime, err := time.Parse(layout, start)
-	if err != nil {
-		t.Fatalf("start %q is not a valid date: %v", start, err)
+func TestPreviousCalendarMonth_Label(t *testing.T) {
+	p := PreviousCalendarMonth()
+	if _, err := time.Parse("January 2006", p.Label); err != nil {
+		t.Errorf("PreviousCalendarMonth().Label = %q; expected format 'Month YYYY': %v", p.Label, err)
 	}
-	endTime, err := time.Parse(layout, end)
-	if err != nil {
-		t.Fatalf("end %q is not a valid date: %v", end, err)
-	}
-
-	if !startTime.Before(endTime) {
-		t.Errorf("start %s must be before end %s", start, end)
-	}
-
-	// end should be the 1st of the current month
-	now := time.Now()
-	expectedEnd := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-	if !endTime.Equal(expectedEnd) {
-		t.Errorf("end = %s; want %s (first of current month)", end, expectedEnd.Format(layout))
-	}
-
-	// start should be exactly one month before end
-	expectedStart := expectedEnd.AddDate(0, -1, 0)
-	if !startTime.Equal(expectedStart) {
-		t.Errorf("start = %s; want %s (first of last month)", start, expectedStart.Format(layout))
-	}
-}
-
-func TestPreviousMonthRange_DifferentMonths(t *testing.T) {
-	start, end := previousMonthRange()
-	if start == end {
-		t.Errorf("start and end must differ, got both %s", start)
-	}
-	// start must be day 01
-	if !strings.HasSuffix(start, "-01") {
-		t.Errorf("start %s should end in -01 (first of month)", start)
-	}
-	if !strings.HasSuffix(end, "-01") {
-		t.Errorf("end %s should end in -01 (first of month)", end)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// previousMonthLabel
-// ---------------------------------------------------------------------------
-
-func TestPreviousMonthLabel_Format(t *testing.T) {
-	label := previousMonthLabel()
-
-	// Should be parseable as "January 2006" format
-	if _, err := time.Parse("January 2006", label); err != nil {
-		t.Errorf("previousMonthLabel() = %q; expected format 'Month YYYY': %v", label, err)
-	}
-
-	// Should refer to the month before the current one
 	now := time.Now()
 	firstOfThisMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 	lastMonth := firstOfThisMonth.AddDate(0, -1, 0)
-	expected := lastMonth.Format("January 2006")
-	if label != expected {
-		t.Errorf("previousMonthLabel() = %q; want %q", label, expected)
+	if p.Label != lastMonth.Format("January 2006") {
+		t.Errorf("PreviousCalendarMonth().Label = %q; want %q", p.Label, lastMonth.Format("January 2006"))
 	}
 }
 
-// ---------------------------------------------------------------------------
-// BuildPrompt
-// ---------------------------------------------------------------------------
+func TestPreviousCalendarMonth_Range(t *testing.T) {
+	p := PreviousCalendarMonth()
+	if !p.Start.Before(p.End) {
+		t.Errorf("Start %s must be before End %s", p.Start, p.End)
+	}
+	if p.IsOnDemand {
+		t.Error("PreviousCalendarMonth().IsOnDemand should be false")
+	}
+	now := time.Now()
+	firstOfThisMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	expectedStart := firstOfThisMonth.AddDate(0, -1, 0)
+	if !p.Start.Equal(expectedStart) {
+		t.Errorf("Start = %s; want %s", p.Start, expectedStart)
+	}
+	if !p.End.Equal(firstOfThisMonth) {
+		t.Errorf("End = %s; want %s (first of current month)", p.End, firstOfThisMonth)
+	}
+}
+
+func TestRollingDays_Range(t *testing.T) {
+	before := time.Now().UTC()
+	p := RollingDays(OnDemandReportDays)
+	after := time.Now().UTC()
+
+	if !p.IsOnDemand {
+		t.Error("RollingDays().IsOnDemand should be true")
+	}
+	if !p.Start.Before(p.End) {
+		t.Errorf("Start %s must be before End %s", p.Start, p.End)
+	}
+	// Window should span exactly OnDemandReportDays+1 days (days ago through today inclusive, end is exclusive)
+	expectedDays := float64(OnDemandReportDays + 1)
+	days := p.End.Sub(p.Start).Hours() / 24
+	if days != expectedDays {
+		t.Errorf("expected window of %.0f days (%d + today), got %.0f", expectedDays, OnDemandReportDays, days)
+	}
+	// End must be tomorrow (to include today in queries)
+	todayStart := time.Date(before.Year(), before.Month(), before.Day(), 0, 0, 0, 0, time.UTC)
+	tomorrowStart := todayStart.AddDate(0, 0, 1)
+	if p.End.Before(todayStart) || p.End.After(tomorrowStart.AddDate(0, 0, 1)) {
+		t.Errorf("End = %s; expected around %s", p.End, tomorrowStart)
+	}
+	_ = after
+}
+
+func TestRollingDays_Label(t *testing.T) {
+	p := RollingDays(OnDemandReportDays)
+	if p.Label == "" {
+		t.Error("RollingDays().Label must not be empty")
+	}
+	if !strings.Contains(p.Label, " – ") {
+		t.Errorf("RollingDays().Label = %q; expected to contain ' – '", p.Label)
+	}
+}
 
 func TestBuildPrompt_SystemMessageContainsDomainContext(t *testing.T) {
 	data := minimalSummaryData()
@@ -415,17 +400,12 @@ func TestBuildPrompt_JSONSchemaInSystemMessage(t *testing.T) {
 	data := minimalSummaryData()
 	systemMsg, _ := BuildPrompt(data)
 
-	// Verify the JSON response schema fields are present in the system message
 	for _, field := range []string{`"covered_activity"`, `"territory_analysis"`, `"conclusion"`} {
 		if !strings.Contains(systemMsg, field) {
 			t.Errorf("system message missing JSON schema field %s", field)
 		}
 	}
 }
-
-// ---------------------------------------------------------------------------
-// helpers
-// ---------------------------------------------------------------------------
 
 // minimalSummaryData returns a SummaryData with just enough fields populated
 // to let BuildPrompt run without panicking.
