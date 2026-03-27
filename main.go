@@ -179,6 +179,10 @@ func main() {
 			return handlers.HandleOptionUpdate(c, app)
 		})
 
+		e.Router.GET("/api/db-health", func(c *core.RequestEvent) error {
+			return handlers.HandleDBHealth(c, app)
+		})
+
 		jobs.ConfigureScheduler(app)
 
 		bindAuthenticatedRoute("/report/generate", func(c *core.RequestEvent) error {
