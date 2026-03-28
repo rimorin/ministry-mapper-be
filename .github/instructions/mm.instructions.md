@@ -71,18 +71,22 @@ Territory management system for religious congregations. Tracks field ministry w
 - Skip 100% completed maps
 - Create assignment on match
 
-### 2. Real-time Aggregates
+### 2. Aggregates
 
-**Map Aggregates:**
+**Map Aggregates (debounced, per address tap):**
+- Triggered by `OnRecordAfterUpdateSuccess("addresses")` hook via `aggregateDebouncer`
+- **10s debounce delay**: coalesces rapid taps into a single recalculation (~5x fewer DB writes than 2s)
+- **Semaphore (max 5)**: caps concurrent recalculations to prevent SQLite saturation during bursts (e.g. 80 publishers at 10am SGT)
+- Map stats are not real-time critical — 10s staleness is acceptable
 ```sql
 -- Counts: done, not_done, not_home (with max_tries), dnc, invalid
 -- Progress: (done + not_home_max_tries) / total * 100
 ```
 
-**Territory Aggregates:**
-- Rolls up from all maps
+**Territory Aggregates (cron safety net):**
+- Rolls up from all maps every 10 minutes via `updateTerritoryAggregates`
 - Respects `is_countable` flag from options
-- Updates via cron every 10 minutes
+- Self-heals any stale map/territory stats within 10 minutes
 
 **File:** `internal/handlers/update_aggregates.go`
 
@@ -90,13 +94,18 @@ Territory management system for religious congregations. Tracks field ministry w
 
 **Scheduler:** `internal/jobs/job_scheduler.go`
 
-| Job | Frequency | Flag | Purpose |
-|-----|-----------|------|---------|
-| cleanUpAssignments | */5 min | `enable-assignments-cleanup` | Remove expired |
-| updateTerritoryAggregates | */10 min | `enable-territory-aggregations` | Recalc stats |
-| processMessages | */30 min | `enable-message-processing` | Queue processing |
-| processNotes | Hourly | `enable-note-processing` | Update notes |
-| generateMonthlyReport | Monthly | `enable-monthly-report` | Excel reports |
+Schedules are staggered (no two jobs at the same minute). Heavy non-urgent jobs run at 02:00 SGT (18:00 UTC) to avoid the peak field-service window (08:00–12:00 SGT).
+
+| Job | Schedule (UTC) | SGT | Flag | Purpose |
+|-----|---------------|-----|------|---------|
+| cleanUpAssignments | Every 5 min at :01 | :09 | `enable-assignments-cleanup` | Remove expired |
+| updateTerritoryAggregates | Every 10 min at :04 | :12 | `enable-territory-aggregations` | Recalc stats |
+| processMessages | Every 30 min at :08, :38 | :16, :46 | `enable-message-processing` | Queue processing |
+| processInstructions | Every 30 min at :18, :48 | :26, :56 | `enable-instruction-processing` | Territory instructions |
+| processNotes | Every hour at :28 | :36 | `enable-note-processing` | Update notes |
+| generateMonthlyReport | 1st of month 18:00 UTC | 02:00 SGT | `enable-monthly-report` | Excel reports |
+| processUnprovisionedUsers | Daily 18:00 UTC | 02:00 SGT | `enable-unprovisioned-user-processing` | Warn/disable no-role users |
+| processInactiveUsers | Daily 18:30 UTC | 02:30 SGT | `enable-inactive-user-processing` | Warn/disable inactive users |
 
 ### 4. Monthly Excel Reports
 

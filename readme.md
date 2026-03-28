@@ -195,16 +195,19 @@ Key variables (see `.env.sample` for the complete list):
 
 All jobs are gated by **LaunchDarkly feature flags** and can be toggled without redeployment.
 
-| Job | Schedule | Flag | Description |
-|-----|----------|------|-------------|
-| `cleanUpAssignments` | Every 5 min | `enable-assignments-cleanup` | Remove expired map assignments |
-| `updateTerritoryAggregates` | Every 10 min | `enable-territory-aggregations` | Recalculate territory progress stats |
-| `processMessages` | Every 30 min | `enable-message-processing` | Process pending message queue |
-| `processInstructions` | Every 30 min | `enable-instruction-processing` | Process territory assignment instructions |
-| `processNotes` | Every hour | `enable-note-processing` | Process updated congregation notes |
-| `generateMonthlyReport` | 1st of month | `enable-monthly-report` | Generate & email Excel report to admins |
-| `processUnprovisionedUsers` | Daily 01:00 UTC | `enable-unprovisioned-user-processing` | Warn/disable users with no role |
-| `processInactiveUsers` | Daily 01:30 UTC | `enable-inactive-user-processing` | Warn/disable inactive accounts |
+Schedules are staggered so no two jobs fire at the same minute, avoiding CPU pile-ups at top-of-hour.
+Heavy non-urgent jobs (reports, user lifecycle) run at **02:00–02:30 SGT (18:00–18:30 UTC)** — well clear of the peak field-service window (08:00–12:00 SGT).
+
+| Job | Schedule (UTC) | SGT | Flag | Description |
+|-----|---------------|-----|------|-------------|
+| `cleanUpAssignments` | Every 5 min at :01 | :09 | `enable-assignments-cleanup` | Remove expired map assignments |
+| `updateTerritoryAggregates` | Every 10 min at :04 | :12 | `enable-territory-aggregations` | Recalculate territory progress stats |
+| `processMessages` | Every 30 min at :08, :38 | :16, :46 | `enable-message-processing` | Process pending message queue |
+| `processInstructions` | Every 30 min at :18, :48 | :26, :56 | `enable-instruction-processing` | Process territory assignment instructions |
+| `processNotes` | Every hour at :28 | :36 | `enable-note-processing` | Process updated congregation notes |
+| `generateMonthlyReport` | 1st of month 18:00 UTC | 02:00 SGT | `enable-monthly-report` | Generate & email Excel report to admins |
+| `processUnprovisionedUsers` | Daily 18:00 UTC | 02:00 SGT | `enable-unprovisioned-user-processing` | Warn/disable users with no role |
+| `processInactiveUsers` | Daily 18:30 UTC | 02:30 SGT | `enable-inactive-user-processing` | Warn/disable inactive accounts |
 
 <p align="right"><a href="#ministry-mapper-backend">↑ back to top</a></p>
 
