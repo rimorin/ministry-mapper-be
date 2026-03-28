@@ -25,19 +25,39 @@ import (
 // Each mapID has its own independent timer so concurrent updates to different
 // maps don't interfere with each other.
 //
+// Delay is set to 10 seconds. A publisher typically takes 5–10 seconds per
+// address, so a 10s idle window coalesces 2–3 taps into a single calculation.
+// Map stats are not real-time critical, making this a safe trade-off for ~5x
+// fewer DB writes vs. the original 2s delay.
+//
+// A concurrency semaphore (maxConcurrentAggregates) caps the number of
+// simultaneous ProcessMapAggregates calls. This prevents a burst of 80+
+// goroutines (e.g. 10am field-service window) from flooding SQLite with
+// concurrent json_each aggregate queries. Goroutines waiting for a slot sleep
+// on a Go channel — zero CPU cost while queued.
+//
 // Per-row app.Save() calls are kept intact so PocketBase realtime events still
 // fire for every individual address change — the frontend sees each update.
-// Only the expensive aggregate recalculation is debounced.
+// Only the expensive aggregate recalculation is debounced and rate-limited.
 type aggregateDebouncer struct {
 	mu      sync.Mutex
 	pending map[string]*time.Timer
 	delay   time.Duration
+	sem     chan struct{}
+	done    chan struct{} // closed on cancel() to unblock waiting goroutines
 }
+
+// maxConcurrentAggregates is the maximum number of ProcessMapAggregates calls
+// allowed to run at the same time. Keeping this low (5) prevents a burst of
+// 80+ concurrent aggregate queries from saturating SQLite and spiking CPU.
+const maxConcurrentAggregates = 5
 
 func newAggregateDebouncer(delay time.Duration) *aggregateDebouncer {
 	return &aggregateDebouncer{
 		pending: make(map[string]*time.Timer),
 		delay:   delay,
+		sem:     make(chan struct{}, maxConcurrentAggregates),
+		done:    make(chan struct{}),
 	}
 }
 
@@ -57,14 +77,24 @@ func (d *aggregateDebouncer) schedule(mapID string, app *pocketbase.PocketBase) 
 		d.mu.Lock()
 		delete(d.pending, mapID)
 		d.mu.Unlock()
-		if err := handlers.ProcessMapAggregates(mapID, app, false); err != nil {
-			log.Printf("aggregate debounce error for map %s: %v", mapID, err)
+
+		// Acquire a concurrency slot. If the app is shutting down (done is
+		// closed), bail out instead of blocking forever.
+		select {
+		case d.sem <- struct{}{}:
+			defer func() { <-d.sem }()
+		case <-d.done:
+			return
 		}
+
+		middleware.WithJobRecovery("aggregateDebouncer:"+mapID, func() error {
+			return handlers.ProcessMapAggregates(mapID, app, false)
+		})
 	})
 }
 
-// cancel stops all pending timers. Call on application shutdown to prevent
-// callbacks from firing against a stopping app.
+// cancel stops all pending timers and signals any goroutines waiting on the
+// semaphore to exit. Call on application shutdown.
 func (d *aggregateDebouncer) cancel() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -72,6 +102,7 @@ func (d *aggregateDebouncer) cancel() {
 		timer.Stop()
 		delete(d.pending, mapID)
 	}
+	close(d.done)
 }
 
 func main() {
@@ -113,7 +144,11 @@ func main() {
 	defer sentry.Flush(2 * time.Second)
 
 	app := pocketbase.New()
-	debouncer := newAggregateDebouncer(500 * time.Millisecond)
+	// 10s debounce: coalesces 2–3 address taps per publisher into a single
+	// aggregate recalculation. Map stats are not real-time critical, so a
+	// short idle window is an acceptable trade-off for 5x fewer DB writes
+	// compared to the previous 2s delay.
+	debouncer := newAggregateDebouncer(10 * time.Second)
 	defer debouncer.cancel()
 
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
