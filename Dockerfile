@@ -33,8 +33,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 # Stage 2: Create the minimal runtime image
 FROM alpine:latest
 
-# Install tzdata for time zone support
-RUN apk add --no-cache tzdata
+# Install tzdata for time zone support and curl for healthchecks
+RUN apk add --no-cache tzdata curl
 
 # Set working directory for app
 WORKDIR /app
