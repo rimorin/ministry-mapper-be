@@ -97,7 +97,11 @@ func ProcessMapAggregates(mapID string, app *pocketbase.PocketBase, resetTerrito
 	}
 
 	if reset {
-		ResetMapTerritory(mapID, app)
+		// mapRecord is already loaded above — extract territory directly to avoid
+		// a redundant FindRecordById("maps") call inside ResetMapTerritory.
+		if territoryID, ok := mapRecord.Get("territory").(string); ok && territoryID != "" {
+			ProcessTerritoryAggregates(territoryID, app)
+		}
 	}
 
 	log.Printf("Map aggregates updated for map: %s", mapID)
