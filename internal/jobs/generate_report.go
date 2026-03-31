@@ -1095,6 +1095,31 @@ func createAddressTable(app *pocketbase.PocketBase, f *excelize.File, sheetName 
 		optionsMap[option.Id] = fmt.Sprintf("%v", option.Get("code"))
 	}
 
+	// Pre-fetch type codes for all addresses in this map via address_options.
+	// Ordered by o.sequence so the congregation's primary option wins per address.
+	type aoRow struct {
+		Address  string `db:"address"`
+		OptionId string `db:"option_id"`
+	}
+	var aoRows []aoRow
+	if err := app.DB().NewQuery(`
+		SELECT ao.address, ao.option AS option_id
+		FROM address_options ao
+		JOIN options o ON o.id = ao.option
+		WHERE ao.map = {:map}
+		ORDER BY o.sequence ASC
+	`).Bind(dbx.Params{"map": mapRecord.Id}).All(&aoRows); err != nil {
+		log.Printf("warning: failed to fetch address_options for map %s: %v", mapRecord.Id, err)
+	}
+	typesByAddr := make(map[string]string)
+	for _, row := range aoRows {
+		if _, exists := typesByAddr[row.Address]; !exists {
+			if code, ok := optionsMap[row.OptionId]; ok {
+				typesByAddr[row.Address] = code
+			}
+		}
+	}
+
 	addressGrid := make(map[int]map[int]*core.Record)
 	sequenceToCode := make(map[int]string)
 	sequences := make(map[int]bool)
@@ -1267,24 +1292,7 @@ func createAddressTable(app *pocketbase.PocketBase, f *excelize.File, sheetName 
 			}
 
 			if targetAddr != nil {
-				typeCode := ""
-				if targetAddr.Get("type") != nil {
-					typeField := targetAddr.Get("type")
-					var typeId string
-					if typeRels, ok := typeField.([]interface{}); ok && len(typeRels) > 0 {
-						if id, ok := typeRels[0].(string); ok {
-							typeId = id
-						}
-					} else if typeRels, ok := typeField.([]string); ok && len(typeRels) > 0 {
-						typeId = typeRels[0]
-					}
-
-					if typeId != "" {
-						if code, found := optionsMap[typeId]; found {
-							typeCode = code
-						}
-					}
-				}
+				typeCode := typesByAddr[targetAddr.Id]
 
 				status := fmt.Sprintf("%v", targetAddr.Get("status"))
 				statusSymbol := getStatusSymbol(status)
@@ -1321,25 +1329,7 @@ func createAddressTable(app *pocketbase.PocketBase, f *excelize.File, sheetName 
 				f.SetCellStyle(sheetName, fmt.Sprintf("%s%d", col, row), fmt.Sprintf("%s%d", col, row), currentDataStyleID)
 
 				if addr, exists := addressGrid[seq][floor]; exists {
-					typeCode := ""
-					if addr.Get("type") != nil {
-						typeField := addr.Get("type")
-						var typeId string
-						if typeRels, ok := typeField.([]interface{}); ok && len(typeRels) > 0 {
-							if id, ok := typeRels[0].(string); ok {
-								typeId = id
-							}
-						} else if typeRels, ok := typeField.([]string); ok && len(typeRels) > 0 {
-							typeId = typeRels[0]
-						}
-
-						if typeId != "" {
-							if code, found := optionsMap[typeId]; found {
-								typeCode = code
-							} else {
-							}
-						}
-					}
+					typeCode := typesByAddr[addr.Id]
 
 					status := fmt.Sprintf("%v", addr.Get("status"))
 					statusSymbol := getStatusSymbol(status)

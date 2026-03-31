@@ -70,14 +70,25 @@ func HandleNewMap(c *core.RequestEvent, app *pocketbase.PocketBase) error {
 
 		log.Printf("Map created successfully with ID: %s", mapRecord.Id)
 
+		aoCollection, err := txApp.FindCachedCollectionByNameOrId("address_options")
+		if err != nil {
+			log.Printf("Error finding address_options collection: %v", err)
+			return err
+		}
+
 		for i := 1; i <= floors; i++ {
 			for index, seq := range sequenceArray {
-				address := createNewAddressRecord(txApp, seq, territory, option.Id, i, index, mapRecord.Id, congregation)
+				address := createNewAddressRecord(txApp, seq, territory, i, index, mapRecord.Id, congregation)
 				if err := txApp.Save(address); err != nil {
 					log.Println("Error saving address record:", err)
 					return err
 				}
-				if err := insertAddressOption(txApp, address.Id, option.Id, congregation); err != nil {
+				aoRec := core.NewRecord(aoCollection)
+				aoRec.Set("address", address.Id)
+				aoRec.Set("option", option.Id)
+				aoRec.Set("congregation", congregation)
+				aoRec.Set("map", mapRecord.Id)
+				if err := txApp.Save(aoRec); err != nil {
 					log.Println("Error inserting address_options record:", err)
 					return err
 				}
@@ -95,7 +106,7 @@ func HandleNewMap(c *core.RequestEvent, app *pocketbase.PocketBase) error {
 	return c.JSON(200, mapRecord)
 }
 
-func createNewAddressRecord(txApp core.App, code, territory, option string, floor, sequence int, mapId, congId string) *core.Record {
+func createNewAddressRecord(txApp core.App, code, territory string, floor, sequence int, mapId, congId string) *core.Record {
 	collection, _ := txApp.FindCollectionByNameOrId("addresses")
 	address := core.NewRecord(collection)
 	address.Set("code", code)
@@ -103,7 +114,6 @@ func createNewAddressRecord(txApp core.App, code, territory, option string, floo
 	address.Set("floor", floor)
 	address.Set("sequence", sequence)
 	address.Set("status", "not_done")
-	address.Set("type", option)
 	address.Set("map", mapId)
 	address.Set("congregation", congId)
 	return address

@@ -204,14 +204,15 @@ func clearOldDefault(txApp core.App, congregation, excludeId string) error {
 func replaceAddressOptionsWithDefault(txDao core.App, oldOptionId, defaultOptionId, congregation string) error {
 	log.Printf("Replacing address options: oldOptionId=%s, defaultOptionId=%s, congregation=%s", oldOptionId, defaultOptionId, congregation)
 
-	records, err := txDao.FindRecordsByFilter(
-		"addresses",
-		"type ~ {:oldOptionId} && congregation = {:congregation}",
+	// Find all address_options rows for the deleted option in this congregation.
+	oldAoRows, err := txDao.FindRecordsByFilter(
+		"address_options",
+		"option = {:option} && congregation = {:congregation}",
 		"", 0, 0,
-		dbx.Params{"oldOptionId": oldOptionId, "congregation": congregation},
+		dbx.Params{"option": oldOptionId, "congregation": congregation},
 	)
 	if err != nil {
-		log.Printf("Error finding records: %v", err)
+		log.Printf("Error finding address_options records: %v", err)
 		return err
 	}
 
@@ -220,65 +221,40 @@ func replaceAddressOptionsWithDefault(txDao core.App, oldOptionId, defaultOption
 		return err
 	}
 
-	for _, record := range records {
-		// 1. Update addresses.type (Phase 1 dual-write — frontend reads this field)
-		existingTypes, ok := record.Get("type").([]string)
-		if !ok {
-			continue
-		}
-		newTypes := make([]string, 0, len(existingTypes))
-		for _, t := range existingTypes {
-			if t != oldOptionId {
-				newTypes = append(newTypes, t)
-			}
-		}
-		if !contains(newTypes, defaultOptionId) {
-			newTypes = append(newTypes, defaultOptionId)
-		}
-		record.Set("type", newTypes)
-		if err := txDao.Save(record); err != nil {
-			log.Printf("Error saving record: %v", err)
+	for _, oldAo := range oldAoRows {
+		addressId := oldAo.GetString("address")
+
+		// Remove the old option row.
+		// Uses Delete() not raw SQL so deletion realtime events fire.
+		if err := txDao.Delete(oldAo); err != nil {
 			return err
 		}
 
-		// 2. Sync address_options: remove old option row, add default if missing.
-		// Uses Delete() not raw SQL so deletion realtime events fire.
-		existingAo, _ := txDao.FindFirstRecordByFilter(
-			"address_options",
-			"address = {:address} AND option = {:option}",
-			dbx.Params{"address": record.Id, "option": oldOptionId},
-		)
-		if existingAo != nil {
-			if err := txDao.Delete(existingAo); err != nil {
-				return err
-			}
-		}
-
+		// Add the default option if the address doesn't already have it.
 		existing, _ := txDao.FindFirstRecordByFilter(
 			"address_options",
-			"address = {:address} AND option = {:option}",
-			dbx.Params{"address": record.Id, "option": defaultOptionId},
+			"address = {:address} && option = {:option}",
+			dbx.Params{"address": addressId, "option": defaultOptionId},
 		)
 		if existing == nil {
+			mapId := oldAo.GetString("map")
+			if mapId == "" {
+				// Fallback for records created before the map field backfill
+				if addrRec, addrErr := txDao.FindRecordById("addresses", addressId); addrErr == nil {
+					mapId = addrRec.GetString("map")
+				}
+			}
 			aoRec := core.NewRecord(aoCollection)
-			aoRec.Set("address", record.Id)
+			aoRec.Set("address", addressId)
 			aoRec.Set("option", defaultOptionId)
 			aoRec.Set("congregation", congregation)
+			aoRec.Set("map", mapId)
 			if err := txDao.Save(aoRec); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
-}
-
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
 }
 
 func handleOptionDeletion(txDao core.App, id, defaultId, congregation string) error {
@@ -393,10 +369,7 @@ func HandleOptionUpdate(c *core.RequestEvent, app *pocketbase.PocketBase) error 
 					}
 					var maps []affectedMap
 					if qErr := txApp.DB().NewQuery(`
-						SELECT DISTINCT a.map
-						FROM address_options ao
-						JOIN addresses a ON ao.address = a.id
-						WHERE ao.option = {:optionId}
+						SELECT DISTINCT map FROM address_options WHERE option = {:optionId}
 					`).Bind(dbx.Params{"optionId": id}).All(&maps); qErr != nil {
 						log.Printf("warning: failed to find affected maps for option %s: %v", id, qErr)
 					} else {

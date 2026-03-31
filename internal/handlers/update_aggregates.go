@@ -50,7 +50,7 @@ func ProcessMapAggregates(mapID string, app *pocketbase.PocketBase, resetTerrito
             FROM address_options ao
             JOIN options o ON ao.option = o.id
             WHERE ao.address = a.id
-            AND ao.congregation = a.congregation
+            AND ao.map = {:map}
             AND o.is_countable = TRUE
         )
         AND a.status IN ('done', 'not_done', 'do_not_call', 'invalid', 'not_home')

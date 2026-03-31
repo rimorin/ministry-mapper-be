@@ -932,19 +932,6 @@ func init() {
 						"type": "text"
 					},
 					{
-						"cascadeDelete": false,
-						"collectionId": "wz7avhl19otivv6",
-						"hidden": false,
-						"id": "avthtafh",
-						"maxSelect": 2147483647,
-						"minSelect": 0,
-						"name": "type",
-						"presentable": false,
-						"required": false,
-						"system": false,
-						"type": "relation"
-					},
-					{
 						"hidden": false,
 						"id": "agrc9m5o",
 						"maxSelect": 1,
@@ -2188,7 +2175,7 @@ func init() {
 					{
 						"autogeneratePattern": "0",
 						"hidden": false,
-						"id": "_clone_h7bV",
+						"id": "_clone_Lpcd",
 						"max": 0,
 						"min": 0,
 						"name": "code",
@@ -2201,7 +2188,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_gAWM",
+						"id": "_clone_CdL7",
 						"maxSelect": 1,
 						"name": "type",
 						"presentable": false,
@@ -2217,7 +2204,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "kyfdlowtckhj9wm",
 						"hidden": false,
-						"id": "_clone_nQFD",
+						"id": "_clone_RsgP",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "territory",
@@ -2230,7 +2217,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
 						"hidden": false,
-						"id": "_clone_wXWB",
+						"id": "_clone_xo2x",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2241,7 +2228,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_CWUx",
+						"id": "_clone_H31j",
 						"max": null,
 						"min": null,
 						"name": "progress",
@@ -2253,7 +2240,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_66XV",
+						"id": "_clone_rOgB",
 						"max": null,
 						"min": null,
 						"name": "sequence",
@@ -2265,7 +2252,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_6pkZ",
+						"id": "_clone_4Uly",
 						"name": "created",
 						"onCreate": true,
 						"onUpdate": false,
@@ -2275,7 +2262,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_fwA9",
+						"id": "_clone_IQal",
 						"name": "updated",
 						"onCreate": true,
 						"onUpdate": true,
@@ -2385,7 +2372,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_pgqB",
+						"id": "_clone_wcg6",
 						"max": 0,
 						"min": 0,
 						"name": "code",
@@ -2399,7 +2386,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_m2F5",
+						"id": "_clone_7fzR",
 						"max": 0,
 						"min": 0,
 						"name": "description",
@@ -2414,7 +2401,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
 						"hidden": false,
-						"id": "_clone_qtaQ",
+						"id": "_clone_fis2",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2425,7 +2412,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_VTj9",
+						"id": "_clone_zWcI",
 						"max": 100,
 						"min": 0,
 						"name": "progress",
@@ -2438,7 +2425,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_UltV",
+						"id": "_clone_N78x",
 						"max": 0,
 						"min": 0,
 						"name": "congregation_name",
@@ -2554,7 +2541,7 @@ func init() {
 						"cascadeDelete": false,
 						"collectionId": "zzljam3htisq5tv",
 						"hidden": false,
-						"id": "_clone_qfC8",
+						"id": "_clone_CIyx",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2566,7 +2553,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_qrKd",
+						"id": "_clone_R02n",
 						"max": 0,
 						"min": 0,
 						"name": "territory",
@@ -2580,7 +2567,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_HQBh",
+						"id": "_clone_V6Zb",
 						"max": 0,
 						"min": 0,
 						"name": "new_status",
@@ -2636,7 +2623,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
 						"hidden": false,
-						"id": "_clone_xzjo",
+						"id": "_clone_F7kt",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2649,7 +2636,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "kyfdlowtckhj9wm",
 						"hidden": false,
-						"id": "_clone_kmBO",
+						"id": "_clone_D02t",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "territory",
@@ -2662,7 +2649,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "rupq6yj561mghrr",
 						"hidden": false,
-						"id": "_clone_cBYO",
+						"id": "_clone_jMzM",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "map",
@@ -2673,7 +2660,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_IgBd",
+						"id": "_clone_JqMr",
 						"max": null,
 						"min": null,
 						"name": "not_home_tries",
@@ -2685,7 +2672,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_OHmF",
+						"id": "_clone_mWeA",
 						"max": null,
 						"min": null,
 						"name": "max_tries",
@@ -2707,7 +2694,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_DFFe",
+						"id": "_clone_IpTP",
 						"name": "updated",
 						"onCreate": true,
 						"onUpdate": true,
@@ -2747,7 +2734,7 @@ func init() {
 					{
 						"autogeneratePattern": "user[0-9]{5}[A-Za-z]",
 						"hidden": false,
-						"id": "_clone_z9qg",
+						"id": "_clone_lDTs",
 						"max": 50,
 						"min": 2,
 						"name": "name",
@@ -2761,7 +2748,7 @@ func init() {
 					{
 						"exceptDomains": null,
 						"hidden": false,
-						"id": "_clone_T0G7",
+						"id": "_clone_469s",
 						"name": "email",
 						"onlyDomains": null,
 						"presentable": false,
@@ -2771,7 +2758,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_il4P",
+						"id": "_clone_kzUg",
 						"max": "",
 						"min": "",
 						"name": "last_login",
@@ -2794,7 +2781,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_SG21",
+						"id": "_clone_fLqg",
 						"name": "disabled",
 						"presentable": false,
 						"required": false,
@@ -2803,7 +2790,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_KPeH",
+						"id": "_clone_rWti",
 						"name": "verified",
 						"presentable": false,
 						"required": false,
@@ -2812,7 +2799,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_YNDM",
+						"id": "_clone_nC8W",
 						"name": "created",
 						"onCreate": true,
 						"onUpdate": false,
@@ -2854,8 +2841,8 @@ func init() {
 				"viewRule": null
 			},
 			{
-				"createRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= id)",
-				"deleteRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= id)",
+				"createRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)",
+				"deleteRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)",
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
@@ -2879,6 +2866,19 @@ func init() {
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "address",
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "relation"
+					},
+					{
+						"cascadeDelete": false,
+						"collectionId": "rupq6yj561mghrr",
+						"hidden": false,
+						"id": "relation2477632187",
+						"maxSelect": 1,
+						"minSelect": 0,
+						"name": "map",
 						"presentable": false,
 						"required": false,
 						"system": false,
@@ -2931,16 +2931,19 @@ func init() {
 						"type": "autodate"
 					}
 				],
+				"createRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)",
+				"deleteRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)",
 				"id": "pbc_3852263565",
 				"indexes": [
-					"CREATE UNIQUE INDEX ` + "`" + `idx_sdPZuFbD9t` + "`" + ` ON ` + "`" + `address_options` + "`" + ` (\n  ` + "`" + `address` + "`" + `,\n  ` + "`" + `option` + "`" + `\n)"
+					"CREATE UNIQUE INDEX ` + "`" + `idx_sdPZuFbD9t` + "`" + ` ON ` + "`" + `address_options` + "`" + ` (\n  ` + "`" + `address` + "`" + `,\n  ` + "`" + `option` + "`" + `,\n  ` + "`" + `map` + "`" + `\n)",
+					"CREATE INDEX ` + "`" + `idx_SDhkFBbBup` + "`" + ` ON ` + "`" + `address_options` + "`" + ` (` + "`" + `map` + "`" + `)"
 				],
-				"listRule": null,
+				"listRule": "// PB Limitation: Reduce role joins for registered users as addresses are huge\n(@request.auth.id != \"\" || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)) && @request.query.filter:isset = true && @request.query.fields:isset = true && @request.query.filter ~ \"map=\"",
 				"name": "address_options",
 				"system": false,
 				"type": "base",
 				"updateRule": null,
-				"viewRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= id)"
+				"viewRule": "// PB Limitation: Reduce role joins for registered users as addresses are huge\n(@request.auth.id != \"\" || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)) && @request.query.filter:isset = true && @request.query.fields:isset = true && @request.query.filter ~ \"map=\""
 			}
 		]`
 

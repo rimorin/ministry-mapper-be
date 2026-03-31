@@ -68,12 +68,16 @@ func HandleMapFloor(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 			}
 		}
 
+		aoCollection, err := txApp.FindCachedCollectionByNameOrId("address_options")
+		if err != nil {
+			return err
+		}
+
 		for _, address := range addresses {
 			collection, _ := txApp.FindCollectionByNameOrId("addresses")
 			record := core.NewRecord(collection)
 			record.Set("code", address.Get("code"))
 			record.Set("floor", floor)
-			record.Set("type", defaultType.Id)
 			record.Set("congregation", address.Get("congregation"))
 			record.Set("map", mapId)
 			record.Set("status", "not_done")
@@ -83,7 +87,12 @@ func HandleMapFloor(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 			if err := txApp.Save(record); err != nil {
 				return err
 			}
-			if err := insertAddressOption(txApp, record.Id, defaultType.Id, fmt.Sprintf("%v", address.Get("congregation"))); err != nil {
+			aoRec := core.NewRecord(aoCollection)
+			aoRec.Set("address", record.Id)
+			aoRec.Set("option", defaultType.Id)
+			aoRec.Set("congregation", fmt.Sprintf("%v", address.Get("congregation")))
+			aoRec.Set("map", mapId)
+			if err := txApp.Save(aoRec); err != nil {
 				return err
 			}
 		}
