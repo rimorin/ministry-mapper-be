@@ -193,7 +193,7 @@ func clearOldDefault(txApp core.App, congregation, excludeId string) error {
 
 	for _, record := range existingDefaults {
 		record.Set("is_default", false)
-		if err := txApp.Save(record); err != nil {
+		if err := txApp.SaveNoValidate(record); err != nil {
 			return err
 		}
 	}
@@ -249,7 +249,7 @@ func replaceAddressOptionsWithDefault(txDao core.App, oldOptionId, defaultOption
 			aoRec.Set("option", defaultOptionId)
 			aoRec.Set("congregation", congregation)
 			aoRec.Set("map", mapId)
-			if err := txDao.Save(aoRec); err != nil {
+			if err := txDao.SaveNoValidate(aoRec); err != nil {
 				return err
 			}
 		}

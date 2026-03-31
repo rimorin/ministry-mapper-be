@@ -153,7 +153,7 @@ func HandleMapAdd(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 				record.Set("territory", mapData.Get("territory"))
 				record.Set("sequence", currentSequence)
 
-				if err := txApp.Save(record); err != nil {
+				if err := txApp.SaveNoValidate(record); err != nil {
 					return err
 				}
 				aoRec := core.NewRecord(aoCollection)
@@ -161,7 +161,7 @@ func HandleMapAdd(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 				aoRec.Set("option", defaultCode.Id)
 				aoRec.Set("congregation", fmt.Sprintf("%v", mapData.Get("congregation")))
 				aoRec.Set("map", mapId)
-				if err := txApp.Save(aoRec); err != nil {
+				if err := txApp.SaveNoValidate(aoRec); err != nil {
 					return err
 				}
 			}

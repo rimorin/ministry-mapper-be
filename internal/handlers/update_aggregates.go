@@ -85,7 +85,7 @@ func ProcessMapAggregates(mapID string, app *pocketbase.PocketBase, resetTerrito
 	mapRecord.Set("aggregates", amap)
 	mapRecord.Set("progress", donePercentage)
 
-	if err := app.Save(mapRecord); err != nil {
+	if err := app.SaveNoValidate(mapRecord); err != nil {
 		log.Printf("Error saving map record for mapID %s: %v", mapID, err)
 		return err
 	}
@@ -170,7 +170,7 @@ func ProcessTerritoryAggregates(territoryID string, app *pocketbase.PocketBase) 
 
 	territoryRecord.Set("progress", donePercentage)
 
-	if err := app.Save(territoryRecord); err != nil {
+	if err := app.SaveNoValidate(territoryRecord); err != nil {
 		log.Printf("Error saving territory record for territoryID %s: %v", territoryID, err)
 		return err
 	}

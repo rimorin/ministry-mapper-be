@@ -79,7 +79,7 @@ func HandleNewMap(c *core.RequestEvent, app *pocketbase.PocketBase) error {
 		for i := 1; i <= floors; i++ {
 			for index, seq := range sequenceArray {
 				address := createNewAddressRecord(txApp, seq, territory, i, index, mapRecord.Id, congregation)
-				if err := txApp.Save(address); err != nil {
+				if err := txApp.SaveNoValidate(address); err != nil {
 					log.Println("Error saving address record:", err)
 					return err
 				}
@@ -88,7 +88,7 @@ func HandleNewMap(c *core.RequestEvent, app *pocketbase.PocketBase) error {
 				aoRec.Set("option", option.Id)
 				aoRec.Set("congregation", congregation)
 				aoRec.Set("map", mapRecord.Id)
-				if err := txApp.Save(aoRec); err != nil {
+				if err := txApp.SaveNoValidate(aoRec); err != nil {
 					log.Println("Error inserting address_options record:", err)
 					return err
 				}

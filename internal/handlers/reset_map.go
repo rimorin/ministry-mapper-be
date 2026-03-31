@@ -37,7 +37,7 @@ func HandleResetMap(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 			record.Set("status", "not_done")
 			record.Set("not_home_tries", 0)
 			record.Set("updated_by", userName)
-			if err := txApp.Save(record); err != nil {
+			if err := txApp.SaveNoValidate(record); err != nil {
 				return err
 			}
 		}
@@ -95,7 +95,7 @@ func HandleResetTerritory(c *core.RequestEvent, app *pocketbase.PocketBase) erro
 			record.Set("status", "not_done")
 			record.Set("not_home_tries", 0)
 			record.Set("updated_by", userName)
-			if err := txApp.Save(record); err != nil {
+			if err := txApp.SaveNoValidate(record); err != nil {
 				return err
 			}
 		}

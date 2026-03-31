@@ -124,7 +124,7 @@ func updateTerritoryAggregates(app *pocketbase.PocketBase, timeIntervalMinutes i
 		}
 
 		territoryRecord.Set("progress", progress)
-		if err := app.Save(territoryRecord); err != nil {
+		if err := app.SaveNoValidate(territoryRecord); err != nil {
 			log.Printf("Error saving territory record %s: %v", t.ID, err)
 			updateErrors++
 			continue

@@ -84,7 +84,7 @@ func HandleMapFloor(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 			record.Set("territory", address.Get("territory"))
 			record.Set("sequence", address.Get("sequence"))
 
-			if err := txApp.Save(record); err != nil {
+			if err := txApp.SaveNoValidate(record); err != nil {
 				return err
 			}
 			aoRec := core.NewRecord(aoCollection)
@@ -92,7 +92,7 @@ func HandleMapFloor(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 			aoRec.Set("option", defaultType.Id)
 			aoRec.Set("congregation", fmt.Sprintf("%v", address.Get("congregation")))
 			aoRec.Set("map", mapId)
-			if err := txApp.Save(aoRec); err != nil {
+			if err := txApp.SaveNoValidate(aoRec); err != nil {
 				return err
 			}
 		}

@@ -47,7 +47,7 @@ func HandleMapTerritoryUpdate(e *core.RequestEvent, app *pocketbase.PocketBase) 
 	err = app.RunInTransaction(func(txApp core.App) error {
 		for _, addressRecord := range addressRecords {
 			addressRecord.Set("territory", newTerritory)
-			if err := txApp.Save(addressRecord); err != nil {
+			if err := txApp.SaveNoValidate(addressRecord); err != nil {
 				return err
 			}
 		}
