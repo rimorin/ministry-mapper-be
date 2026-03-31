@@ -152,6 +152,9 @@ func HandleMapAdd(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 				if err := txApp.Save(record); err != nil {
 					return err
 				}
+				if err := insertAddressOption(txApp, record.Id, defaultCode.Id, fmt.Sprintf("%v", mapData.Get("congregation"))); err != nil {
+					return err
+				}
 			}
 		}
 		return nil

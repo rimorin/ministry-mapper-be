@@ -571,9 +571,9 @@ func createAddressSheet(app *pocketbase.PocketBase, f *excelize.File, congregati
 			"addresses.status as status",
 			`COALESCE(
 				(SELECT GROUP_CONCAT(o.code, ', ')
-				FROM options o
-				JOIN json_each(addresses.type) jt ON o.id = jt.value
-				WHERE o.congregation = addresses.congregation),
+				FROM address_options ao
+				JOIN options o ON ao.option = o.id
+				WHERE ao.address = addresses.id),
 				'N/A'
 			) as type_codes`,
 			"addresses.notes as notes",

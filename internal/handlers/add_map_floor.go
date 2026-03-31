@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/pocketbase/pocketbase"
@@ -68,7 +69,7 @@ func HandleMapFloor(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 		}
 
 		for _, address := range addresses {
-			collection, _ := app.FindCollectionByNameOrId("addresses")
+			collection, _ := txApp.FindCollectionByNameOrId("addresses")
 			record := core.NewRecord(collection)
 			record.Set("code", address.Get("code"))
 			record.Set("floor", floor)
@@ -80,6 +81,9 @@ func HandleMapFloor(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 			record.Set("sequence", address.Get("sequence"))
 
 			if err := txApp.Save(record); err != nil {
+				return err
+			}
+			if err := insertAddressOption(txApp, record.Id, defaultType.Id, fmt.Sprintf("%v", address.Get("congregation"))); err != nil {
 				return err
 			}
 		}

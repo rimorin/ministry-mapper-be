@@ -71,11 +71,6 @@ func updateTerritoryAggregates(app *pocketbase.PocketBase, timeIntervalMinutes i
 	// Run a single aggregate query for all target territories at once.
 	var results []territoryAggregate
 	err = app.DB().NewQuery(fmt.Sprintf(`
-		WITH countable_options AS (
-			SELECT o.id, o.congregation
-			FROM options o
-			WHERE o.is_countable = TRUE
-		)
 		SELECT
 			a.territory,
 			COALESCE(SUM(CASE WHEN a.status = 'not_done' THEN 1 ELSE 0 END), 0) AS not_done,
@@ -89,9 +84,11 @@ func updateTerritoryAggregates(app *pocketbase.PocketBase, timeIntervalMinutes i
 		WHERE a.territory IN (%s)
 		AND EXISTS (
 			SELECT 1
-			FROM countable_options co
-			JOIN json_each(a.type) AS jt ON jt.value = co.id
-			AND co.congregation = a.congregation
+			FROM address_options ao
+			JOIN options o ON ao.option = o.id
+			WHERE ao.address = a.id
+			AND ao.congregation = a.congregation
+			AND o.is_countable = TRUE
 		)
 		AND a.status IN ('done', 'not_done', 'do_not_call', 'invalid', 'not_home')
 		GROUP BY a.territory

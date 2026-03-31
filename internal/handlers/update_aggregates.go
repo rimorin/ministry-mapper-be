@@ -36,11 +36,6 @@ func ProcessMapAggregates(mapID string, app *pocketbase.PocketBase, resetTerrito
 
 	aggregates := Aggregates{}
 	err := app.DB().NewQuery(`
-        WITH countable_options AS (
-            SELECT id, congregation 
-            FROM options 
-            WHERE is_countable = TRUE
-        )
         SELECT
 			COALESCE(SUM(CASE WHEN a.status = 'not_done' THEN 1 ELSE 0 END), 0) AS not_done,
 			COALESCE(SUM(CASE WHEN a.status = 'done' THEN 1 ELSE 0 END), 0) AS done,
@@ -48,15 +43,17 @@ func ProcessMapAggregates(mapID string, app *pocketbase.PocketBase, resetTerrito
 			COALESCE(SUM(CASE WHEN a.status = 'not_home' AND a.not_home_tries < c.max_tries THEN 1 ELSE 0 END), 0) AS not_home_less_tries,
 			COALESCE(SUM(CASE WHEN a.status = 'do_not_call' THEN 1 ELSE 0 END), 0) AS dnc,
 			COALESCE(SUM(CASE WHEN a.status = 'invalid' THEN 1 ELSE 0 END), 0) AS invalid
-        FROM addresses a 
-        LEFT JOIN congregations c ON a.congregation = c.id 
+        FROM addresses a
+        LEFT JOIN congregations c ON a.congregation = c.id
         WHERE EXISTS (
-            SELECT 1 
-            FROM countable_options co 
-            JOIN json_each(a.type) AS jt ON jt.value = co.id
-            AND co.congregation = a.congregation
-        ) 
-        AND a.status IN ('done', 'not_done', 'do_not_call', 'invalid', 'not_home') 
+            SELECT 1
+            FROM address_options ao
+            JOIN options o ON ao.option = o.id
+            WHERE ao.address = a.id
+            AND ao.congregation = a.congregation
+            AND o.is_countable = TRUE
+        )
+        AND a.status IN ('done', 'not_done', 'do_not_call', 'invalid', 'not_home')
         AND a.map = {:map}
     `).Bind(dbx.Params{"map": mapID}).One(&aggregates)
 	if err != nil {
@@ -129,15 +126,6 @@ func ProcessTerritoryAggregates(territoryID string, app *pocketbase.PocketBase) 
 
 	aggregates := Aggregates{}
 	err := app.DB().NewQuery(`
-		WITH countable_options AS (
-			SELECT
-				o.id,
-				o.congregation
-			FROM
-				options o
-			WHERE
-				o.is_countable = TRUE
-		)
 		SELECT
 			COALESCE(SUM(CASE WHEN a.status = 'not_done' THEN 1 ELSE 0 END), 0) AS not_done,
 			COALESCE(SUM(CASE WHEN a.status = 'done' THEN 1 ELSE 0 END), 0) AS done,
@@ -148,11 +136,13 @@ func ProcessTerritoryAggregates(territoryID string, app *pocketbase.PocketBase) 
 		FROM addresses a
 		LEFT JOIN congregations c ON a.congregation = c.id
 		WHERE EXISTS (
-            SELECT 1 
-            FROM countable_options co 
-            JOIN json_each(a.type) AS jt ON jt.value = co.id
-            AND co.congregation = a.congregation
-        )
+			SELECT 1
+			FROM address_options ao
+			JOIN options o ON ao.option = o.id
+			WHERE ao.address = a.id
+			AND ao.congregation = a.congregation
+			AND o.is_countable = TRUE
+		)
 		AND a.status IN ('done', 'not_done', 'do_not_call', 'invalid', 'not_home')
 		AND a.territory = {:territory}
 	`).Bind(dbx.Params{"territory": territoryID}).One(&aggregates)

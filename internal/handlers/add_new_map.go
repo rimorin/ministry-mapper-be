@@ -77,6 +77,10 @@ func HandleNewMap(c *core.RequestEvent, app *pocketbase.PocketBase) error {
 					log.Println("Error saving address record:", err)
 					return err
 				}
+				if err := insertAddressOption(txApp, address.Id, option.Id, congregation); err != nil {
+					log.Println("Error inserting address_options record:", err)
+					return err
+				}
 			}
 		}
 

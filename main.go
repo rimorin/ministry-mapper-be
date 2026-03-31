@@ -261,6 +261,10 @@ func main() {
 		return e.Next()
 	})
 
+	app.OnRecordAfterUpdateSuccess("addresses").BindFunc(func(e *core.RecordEvent) error {
+		return handlers.HandleAddressTypeSync(e)
+	})
+
 	app.OnRecordAuthRequest("users").BindFunc(func(e *core.RecordAuthRequestEvent) error {
 		e.Record.Set("last_login", time.Now())
 		// Reset inactive warning timestamps so a returning user gets fresh warnings

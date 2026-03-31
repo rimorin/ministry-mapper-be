@@ -203,28 +203,72 @@ func clearOldDefault(txApp core.App, congregation, excludeId string) error {
 
 func replaceAddressOptionsWithDefault(txDao core.App, oldOptionId, defaultOptionId, congregation string) error {
 	log.Printf("Replacing address options: oldOptionId=%s, defaultOptionId=%s, congregation=%s", oldOptionId, defaultOptionId, congregation)
-	records, err := txDao.FindRecordsByFilter("addresses", "type ~ {:oldOptionId} && congregation = {:congregation}", "", 0, 0, dbx.Params{"oldOptionId": oldOptionId, "congregation": congregation})
+
+	records, err := txDao.FindRecordsByFilter(
+		"addresses",
+		"type ~ {:oldOptionId} && congregation = {:congregation}",
+		"", 0, 0,
+		dbx.Params{"oldOptionId": oldOptionId, "congregation": congregation},
+	)
 	if err != nil {
 		log.Printf("Error finding records: %v", err)
 		return err
 	}
 
+	aoCollection, err := txDao.FindCachedCollectionByNameOrId("address_options")
+	if err != nil {
+		return err
+	}
+
 	for _, record := range records {
+		// 1. Update addresses.type (Phase 1 dual-write — frontend reads this field)
 		existingTypes, ok := record.Get("type").([]string)
 		if !ok {
 			continue
 		}
+		newTypes := make([]string, 0, len(existingTypes))
+		for _, t := range existingTypes {
+			if t != oldOptionId {
+				newTypes = append(newTypes, t)
+			}
+		}
+		if !contains(newTypes, defaultOptionId) {
+			newTypes = append(newTypes, defaultOptionId)
+		}
+		record.Set("type", newTypes)
+		if err := txDao.Save(record); err != nil {
+			log.Printf("Error saving record: %v", err)
+			return err
+		}
 
-		if !contains(existingTypes, defaultOptionId) {
-			existingTypes = append(existingTypes, defaultOptionId)
-			record.Set("type", existingTypes)
-			if err := txDao.Save(record); err != nil {
-				log.Printf("Error saving record: %v", err)
+		// 2. Sync address_options: remove old option row, add default if missing.
+		// Uses Delete() not raw SQL so deletion realtime events fire.
+		existingAo, _ := txDao.FindFirstRecordByFilter(
+			"address_options",
+			"address = {:address} AND option = {:option}",
+			dbx.Params{"address": record.Id, "option": oldOptionId},
+		)
+		if existingAo != nil {
+			if err := txDao.Delete(existingAo); err != nil {
+				return err
+			}
+		}
+
+		existing, _ := txDao.FindFirstRecordByFilter(
+			"address_options",
+			"address = {:address} AND option = {:option}",
+			dbx.Params{"address": record.Id, "option": defaultOptionId},
+		)
+		if existing == nil {
+			aoRec := core.NewRecord(aoCollection)
+			aoRec.Set("address", record.Id)
+			aoRec.Set("option", defaultOptionId)
+			aoRec.Set("congregation", congregation)
+			if err := txDao.Save(aoRec); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -284,6 +328,7 @@ func HandleOptionUpdate(c *core.RequestEvent, app *pocketbase.PocketBase) error 
 	}
 
 	var defaultOption string
+	var affectedMaps []string // maps to recalculate if is_countable changes
 
 	err := app.RunInTransaction(func(txApp core.App) error {
 		batchOptionIds := make(map[string]bool)
@@ -340,8 +385,25 @@ func HandleOptionUpdate(c *core.RequestEvent, app *pocketbase.PocketBase) error 
 				}
 
 				oldCountable := optionRecord.GetBool("is_countable")
-				if oldCountable && !isCountable {
-					log.Printf("Warning: Option %s (code: %s) changed from countable to non-countable - this affects aggregates", id, code)
+				if oldCountable != isCountable {
+					// Countability changed — find all maps using this option so
+					// aggregates can be recalculated after the transaction commits.
+					type affectedMap struct {
+						MapId string `db:"map"`
+					}
+					var maps []affectedMap
+					if qErr := txApp.DB().NewQuery(`
+						SELECT DISTINCT a.map
+						FROM address_options ao
+						JOIN addresses a ON ao.address = a.id
+						WHERE ao.option = {:optionId}
+					`).Bind(dbx.Params{"optionId": id}).All(&maps); qErr != nil {
+						log.Printf("warning: failed to find affected maps for option %s: %v", id, qErr)
+					} else {
+						for _, m := range maps {
+							affectedMaps = append(affectedMaps, m.MapId)
+						}
+					}
 				}
 
 				optionRecord.Set("is_default", isDefault)
@@ -408,6 +470,14 @@ func HandleOptionUpdate(c *core.RequestEvent, app *pocketbase.PocketBase) error 
 	if err != nil {
 		log.Printf("Error processing options for congregation %s: %v", congregation, err)
 		return apis.NewApiError(500, "Error processing options: "+err.Error(), nil)
+	}
+
+	// Trigger aggregate recalculation for maps affected by is_countable changes.
+	// Done after the transaction so we read committed data.
+	for _, mapId := range affectedMaps {
+		if err := ProcessMapAggregates(mapId, app); err != nil {
+			log.Printf("warning: failed to recalculate aggregates for map %s after option countability change: %v", mapId, err)
+		}
 	}
 
 	log.Printf("Options update completed for congregation: %s", congregation)
