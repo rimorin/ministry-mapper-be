@@ -4,10 +4,10 @@ import (
 	"log"
 	"time"
 
-	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 )
+
 
 // assignmentsCleanup removes expired assignments from the database.
 // It fetches all assignments that have an expiry date earlier than the current date,
@@ -22,29 +22,29 @@ import (
 func assignmentsCleanup(app *pocketbase.PocketBase) error {
 	log.Println("Starting assignments cleanup")
 
-	// Fetch all assignments that have expired
-	type AssignmentData struct {
-		ID string `db:"id"`
-	}
-	assignments := []AssignmentData{}
-	err := app.DB().Select("assignments.id").From("assignments").Where(dbx.NewExp("expiry_date < {:current_date}", dbx.Params{"current_date": time.Now().UTC()})).All(&assignments)
+	// Fetch full records in one query — avoids a second FindRecordById per record inside the loop.
+	assignments, err := app.FindRecordsByFilter(
+		"assignments",
+		"expiry_date < {:current_date}",
+		"", 0, 0,
+		map[string]any{"current_date": time.Now().UTC()},
+	)
 	if err != nil {
 		log.Printf("Cleanup failed: %v", err)
 		return err
 	}
 
-	// If no expired assignments found, return
 	if len(assignments) == 0 {
 		log.Println("Completed: No expired assignments found")
 		return nil
 	}
 
-	// Delete all expired assignments
+	// Delete each record. Running inside a transaction keeps the deletions atomic
+	// and each txApp.Delete call fires PocketBase hooks/realtime events as expected.
 	err = app.RunInTransaction(func(txApp core.App) error {
-		for _, assignment_id := range assignments {
-			assignment, _ := txApp.FindRecordById("assignments", assignment_id.ID)
+		for _, assignment := range assignments {
 			if err := txApp.Delete(assignment); err != nil {
-				log.Printf("Error deleting assignment with ID: %s, %v", assignment_id.ID, err)
+				log.Printf("Error deleting assignment with ID: %s, %v", assignment.Id, err)
 				return err
 			}
 		}
