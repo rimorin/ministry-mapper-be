@@ -11,11 +11,12 @@ func init() {
 
 		collection, err := app.FindCollectionByNameOrId("congregations")
 		if err != nil {
-			return err
+			// Collection doesn't exist yet (e.g. fresh test DB) — nothing to migrate.
+			return nil
 		}
 
 		// Check if fields already exist (idempotent)
-		if collection.Fields.GetByName("origin") != nil {
+		if collection.Fields.GetByName("origin") == nil {
 			collection.Fields.Add(&core.SelectField{
 				Name:      "origin",
 				MaxSelect: 1,
@@ -37,7 +38,7 @@ func init() {
 			})
 		}
 
-		if collection.Fields.GetByName("timezone") != nil {
+		if collection.Fields.GetByName("timezone") == nil {
 			collection.Fields.Add(&core.SelectField{
 				Name:      "timezone",
 				MaxSelect: 1,
