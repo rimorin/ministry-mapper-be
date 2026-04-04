@@ -77,6 +77,10 @@ func init() {
 		settings.SMTP.Username = smtpUsername
 		settings.SMTP.Password = smtpPassword
 		settings.Meta.HideControls = hideControlsBool
+		settings.Batch.Enabled = true
+		settings.Batch.MaxRequests = 10
+		settings.Batch.Timeout = 3
+		settings.Batch.MaxBodySize = 1048576
 		settings.RateLimits.Enabled = rateLimitingEnabledBool
 		// Define default rate limit rules
 		settings.RateLimits.Rules = []core.RateLimitRule{
