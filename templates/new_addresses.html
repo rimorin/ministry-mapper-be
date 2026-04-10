@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Addresses Notification</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 15px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #3498db);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header img {
+            width: 25%;
+            height: auto;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .content {
+            padding: 30px 25px;
+        }
+        .content > p {
+            margin: 0 0 15px;
+            font-size: 16px;
+        }
+        .maps-container {
+            margin: 20px 0;
+        }
+        .map-group {
+            border: 1px solid #e1e4e8;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+        .territory-tag {
+            display: inline-block;
+            background: #dbeeff;
+            color: #1a5276;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        .count-badge {
+            display: inline-block;
+            background: #3498db;
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+        .status-badge {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 1px 7px;
+            border-radius: 4px;
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+        .status-done     { background: #d1fae5; color: #065f46; }
+        .status-not_home { background: #fef3c7; color: #92400e; }
+        .status-dnc      { background: #fee2e2; color: #991b1b; }
+        .status-invalid  { background: #f3f4f6; color: #6b7280; }
+        .type-chip {
+            display: inline-block;
+            background: #f3f4f6;
+            color: #374151;
+            font-size: 11px;
+            padding: 1px 7px;
+            border-radius: 4px;
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+        .address-notes {
+            font-style: italic;
+            color: #9ca3af;
+            font-size: 12px;
+            vertical-align: middle;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 25px;
+            text-align: center;
+            border-top: 1px solid #e1e4e8;
+        }
+        .footer p {
+            margin: 5px 0;
+            font-size: 13px;
+            color: #888;
+        }
+
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            .container { border-radius: 8px; }
+            .header { padding: 20px 15px; }
+            .header h1 { font-size: 20px; }
+            .content { padding: 20px 15px; }
+            .map-header { flex-wrap: wrap; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="https://utfs.io/f/bVgrXJoWK1jGDTTaL1pCQvoZy96OGp3idmtuIMAB2PfK7RjS" alt="App Logo">
+            <h1>New Addresses Added</h1>
+        </div>
+
+        <div class="content">
+            <p>Hello Administrators,</p>
+            <p>The following <strong>{{.Count}}</strong> address(es) across <strong>{{len .Maps}}</strong> map(s) were added via the app in the last 24 hours:</p>
+
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;">
+                <tr>
+                    <td style="border-left:3px solid #f59e0b;background:#fffbeb;padding:10px 14px;font-size:13px;color:#92400e;">
+                        &#128203; Please review the addresses below and update or remove any that are incorrect.
+                    </td>
+                </tr>
+            </table>
+
+            <div class="maps-container">
+                {{range .Maps}}
+                <div class="map-group">
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f7ff;border-bottom:1px solid #d0e8f8;">
+                        <tr>
+                            <td style="padding:12px 16px;vertical-align:middle;" width="100%">
+                                <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                                    <tr>
+                                        <td style="vertical-align:middle;" width="12">
+                                            <span style="display:inline-block;width:8px;height:8px;background:#3498db;border-radius:50%;"></span>
+                                        </td>
+                                        <td style="padding-left:8px;vertical-align:middle;">
+                                            <span style="font-weight:700;color:#1a3a5c;font-size:15px;">{{.MapName}}</span>
+                                        </td>
+                                        <td style="vertical-align:middle;text-align:right;white-space:nowrap;padding-left:10px;">
+                                            {{if .Territory}}<span class="territory-tag" style="margin-right:6px;">{{.Territory}}</span>{{end}}<span class="count-badge">{{len .Entries}}</span>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                        {{range .Entries}}
+                        {{if .HasDetails}}
+                        <tr>
+                            <td style="padding:10px 18px 4px;font-weight:600;color:#2c3e50;font-size:14px;vertical-align:middle;">{{.Display}}</td>
+                            <td style="padding:10px 18px 4px;color:#888;font-size:12px;text-align:right;vertical-align:middle;white-space:nowrap;">{{.Date}}{{if .CreatedBy}} &middot; {{.CreatedBy}}{{end}}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" style="padding:0 18px 10px;border-bottom:1px solid #e5e7eb;">
+                                {{if .StatusLabel}}<span class="status-badge {{.StatusClass}}">{{.StatusLabel}}</span>{{end}}
+                                {{range .Types}}<span class="type-chip">{{.}}</span>{{end}}
+                                {{if .Notes}}<span class="address-notes">{{.Notes}}</span>{{end}}
+                            </td>
+                        </tr>
+                        {{else}}
+                        <tr>
+                            <td style="padding:10px 18px;font-weight:600;color:#2c3e50;font-size:14px;vertical-align:middle;border-bottom:1px solid #e5e7eb;">{{.Display}}</td>
+                            <td style="padding:10px 18px;color:#888;font-size:12px;text-align:right;vertical-align:middle;white-space:nowrap;border-bottom:1px solid #e5e7eb;">{{.Date}}{{if .CreatedBy}} &middot; {{.CreatedBy}}{{end}}</td>
+                        </tr>
+                        {{end}}
+                        {{end}}
+                    </table>
+                </div>
+                {{end}}
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>© 2026 Ministry Mapper. All rights reserved.</p>
+            <p>You received this email because you're an administrator of your congregation.</p>
+        </div>
+    </div>
+</body>
+</html>

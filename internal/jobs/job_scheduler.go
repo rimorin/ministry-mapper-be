@@ -142,6 +142,13 @@ func ConfigureScheduler(app *pocketbase.PocketBase) {
 		return processInactiveUsers(app)
 	})
 
+	// Daily — at 19:00 UTC (03:00 SGT), staggered 30 min after processInactiveUsers.
+	// Sends a digest email per congregation listing addresses added via the app
+	// (source = "app") in the past 24 hours. Not time-sensitive; runs at off-peak.
+	addTask("processNewAddresses", "0 19 * * *", "enable-new-addresses-notification", func() error {
+		return ProcessNewAddresses(app, time.Now().UTC().Add(-24*time.Hour))
+	})
+
 	// Start the scheduler to begin processing all configured tasks
 	scheduler.Start()
 }

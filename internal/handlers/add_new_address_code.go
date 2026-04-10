@@ -152,6 +152,8 @@ func HandleMapAdd(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 				record.Set("status", "not_done")
 				record.Set("territory", mapData.Get("territory"))
 				record.Set("sequence", currentSequence)
+				record.Set("source", "admin")
+				record.Set("created_by", e.Auth.Get("name").(string))
 
 				if err := txApp.SaveNoValidate(record); err != nil {
 					return err

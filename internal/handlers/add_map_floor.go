@@ -83,6 +83,8 @@ func HandleMapFloor(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 			record.Set("status", "not_done")
 			record.Set("territory", address.Get("territory"))
 			record.Set("sequence", address.Get("sequence"))
+			record.Set("source", "floor_copy")
+			record.Set("created_by", e.Auth.Get("name").(string))
 
 			if err := txApp.SaveNoValidate(record); err != nil {
 				return err

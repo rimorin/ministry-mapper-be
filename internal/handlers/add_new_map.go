@@ -78,7 +78,7 @@ func HandleNewMap(c *core.RequestEvent, app *pocketbase.PocketBase) error {
 
 		for i := 1; i <= floors; i++ {
 			for index, seq := range sequenceArray {
-				address := createNewAddressRecord(txApp, seq, territory, i, index, mapRecord.Id, congregation)
+				address := createNewAddressRecord(txApp, seq, territory, i, index, mapRecord.Id, congregation, c.Auth.Get("name").(string))
 				if err := txApp.SaveNoValidate(address); err != nil {
 					log.Println("Error saving address record:", err)
 					return err
@@ -106,7 +106,7 @@ func HandleNewMap(c *core.RequestEvent, app *pocketbase.PocketBase) error {
 	return c.JSON(200, mapRecord)
 }
 
-func createNewAddressRecord(txApp core.App, code, territory string, floor, sequence int, mapId, congId string) *core.Record {
+func createNewAddressRecord(txApp core.App, code, territory string, floor, sequence int, mapId, congId, createdBy string) *core.Record {
 	collection, _ := txApp.FindCollectionByNameOrId("addresses")
 	address := core.NewRecord(collection)
 	address.Set("code", code)
@@ -116,6 +116,8 @@ func createNewAddressRecord(txApp core.App, code, territory string, floor, seque
 	address.Set("status", "not_done")
 	address.Set("map", mapId)
 	address.Set("congregation", congId)
+	address.Set("source", "map_init")
+	address.Set("created_by", createdBy)
 	return address
 }
 
