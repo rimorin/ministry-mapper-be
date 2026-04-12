@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/pocketbase/dbx"
@@ -13,7 +14,7 @@ import (
 // It fetches the addresses with a specific map ID and status of 'not_home' or 'done', and resets their status to 'not_done' and 'not_home_tries' to 0.
 // The function runs within a transaction to ensure atomicity.
 // If any error occurs during the process, it returns an appropriate error message.
-// Map aggregates are recalculated automatically via the OnRecordAfterUpdateSuccess hook (debounced).
+// Map and territory aggregates are recalculated synchronously after the transaction.
 //
 // Parameters:
 // - e: A pointer to core.RequestEvent containing the request information.
@@ -48,6 +49,10 @@ func HandleResetMap(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 		return apis.NewNotFoundError("Error resetting map", nil)
 	}
 
+	if err := ProcessMapAggregates(mapId, app); err != nil {
+		log.Printf("Error recalculating aggregates for map %s: %v", mapId, err)
+	}
+
 	return e.JSON(http.StatusOK, "Map reset successfully")
 }
 
@@ -62,7 +67,7 @@ func ResetMapTerritory(mapId string, app *pocketbase.PocketBase) error {
 }
 
 // HandleResetTerritory handles the reset of a territory by updating the status of addresses
-// and processing the related territory aggregates.
+// and processing the related map and territory aggregates synchronously.
 //
 // Parameters:
 //   - c: A pointer to core.RequestEvent containing the request context.
@@ -75,10 +80,8 @@ func ResetMapTerritory(mapId string, app *pocketbase.PocketBase) error {
 //  1. Retrieves the territory ID from the request body.
 //  2. Fetches addresses associated with the territory that have a status of 'not_home' or 'done'.
 //  3. Runs a transaction to update the status of these addresses to 'not_done' and resets the 'not_home_tries' count.
-//  4. Processes territory aggregates.
+//  4. Recalculates map aggregates for each affected map, then territory aggregates.
 //  5. Returns a JSON response indicating the success of the operation.
-//
-// Per-map aggregates are recalculated automatically via the OnRecordAfterUpdateSuccess hook (debounced).
 func HandleResetTerritory(c *core.RequestEvent, app *pocketbase.PocketBase) error {
 	requestInfo, _ := c.RequestInfo()
 	userName := c.Auth.Get("name").(string)
@@ -99,14 +102,30 @@ func HandleResetTerritory(c *core.RequestEvent, app *pocketbase.PocketBase) erro
 				return err
 			}
 		}
-		return c.Next()
+		return nil
 	})
 
 	if err != nil {
 		return apis.NewNotFoundError("Error resetting territory", nil)
 	}
 
-	ProcessTerritoryAggregates(territoryId, app)
+	// Recalculate per-map aggregates for every affected map (skip cascading
+	// territory recalc per map; we do it once below).
+	mapIDSet := make(map[string]bool)
+	for _, record := range records {
+		if mapID, ok := record.Get("map").(string); ok && mapID != "" {
+			mapIDSet[mapID] = true
+		}
+	}
+	for mapID := range mapIDSet {
+		if err := ProcessMapAggregates(mapID, app, false); err != nil {
+			log.Printf("Error recalculating aggregates for map %s: %v", mapID, err)
+		}
+	}
+
+	if err := ProcessTerritoryAggregates(territoryId, app); err != nil {
+		log.Printf("Error recalculating territory aggregates for %s: %v", territoryId, err)
+	}
 
 	return c.JSON(http.StatusOK, "Territory reset successfully")
 }

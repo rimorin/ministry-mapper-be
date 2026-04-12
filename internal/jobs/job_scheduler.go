@@ -68,8 +68,6 @@ func ConfigureScheduler(app *pocketbase.PocketBase) {
 	// SCHEDULE DESIGN NOTES (all times shown as UTC / SGT = UTC+8)
 	//
 	// Peak usage window: 08:00–12:00 SGT (00:00–04:00 UTC) on weekends.
-	// 80+ publishers can be active simultaneously during this window, placing
-	// heavy load on SQLite through the aggregate debouncer.
 	//
 	// Rules applied:
 	//   1. No two jobs fire at the same minute (prevents CPU pile-up).
@@ -88,11 +86,13 @@ func ConfigureScheduler(app *pocketbase.PocketBase) {
 	})
 
 	// Every 10 min — offset by 4 min.
-	// Must run during peak: recalculates territory progress as publishers work.
-	// Also acts as a safety net if the aggregate debouncer misses an update.
+	// Recalculates map and territory aggregates for any maps/territories with
+	// address status changes in the past 11 minutes (11 > 10 to absorb
+	// sub-second scheduler jitter without missing log entries). Uses
+	// addresses_log as the change-detection source.
 	// SGT examples: :04, :14, :24, :34, :44, :54 (all day)
 	addTask("updateTerritoryAggregates", "4,14,24,34,44,54 * * * *", "enable-territory-aggregations", func() error {
-		return updateTerritoryAggregates(app, 10)
+		return updateTerritoryAggregates(app, 11)
 	})
 
 	// Every 30 min — at :08 and :38, 10 min after updateTerritoryAggregates.
