@@ -1557,9 +1557,10 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_QjY4Y2c` + "`" + ` ON ` + "`" + `maps` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `code` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_O2TlLJr` + "`" + ` ON ` + "`" + `maps` + "`" + ` (` + "`" + `territory` + "`" + `)",
 					"CREATE INDEX ` + "`" + `idx_TzbzxPXi9e` + "`" + ` ON ` + "`" + `maps` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `sequence` + "`" + `\n)",
-					"CREATE INDEX ` + "`" + `idx_NfI5WhsRsK` + "`" + ` ON ` + "`" + `maps` + "`" + ` (` + "`" + `updated` + "`" + `)"
+					"CREATE INDEX ` + "`" + `idx_NfI5WhsRsK` + "`" + ` ON ` + "`" + `maps` + "`" + ` (` + "`" + `updated` + "`" + `)",
+					"CREATE INDEX ` + "`" + `idx_Vflk3nOhz5` + "`" + ` ON ` + "`" + `maps` + "`" + ` (` + "`" + `congregation` + "`" + `)"
 				],
-				"listRule": "@request.auth.id != \"\" && @request.query.filter:isset = true && @request.query.filter ~ \"territory=\" && @request.query.fields:isset = true && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation",
+				"listRule": "@request.auth.id != \"\" && @request.query.filter:isset = true && (@request.query.filter ~ \"territory=\" || @request.query.filter ~ \"congregation=\") && @request.query.fields:isset = true && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation",
 				"name": "maps",
 				"system": false,
 				"type": "base",
@@ -1820,7 +1821,7 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_oBkThEt` + "`" + ` ON ` + "`" + `options` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `sequence` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_LDPjOnA` + "`" + ` ON ` + "`" + `options` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `is_default` + "`" + `\n)"
 				],
-				"listRule": "(@request.auth.id != \"\" || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id)) && @request.query.filter:isset = true && @request.query.filter ~ \"congregation=\" && @request.query.fields:isset = true",
+				"listRule": "((@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id)) && @request.query.filter:isset = true && @request.query.filter ~ \"congregation=\" && @request.query.fields:isset = true",
 				"name": "options",
 				"system": false,
 				"type": "base",
