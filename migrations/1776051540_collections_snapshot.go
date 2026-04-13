@@ -1106,7 +1106,7 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_vEPqxAk` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `status` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_4xBUDiPsKJ` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `source` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)"
 				],
-				"listRule": "// PB Limitation: Reduce role joins for registered users as addresses are huge\n(@request.auth.id != \"\" || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)) && @request.query.filter:isset = true && @request.query.fields:isset = true && @request.query.filter ~ \"map=\"",
+				"listRule": "// PB Limitation: Reduce role joins for registered users as addresses are huge\n(@request.auth.id != \"\" || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id)) && @request.query.filter:isset = true && @request.query.fields:isset = true && @request.query.filter ~ \"map=\"",
 				"name": "addresses",
 				"system": false,
 				"type": "base",
@@ -1820,7 +1820,7 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_oBkThEt` + "`" + ` ON ` + "`" + `options` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `sequence` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_LDPjOnA` + "`" + ` ON ` + "`" + `options` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `is_default` + "`" + `\n)"
 				],
-				"listRule": "((@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.congregation ?= congregation)) && @request.query.filter:isset = true && @request.query.filter ~ \"congregation=\" && @request.query.fields:isset = true",
+				"listRule": "(@request.auth.id != \"\" || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id)) && @request.query.filter:isset = true && @request.query.filter ~ \"congregation=\" && @request.query.fields:isset = true",
 				"name": "options",
 				"system": false,
 				"type": "base",
@@ -2206,7 +2206,7 @@ func init() {
 					{
 						"autogeneratePattern": "0",
 						"hidden": false,
-						"id": "_clone_LWQg",
+						"id": "_clone_iAQ1",
 						"max": 0,
 						"min": 0,
 						"name": "code",
@@ -2219,7 +2219,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_WxEE",
+						"id": "_clone_12r7",
 						"maxSelect": 1,
 						"name": "type",
 						"presentable": false,
@@ -2235,7 +2235,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "kyfdlowtckhj9wm",
 						"hidden": false,
-						"id": "_clone_WBlB",
+						"id": "_clone_sdn3",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "territory",
@@ -2248,7 +2248,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
 						"hidden": false,
-						"id": "_clone_hF0r",
+						"id": "_clone_o61W",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2259,7 +2259,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_9G5W",
+						"id": "_clone_GfIu",
 						"max": null,
 						"min": null,
 						"name": "progress",
@@ -2271,7 +2271,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_ZZtl",
+						"id": "_clone_YJpU",
 						"max": null,
 						"min": null,
 						"name": "sequence",
@@ -2283,7 +2283,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_LQdu",
+						"id": "_clone_eQbu",
 						"name": "created",
 						"onCreate": true,
 						"onUpdate": false,
@@ -2293,7 +2293,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_n5Bv",
+						"id": "_clone_yy8B",
 						"name": "updated",
 						"onCreate": true,
 						"onUpdate": true,
@@ -2403,7 +2403,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_Nxgn",
+						"id": "_clone_K8x7",
 						"max": 0,
 						"min": 0,
 						"name": "code",
@@ -2417,7 +2417,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_CBwb",
+						"id": "_clone_hIp8",
 						"max": 0,
 						"min": 0,
 						"name": "description",
@@ -2432,7 +2432,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
 						"hidden": false,
-						"id": "_clone_2Auc",
+						"id": "_clone_0zDu",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2443,7 +2443,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_lqRZ",
+						"id": "_clone_hiEf",
 						"max": 100,
 						"min": 0,
 						"name": "progress",
@@ -2456,7 +2456,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_VvwW",
+						"id": "_clone_hE3D",
 						"max": 0,
 						"min": 0,
 						"name": "congregation_name",
@@ -2572,7 +2572,7 @@ func init() {
 						"cascadeDelete": false,
 						"collectionId": "zzljam3htisq5tv",
 						"hidden": false,
-						"id": "_clone_c3Vl",
+						"id": "_clone_9cnP",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2584,7 +2584,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_yeVc",
+						"id": "_clone_3q5l",
 						"max": 0,
 						"min": 0,
 						"name": "territory",
@@ -2598,7 +2598,7 @@ func init() {
 					{
 						"autogeneratePattern": "",
 						"hidden": false,
-						"id": "_clone_qLA7",
+						"id": "_clone_NlXL",
 						"max": 0,
 						"min": 0,
 						"name": "new_status",
@@ -2654,7 +2654,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
 						"hidden": false,
-						"id": "_clone_RQEQ",
+						"id": "_clone_TVY1",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2667,7 +2667,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "kyfdlowtckhj9wm",
 						"hidden": false,
-						"id": "_clone_JmWM",
+						"id": "_clone_LjN8",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "territory",
@@ -2680,7 +2680,7 @@ func init() {
 						"cascadeDelete": true,
 						"collectionId": "rupq6yj561mghrr",
 						"hidden": false,
-						"id": "_clone_ey0Y",
+						"id": "_clone_aumf",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "map",
@@ -2691,7 +2691,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_9C8P",
+						"id": "_clone_sg62",
 						"max": null,
 						"min": null,
 						"name": "not_home_tries",
@@ -2703,7 +2703,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_MjxV",
+						"id": "_clone_Xl8w",
 						"max": null,
 						"min": null,
 						"name": "max_tries",
@@ -2725,7 +2725,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_XY9q",
+						"id": "_clone_2IvS",
 						"name": "updated",
 						"onCreate": true,
 						"onUpdate": true,
@@ -2765,7 +2765,7 @@ func init() {
 					{
 						"autogeneratePattern": "user[0-9]{5}[A-Za-z]",
 						"hidden": false,
-						"id": "_clone_T2Ru",
+						"id": "_clone_4PcY",
 						"max": 50,
 						"min": 2,
 						"name": "name",
@@ -2779,7 +2779,7 @@ func init() {
 					{
 						"exceptDomains": null,
 						"hidden": false,
-						"id": "_clone_DTJo",
+						"id": "_clone_xgu9",
 						"name": "email",
 						"onlyDomains": null,
 						"presentable": false,
@@ -2789,7 +2789,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_GHj9",
+						"id": "_clone_7XXD",
 						"max": "",
 						"min": "",
 						"name": "last_login",
@@ -2812,7 +2812,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_mQ06",
+						"id": "_clone_stpi",
 						"name": "disabled",
 						"presentable": false,
 						"required": false,
@@ -2821,7 +2821,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_8NEI",
+						"id": "_clone_xOsN",
 						"name": "verified",
 						"presentable": false,
 						"required": false,
@@ -2830,7 +2830,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_qJdU",
+						"id": "_clone_hTOs",
 						"name": "created",
 						"onCreate": true,
 						"onUpdate": false,
@@ -2967,16 +2967,16 @@ func init() {
 					"CREATE UNIQUE INDEX ` + "`" + `idx_sdPZuFbD9t` + "`" + ` ON ` + "`" + `address_options` + "`" + ` (\n  ` + "`" + `address` + "`" + `,\n  ` + "`" + `option` + "`" + `,\n  ` + "`" + `map` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_SDhkFBbBup` + "`" + ` ON ` + "`" + `address_options` + "`" + ` (` + "`" + `map` + "`" + `)"
 				],
-				"listRule": "// PB Limitation: Reduce role joins for registered users as addresses are huge\n(@request.auth.id != \"\" || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)) && @request.query.filter:isset = true && @request.query.fields:isset = true && @request.query.filter ~ \"map=\"",
+				"listRule": "// PB Limitation: Reduce role joins for registered users as addresses are huge\n(@request.auth.id != \"\" || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id)) && @request.query.filter:isset = true && @request.query.fields:isset = true && @request.query.filter ~ \"map=\"",
 				"name": "address_options",
 				"system": false,
 				"type": "base",
 				"updateRule": null,
-				"viewRule": "// PB Limitation: Reduce role joins for registered users as addresses are huge\n(@request.auth.id != \"\" || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)) && @request.query.filter:isset = true && @request.query.fields:isset = true && @request.query.filter ~ \"map=\""
+				"viewRule": "// PB Limitation: Reduce role joins for registered users as addresses are huge\n(@request.auth.id != \"\" || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id)) && @request.query.filter:isset = true && @request.query.fields:isset = true && @request.query.filter ~ \"map=\""
 			}
 		]`
 
-		return app.ImportCollectionsByMarshaledJSON([]byte(jsonData), true)
+		return app.ImportCollectionsByMarshaledJSON([]byte(jsonData), false)
 	}, func(app core.App) error {
 		return nil
 	})
