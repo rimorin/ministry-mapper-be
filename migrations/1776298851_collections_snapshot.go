@@ -1826,7 +1826,7 @@ func init() {
 				"system": false,
 				"type": "base",
 				"updateRule": null,
-				"viewRule": "@request.auth.id != \"\""
+				"viewRule": "((@request.auth.id != \"\" && @request.query.filter:isset = true && @request.query.filter ~ \"user=\" ) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id)) && @request.query.fields:isset = true"
 			},
 			{
 				"createRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && @collection.roles:access.role ?= 'administrator'",
@@ -2034,7 +2034,7 @@ func init() {
 				"system": false,
 				"type": "base",
 				"updateRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && @collection.roles:access.role ?= 'administrator'",
-				"viewRule": null
+				"viewRule": "@request.auth.id != \"\" && @request.query.filter:isset = true && @request.query.filter ~ \"user=\" && @request.query.fields:isset = true"
 			},
 			{
 				"createRule": null,
