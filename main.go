@@ -106,6 +106,10 @@ func main() {
 			return handlers.HandleResetTerritory(c, app)
 		})
 
+		bindAuthenticatedRoute("/territory/delete", func(c *core.RequestEvent) error {
+			return handlers.HandleDeleteTerritory(c, app)
+		})
+
 		bindAuthenticatedRoute("/territory/link", func(c *core.RequestEvent) error {
 			return handlers.HandleTerritoryQuicklink(c, app)
 		})
