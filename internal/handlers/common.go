@@ -56,17 +56,17 @@ func fetchMapData(app *pocketbase.PocketBase, mapId string) (*core.Record, error
 
 // AuthorizeByRole checks if userId has one of the specified roles in the given congregation.
 // If no allowedRoles are provided, any role grants access.
+// Uses LIMIT 1 for early exit instead of COUNT(*).
 func AuthorizeByRole(app *pocketbase.PocketBase, userId string, congregationId string, allowedRoles ...string) bool {
-	var result struct {
-		Count int `db:"count"`
-	}
+	var v struct{ V int `db:"v"` }
 
 	if len(allowedRoles) == 0 {
 		err := app.DB().NewQuery(`
-			SELECT COUNT(*) as count FROM roles
+			SELECT 1 as v FROM roles
 			WHERE user = {:userId} AND congregation = {:congId}
-		`).Bind(dbx.Params{"userId": userId, "congId": congregationId}).One(&result)
-		return err == nil && result.Count > 0
+			LIMIT 1
+		`).Bind(dbx.Params{"userId": userId, "congId": congregationId}).One(&v)
+		return err == nil
 	}
 
 	params := dbx.Params{"userId": userId, "congId": congregationId}
@@ -78,47 +78,48 @@ func AuthorizeByRole(app *pocketbase.PocketBase, userId string, congregationId s
 	}
 
 	query := fmt.Sprintf(`
-		SELECT COUNT(*) as count FROM roles
+		SELECT 1 as v FROM roles
 		WHERE user = {:userId} AND congregation = {:congId} AND role IN (%s)
+		LIMIT 1
 	`, strings.Join(placeholders, ", "))
 
-	err := app.DB().NewQuery(query).Bind(params).One(&result)
-	return err == nil && result.Count > 0
+	err := app.DB().NewQuery(query).Bind(params).One(&v)
+	return err == nil
 }
 
 // AuthorizeLinkAccess checks if a link ID maps to a valid, non-expired assignment for the given map.
 func AuthorizeLinkAccess(app *pocketbase.PocketBase, linkId string, mapId string) bool {
-	var result struct {
-		Count int `db:"count"`
-	}
+	var v struct{ V int `db:"v"` }
 	err := app.DB().NewQuery(`
-		SELECT COUNT(*) as count FROM assignments
+		SELECT 1 as v FROM assignments
 		WHERE id = {:linkId} AND map = {:mapId} AND expiry_date > datetime('now')
-	`).Bind(dbx.Params{"linkId": linkId, "mapId": mapId}).One(&result)
-
-	return err == nil && result.Count > 0
+		LIMIT 1
+	`).Bind(dbx.Params{"linkId": linkId, "mapId": mapId}).One(&v)
+	return err == nil
 }
 
 // AuthorizeLinkForCongregation checks if a link ID maps to a valid, non-expired
 // assignment belonging to the given congregation.
 func AuthorizeLinkForCongregation(app *pocketbase.PocketBase, linkId string, congregationId string) bool {
-	var result struct {
-		Count int `db:"count"`
-	}
+	var v struct{ V int `db:"v"` }
 	err := app.DB().NewQuery(`
-		SELECT COUNT(*) as count FROM assignments
+		SELECT 1 as v FROM assignments
 		WHERE id = {:linkId} AND congregation = {:congId} AND expiry_date > datetime('now')
-	`).Bind(dbx.Params{"linkId": linkId, "congId": congregationId}).One(&result)
-
-	return err == nil && result.Count > 0
+		LIMIT 1
+	`).Bind(dbx.Params{"linkId": linkId, "congId": congregationId}).One(&v)
+	return err == nil
 }
 
 // AuthorizeMapAccess checks if the request has access to the given map.
-// Accepts either an authenticated user or a valid link-id header
-// tied to an assignment for the requested map.
+// Auth users must have a role in the map's congregation.
+// Link-id users must have a valid assignment for the map.
 func AuthorizeMapAccess(c *core.RequestEvent, app *pocketbase.PocketBase, mapId string) bool {
-	if c.Auth != nil {
+	if c.HasSuperuserAuth() {
 		return true
+	}
+
+	if c.Auth != nil {
+		return authorizeUserForMap(app, c.Auth.Id, mapId)
 	}
 
 	linkId := c.Request.Header.Get("link-id")
@@ -127,6 +128,19 @@ func AuthorizeMapAccess(c *core.RequestEvent, app *pocketbase.PocketBase, mapId 
 	}
 
 	return AuthorizeLinkAccess(app, linkId, mapId)
+}
+
+// authorizeUserForMap checks if userId has any role in the map's congregation
+// using a single joined query instead of two separate lookups.
+func authorizeUserForMap(app *pocketbase.PocketBase, userId string, mapId string) bool {
+	var v struct{ V int `db:"v"` }
+	err := app.DB().NewQuery(`
+		SELECT 1 as v FROM roles r
+		JOIN maps m ON m.congregation = r.congregation
+		WHERE m.id = {:mapId} AND r.user = {:userId}
+		LIMIT 1
+	`).Bind(dbx.Params{"mapId": mapId, "userId": userId}).One(&v)
+	return err == nil
 }
 
 func fetchDefaultCongregationOption(app *pocketbase.PocketBase, congregation string) (*core.Record, error) {
