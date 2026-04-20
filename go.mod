@@ -3,12 +3,12 @@ module ministry-mapper
 go 1.25.0
 
 require (
-	github.com/getsentry/sentry-go v0.45.0
+	github.com/getsentry/sentry-go v0.45.1
 	github.com/launchdarkly/go-sdk-common/v3 v3.5.0
 	github.com/launchdarkly/go-server-sdk/v7 v7.14.6
-	github.com/mailersend/mailersend-go v1.6.3
-	github.com/openai/openai-go/v3 v3.31.0
-	github.com/pocketbase/pocketbase v0.36.9
+	github.com/mailersend/mailersend-go v1.6.4
+	github.com/openai/openai-go/v3 v3.32.0
+	github.com/pocketbase/pocketbase v0.37.1
 	github.com/xuri/excelize/v2 v2.10.1
 )
 
@@ -36,7 +36,7 @@ require (
 	github.com/tiendc/go-deepcopy v1.7.2 // indirect
 	github.com/xuri/efp v0.0.1 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
-	modernc.org/libc v1.70.0 // indirect
+	modernc.org/libc v1.72.0 // indirect
 )
 
 require (
@@ -67,5 +67,5 @@ require (
 	golang.org/x/text v0.36.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
-	modernc.org/sqlite v1.48.2 // indirect
+	modernc.org/sqlite v1.49.1 // indirect
 )
