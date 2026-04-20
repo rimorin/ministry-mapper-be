@@ -59,6 +59,8 @@ func main() {
 
 	app := pocketbase.New()
 
+	handlers.RegisterAuthHooks(app)
+
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		allowOrigins := os.Getenv("PB_ALLOW_ORIGINS")
 		if allowOrigins == "" {
@@ -73,6 +75,10 @@ func main() {
 		bindAuthenticatedRoute := func(path string, handler func(*core.RequestEvent) error) {
 			e.Router.POST(path, middleware.WrapHandler(handler)).Bind(apis.RequireAuth())
 		}
+
+		e.Router.POST("/map/addresses", middleware.WrapHandler(func(c *core.RequestEvent) error {
+			return handlers.HandleGetMapAddresses(c, app)
+		}))
 
 		bindAuthenticatedRoute("/map/codes", func(c *core.RequestEvent) error {
 			return handlers.HandleGetMapCodes(c, app)
