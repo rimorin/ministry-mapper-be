@@ -143,6 +143,34 @@ func authorizeUserForMap(app *pocketbase.PocketBase, userId string, mapId string
 	return err == nil
 }
 
+// authorizeUserForMaps checks if userId has a role in the congregation of every
+// map in mapIds using a single query. Returns true only if all maps are authorized.
+func authorizeUserForMaps(app *pocketbase.PocketBase, userId string, mapIds []string) bool {
+	if len(mapIds) == 0 {
+		return false
+	}
+	unique := make(map[string]struct{}, len(mapIds))
+	for _, id := range mapIds {
+		unique[id] = struct{}{}
+	}
+	params := dbx.Params{"userId": userId}
+	placeholders := make([]string, 0, len(unique))
+	i := 0
+	for id := range unique {
+		key := fmt.Sprintf("m%d", i)
+		params[key] = id
+		placeholders = append(placeholders, "{:"+key+"}")
+		i++
+	}
+	var result struct{ Cnt int `db:"cnt"` }
+	err := app.DB().NewQuery(
+		`SELECT COUNT(DISTINCT m.id) as cnt FROM roles r
+		JOIN maps m ON m.congregation = r.congregation
+		WHERE m.id IN (` + strings.Join(placeholders, ",") + `) AND r.user = {:userId}`,
+	).Bind(params).One(&result)
+	return err == nil && result.Cnt == len(unique)
+}
+
 func fetchDefaultCongregationOption(app *pocketbase.PocketBase, congregation string) (*core.Record, error) {
 	return app.FindFirstRecordByFilter("options", "congregation = {:congregation} && is_default = 1", dbx.Params{"congregation": congregation})
 }

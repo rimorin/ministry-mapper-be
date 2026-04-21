@@ -90,6 +90,17 @@ func extractMapIdFromFilter(filter string) string {
 	return ""
 }
 
+func extractAllMapIdsFromFilter(filter string) []string {
+	matches := mapIdPattern.FindAllStringSubmatch(filter, -1)
+	ids := make([]string, 0, len(matches))
+	for _, m := range matches {
+		if len(m) >= 2 {
+			ids = append(ids, m[1])
+		}
+	}
+	return ids
+}
+
 func extractCongIdFromFilter(filter string) string {
 	matches := congIdPattern.FindStringSubmatch(filter)
 	if len(matches) >= 2 {
@@ -130,9 +141,6 @@ func getTerritoryCongregation(app *pocketbase.PocketBase, territoryId string) st
 // authorizeMapSubscription checks if a user/link can subscribe to map-scoped collections.
 // Auth users must have a role in the map's congregation. Link-id needs map assignment.
 func authorizeMapSubscription(app *pocketbase.PocketBase, auth *core.Record, linkId string, filter string) bool {
-	if strings.Contains(filter, "||") {
-		return false
-	}
 	mapId := extractMapIdFromFilter(filter)
 	if mapId == "" {
 		return false
@@ -173,9 +181,6 @@ func isAdminOrConductorAnywhere(app *pocketbase.PocketBase, userId string) bool 
 
 func extractMapIdFromRequest(r *core.RequestEvent) string {
 	filter := r.Request.URL.Query().Get("filter")
-	if strings.Contains(filter, "||") {
-		return ""
-	}
 	return extractMapIdFromFilter(filter)
 }
 
@@ -313,9 +318,6 @@ func RegisterAuthHooks(app *pocketbase.PocketBase) {
 			return apis.NewForbiddenError("Auth required", nil)
 		}
 		filter := e.Request.URL.Query().Get("filter")
-		if strings.Contains(filter, "||") {
-			return apis.NewForbiddenError("Invalid filter", nil)
-		}
 		// Maps can be filtered by congregation= or territory=
 		congId := extractCongIdFromFilter(filter)
 		if congId == "" {
@@ -342,9 +344,6 @@ func RegisterAuthHooks(app *pocketbase.PocketBase) {
 			return apis.NewForbiddenError("Auth required", nil)
 		}
 		filter := e.Request.URL.Query().Get("filter")
-		if strings.Contains(filter, "||") {
-			return apis.NewForbiddenError("Invalid filter", nil)
-		}
 		congId := extractCongIdFromFilter(filter)
 		if congId == "" {
 			return apis.NewForbiddenError("Missing congregation filter", nil)
@@ -413,9 +412,6 @@ func RegisterAuthHooks(app *pocketbase.PocketBase) {
 			return e.Next()
 		}
 		filter := e.Request.URL.Query().Get("filter")
-		if strings.Contains(filter, "||") {
-			return apis.NewForbiddenError("Invalid filter", nil)
-		}
 		congId := extractCongIdFromFilter(filter)
 		if congId == "" {
 			return apis.NewForbiddenError("Missing congregation filter", nil)
@@ -457,9 +453,6 @@ func RegisterAuthHooks(app *pocketbase.PocketBase) {
 			return apis.NewForbiddenError("Auth required", nil)
 		}
 		filter := e.Request.URL.Query().Get("filter")
-		if strings.Contains(filter, "||") {
-			return apis.NewForbiddenError("Invalid filter", nil)
-		}
 		congId := extractCongIdFromFilter(filter)
 		if congId != "" {
 			if AuthorizeByRole(app, e.Auth.Id, congId) {
@@ -501,15 +494,12 @@ func RegisterAuthHooks(app *pocketbase.PocketBase) {
 			return apis.NewForbiddenError("Auth required", nil)
 		}
 		filter := e.Request.URL.Query().Get("filter")
-		if strings.Contains(filter, "||") {
-			return apis.NewForbiddenError("Invalid filter", nil)
-		}
-		mapId := extractMapIdFromFilter(filter)
-		if mapId != "" {
-			if authorizeUserForMap(app, e.Auth.Id, mapId) {
-				return e.Next()
+		mapIds := extractAllMapIdsFromFilter(filter)
+		if len(mapIds) > 0 {
+			if !authorizeUserForMaps(app, e.Auth.Id, mapIds) {
+				return apis.NewForbiddenError("Unauthorized", nil)
 			}
-			return apis.NewForbiddenError("Unauthorized", nil)
+			return e.Next()
 		}
 		// user= filter: allow self-query or admin/conductor
 		userId := extractUserIdFromFilter(filter)
