@@ -111,23 +111,16 @@ func AuthorizeLinkForCongregation(app *pocketbase.PocketBase, linkId string, con
 }
 
 // AuthorizeMapAccess checks if the request has access to the given map.
-// Auth users must have a role in the map's congregation.
-// Link-id users must have a valid assignment for the map.
+// If link-id is present it takes precedence and must be valid; otherwise role check is used.
 func AuthorizeMapAccess(c *core.RequestEvent, app *pocketbase.PocketBase, mapId string) bool {
 	if c.HasSuperuserAuth() {
 		return true
 	}
-
-	if c.Auth != nil {
-		return authorizeUserForMap(app, c.Auth.Id, mapId)
-	}
-
 	linkId := c.Request.Header.Get("link-id")
-	if linkId == "" {
-		return false
+	if linkId != "" {
+		return AuthorizeLinkAccess(app, linkId, mapId)
 	}
-
-	return AuthorizeLinkAccess(app, linkId, mapId)
+	return c.Auth != nil && authorizeUserForMap(app, c.Auth.Id, mapId)
 }
 
 // authorizeUserForMap checks if userId has any role in the map's congregation
