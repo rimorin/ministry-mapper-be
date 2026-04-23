@@ -173,11 +173,6 @@ func isAdminOrConductorAnywhere(app *pocketbase.PocketBase, userId string) bool 
 	return err == nil
 }
 
-func extractMapIdFromRequest(r *core.RequestEvent) string {
-	filter := r.Request.URL.Query().Get("filter")
-	return extractMapIdFromFilter(filter)
-}
-
 var protectedCollections = map[string]bool{
 	"messages":        true,
 	"addresses":       true,
@@ -225,13 +220,10 @@ func authorizeView(e *core.RecordRequestEvent, authCheck func() bool, linkCheck 
 // linkMapListAuth validates map access for LIST requests.
 // If link-id is present it takes precedence and must be valid; otherwise role check is used.
 func linkMapListAuth(e *core.RecordsListRequestEvent, app *pocketbase.PocketBase) error {
-	mapId := extractMapIdFromRequest(e.RequestEvent)
-	if mapId == "" {
-		return apis.NewForbiddenError("Missing map filter", nil)
-	}
+	mapId := extractMapIdFromFilter(e.Request.URL.Query().Get("filter"))
 	return authorizeList(e,
-		func() bool { return authorizeUserForMap(app, e.Auth.Id, mapId) },
-		func(linkId string) bool { return AuthorizeLinkAccess(app, linkId, mapId) },
+		func() bool { return mapId != "" && authorizeUserForMap(app, e.Auth.Id, mapId) },
+		func(linkId string) bool { return mapId != "" && AuthorizeLinkAccess(app, linkId, mapId) },
 	)
 }
 
@@ -407,12 +399,9 @@ func RegisterAuthHooks(app *pocketbase.PocketBase) {
 	app.OnRecordsListRequest("options").BindFunc(func(e *core.RecordsListRequestEvent) error {
 		filter := e.Request.URL.Query().Get("filter")
 		congId := extractCongIdFromFilter(filter)
-		if congId == "" {
-			return apis.NewForbiddenError("Missing congregation filter", nil)
-		}
 		return authorizeList(e,
-			func() bool { return AuthorizeByRole(app, e.Auth.Id, congId) },
-			func(linkId string) bool { return AuthorizeLinkForCongregation(app, linkId, congId) },
+			func() bool { return congId != "" && AuthorizeByRole(app, e.Auth.Id, congId) },
+			func(linkId string) bool { return congId != "" && AuthorizeLinkForCongregation(app, linkId, congId) },
 		)
 	})
 

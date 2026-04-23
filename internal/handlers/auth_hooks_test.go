@@ -7,21 +7,26 @@ import (
 // Auth scenario matrix — covers all link-aware hooks (authorizeView, authorizeList,
 // linkMapListAuth, authOrLink, AuthorizeMapAccess, authorizeMapSubscription).
 //
-// Scenario | link-id header | Auth / Role          | Expected | Notes
-// ─────────┼────────────────┼──────────────────────┼──────────┼──────────────────────────────────────
-//  1       | absent         | superuser            | allow    | superuser always bypasses all checks
-//  2       | absent         | valid role           | allow    | normal authenticated user path
-//  3       | absent         | no role / no auth    | deny     | 403 – Auth required / Unauthorized
-//  4       | valid          | no auth              | allow    | publisher-only link access
-//  5       | valid          | valid role           | allow    | conductor opens own link; link wins
-//  6       | invalid/expired| valid role           | deny     | link present → role ignored, link fails
-//  7       | invalid/expired| superuser            | deny     | superuser does NOT bypass link check
-//                                                              | (only superuser bypass is before link check)
+// Decision flow:
+//   1. HasSuperuserAuth? → ALLOW (unconditional, skips all further checks)
+//   2. link-id header present? → validate link only (role ignored)
+//        valid/non-expired → ALLOW
+//        invalid/expired   → DENY
+//   3. No link-id → role/auth check
+//        passes → ALLOW
+//        fails  → DENY
 //
-// NOTE: Scenario 7 applies only to hooks that check link-id AFTER the superuser guard.
-// All six link-aware hooks guard superuser first, then branch on link-id presence.
-// So a superuser without a link-id header still passes (scenario 1 / no link-id path),
-// but a superuser who sends an invalid link-id is denied (scenario 6 applies to everyone).
+// User type    | link-id header  | Auth / Role          | Expected | Notes
+// ─────────────┼─────────────────┼──────────────────────┼──────────┼────────────────────────────────────
+// Superuser    | absent          | superuser            | allow    | bypasses all checks unconditionally
+// Superuser    | valid           | superuser            | allow    | HasSuperuserAuth checked first
+// Superuser    | invalid/expired | superuser            | allow    | link-id never reached for superuser
+// Conductor /  | absent          | valid role           | allow    | normal authenticated path
+// Admin        | valid           | valid role           | allow    | conductor opens publisher link; link wins
+//              | invalid/expired | valid role           | deny     | link present → role ignored, link fails
+//              | absent          | no role              | deny     | 403 Unauthorized
+// Publisher    | valid           | no auth              | allow    | link-only access (no account needed)
+//              | invalid/expired | no auth              | deny     | expired or wrong link
 
 // --- Filter extraction tests (pure logic, no DB required) ---
 

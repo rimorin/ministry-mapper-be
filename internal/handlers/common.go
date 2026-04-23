@@ -58,7 +58,9 @@ func fetchMapData(app *pocketbase.PocketBase, mapId string) (*core.Record, error
 // If no allowedRoles are provided, any role grants access.
 // Uses LIMIT 1 for early exit instead of COUNT(*).
 func AuthorizeByRole(app *pocketbase.PocketBase, userId string, congregationId string, allowedRoles ...string) bool {
-	var v struct{ V int `db:"v"` }
+	var v struct {
+		V int `db:"v"`
+	}
 
 	if len(allowedRoles) == 0 {
 		err := app.DB().NewQuery(`
@@ -89,7 +91,9 @@ func AuthorizeByRole(app *pocketbase.PocketBase, userId string, congregationId s
 
 // AuthorizeLinkAccess checks if a link ID maps to a valid, non-expired assignment for the given map.
 func AuthorizeLinkAccess(app *pocketbase.PocketBase, linkId string, mapId string) bool {
-	var v struct{ V int `db:"v"` }
+	var v struct {
+		V int `db:"v"`
+	}
 	err := app.DB().NewQuery(`
 		SELECT 1 as v FROM assignments
 		WHERE id = {:linkId} AND map = {:mapId} AND expiry_date > datetime('now')
@@ -101,7 +105,9 @@ func AuthorizeLinkAccess(app *pocketbase.PocketBase, linkId string, mapId string
 // AuthorizeLinkForCongregation checks if a link ID maps to a valid, non-expired
 // assignment belonging to the given congregation.
 func AuthorizeLinkForCongregation(app *pocketbase.PocketBase, linkId string, congregationId string) bool {
-	var v struct{ V int `db:"v"` }
+	var v struct {
+		V int `db:"v"`
+	}
 	err := app.DB().NewQuery(`
 		SELECT 1 as v FROM assignments
 		WHERE id = {:linkId} AND congregation = {:congId} AND expiry_date > datetime('now')
@@ -126,7 +132,9 @@ func AuthorizeMapAccess(c *core.RequestEvent, app *pocketbase.PocketBase, mapId 
 // authorizeUserForMap checks if userId has any role in the map's congregation
 // using a single joined query instead of two separate lookups.
 func authorizeUserForMap(app *pocketbase.PocketBase, userId string, mapId string) bool {
-	var v struct{ V int `db:"v"` }
+	var v struct {
+		V int `db:"v"`
+	}
 	err := app.DB().NewQuery(`
 		SELECT 1 as v FROM roles r
 		JOIN maps m ON m.congregation = r.congregation
@@ -155,7 +163,9 @@ func authorizeUserForMaps(app *pocketbase.PocketBase, userId string, mapIds []st
 		placeholders = append(placeholders, "{:"+key+"}")
 		i++
 	}
-	var result struct{ Cnt int `db:"cnt"` }
+	var result struct {
+		Cnt int `db:"cnt"`
+	}
 	err := app.DB().NewQuery(
 		`SELECT COUNT(DISTINCT m.id) as cnt FROM roles r
 		JOIN maps m ON m.congregation = r.congregation
