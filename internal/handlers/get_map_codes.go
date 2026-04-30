@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -12,7 +12,7 @@ type GetMapCodesRequest struct {
 	MapId string `json:"map_id"`
 }
 
-func HandleGetMapCodes(c *core.RequestEvent, app *pocketbase.PocketBase) error {
+func HandleGetMapCodes(c *core.RequestEvent, app core.App) error {
 	data := GetMapCodesRequest{}
 	if err := c.BindBody(&data); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
@@ -25,6 +25,10 @@ func HandleGetMapCodes(c *core.RequestEvent, app *pocketbase.PocketBase) error {
 	mapRecord, err := fetchMapData(app, data.MapId)
 	if err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Map not found"})
+	}
+
+	if !AuthorizeByRole(app, c.Auth.Id, mapRecord.GetString("congregation"), "administrator") {
+		return apis.NewForbiddenError("Administrator access required", nil)
 	}
 
 	codeResults := []struct {

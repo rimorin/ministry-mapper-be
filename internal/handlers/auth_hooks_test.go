@@ -30,54 +30,6 @@ import (
 
 // --- Filter extraction tests (pure logic, no DB required) ---
 
-func TestExtractMapIdFromFilter(t *testing.T) {
-	tests := []struct {
-		name   string
-		filter string
-		want   string
-	}{
-		{
-			name:   "standard quoted map id",
-			filter: `map = "abc123"`,
-			want:   "abc123",
-		},
-		{
-			name:   "map id with extra spacing",
-			filter: `map  =  "xyz789"`,
-			want:   "xyz789",
-		},
-		{
-			name:   "compound filter with map",
-			filter: `map = "mapId01" && status = "not_done"`,
-			want:   "mapId01",
-		},
-		{
-			name:   "no map field",
-			filter: `congregation = "congId01"`,
-			want:   "",
-		},
-		{
-			name:   "empty filter",
-			filter: "",
-			want:   "",
-		},
-		{
-			name:   "map field without quotes",
-			filter: `map = abc123`,
-			want:   "",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := extractMapIdFromFilter(tc.filter)
-			if got != tc.want {
-				t.Errorf("extractMapIdFromFilter(%q) = %q; want %q", tc.filter, got, tc.want)
-			}
-		})
-	}
-}
-
 func TestExtractAllMapIdsFromFilter(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -93,6 +45,11 @@ func TestExtractAllMapIdsFromFilter(t *testing.T) {
 			name:   "two map ids",
 			filter: `map = "map01" || map = "map02"`,
 			want:   []string{"map01", "map02"},
+		},
+		{
+			name:   "single quotes",
+			filter: `map = 'map03'`,
+			want:   []string{"map03"},
 		},
 		{
 			name:   "no map ids",
@@ -126,82 +83,122 @@ func TestExtractAllMapIdsFromFilter(t *testing.T) {
 	}
 }
 
-func TestExtractCongIdFromFilter(t *testing.T) {
+func TestExtractAllCongIdsFromFilter(t *testing.T) {
 	tests := []struct {
 		name   string
 		filter string
-		want   string
+		want   []string
 	}{
 		{
-			name:   "standard congregation filter",
+			name:   "single congregation id",
 			filter: `congregation = "cong01"`,
-			want:   "cong01",
+			want:   []string{"cong01"},
 		},
 		{
 			name:   "congregation with extra spacing",
 			filter: `congregation  =  "cong02"`,
-			want:   "cong02",
+			want:   []string{"cong02"},
 		},
 		{
-			name:   "compound filter",
+			name:   "compound filter with and",
 			filter: `congregation = "cong03" && is_default = true`,
-			want:   "cong03",
+			want:   []string{"cong03"},
+		},
+		{
+			name:   "two congregations (injection pattern)",
+			filter: `congregation = "cong01" || congregation = "cong02"`,
+			want:   []string{"cong01", "cong02"},
+		},
+		{
+			name:   "single quotes",
+			filter: `congregation = 'cong04'`,
+			want:   []string{"cong04"},
 		},
 		{
 			name:   "no congregation field",
 			filter: `map = "map01"`,
-			want:   "",
+			want:   []string{},
 		},
 		{
 			name:   "empty filter",
 			filter: "",
-			want:   "",
+			want:   []string{},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := extractCongIdFromFilter(tc.filter)
-			if got != tc.want {
-				t.Errorf("extractCongIdFromFilter(%q) = %q; want %q", tc.filter, got, tc.want)
+			got := extractAllCongIdsFromFilter(tc.filter)
+			if len(got) != len(tc.want) {
+				t.Errorf("extractAllCongIdsFromFilter(%q) = %v; want %v", tc.filter, got, tc.want)
+				return
+			}
+			wantSet := make(map[string]bool, len(tc.want))
+			for _, id := range tc.want {
+				wantSet[id] = true
+			}
+			for _, id := range got {
+				if !wantSet[id] {
+					t.Errorf("unexpected id %q in result for filter %q", id, tc.filter)
+				}
 			}
 		})
 	}
 }
 
-func TestExtractTerritoryIdFromFilter(t *testing.T) {
+func TestExtractAllTerritoryIdsFromFilter(t *testing.T) {
 	tests := []struct {
 		name   string
 		filter string
-		want   string
+		want   []string
 	}{
 		{
-			name:   "standard territory filter",
+			name:   "single territory id",
 			filter: `territory = "terr01"`,
-			want:   "terr01",
+			want:   []string{"terr01"},
 		},
 		{
-			name:   "compound filter",
+			name:   "compound filter with and",
 			filter: `territory = "terr02" && type = "multi"`,
-			want:   "terr02",
+			want:   []string{"terr02"},
+		},
+		{
+			name:   "two territories (injection pattern)",
+			filter: `territory = "terr01" || territory = "terr02"`,
+			want:   []string{"terr01", "terr02"},
+		},
+		{
+			name:   "single quotes",
+			filter: `territory = 'terr03'`,
+			want:   []string{"terr03"},
 		},
 		{
 			name:   "no territory field",
 			filter: `congregation = "cong01"`,
-			want:   "",
+			want:   []string{},
 		},
 		{
 			name:   "empty filter",
 			filter: "",
-			want:   "",
+			want:   []string{},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := extractTerritoryIdFromFilter(tc.filter)
-			if got != tc.want {
-				t.Errorf("extractTerritoryIdFromFilter(%q) = %q; want %q", tc.filter, got, tc.want)
+			got := extractAllTerritoryIdsFromFilter(tc.filter)
+			if len(got) != len(tc.want) {
+				t.Errorf("extractAllTerritoryIdsFromFilter(%q) = %v; want %v", tc.filter, got, tc.want)
+				return
+			}
+			wantSet := make(map[string]bool, len(tc.want))
+			for _, id := range tc.want {
+				wantSet[id] = true
+			}
+			for _, id := range got {
+				if !wantSet[id] {
+					t.Errorf("unexpected id %q in result for filter %q", id, tc.filter)
+				}
 			}
 		})
 	}
@@ -222,6 +219,11 @@ func TestExtractUserIdFromFilter(t *testing.T) {
 			name:   "compound filter",
 			filter: `user = "user02" && congregation = "cong01"`,
 			want:   "user02",
+		},
+		{
+			name:   "single quotes",
+			filter: `user = 'user03'`,
+			want:   "user03",
 		},
 		{
 			name:   "no user field",

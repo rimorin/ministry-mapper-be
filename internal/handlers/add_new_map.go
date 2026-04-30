@@ -6,12 +6,11 @@ import (
 	"strings"
 
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
 
-func HandleNewMap(c *core.RequestEvent, app *pocketbase.PocketBase) error {
+func HandleNewMap(c *core.RequestEvent, app core.App) error {
 	requestInfo, _ := c.RequestInfo()
 	data := requestInfo.Body
 	territory := data["territory"].(string)
@@ -23,18 +22,19 @@ func HandleNewMap(c *core.RequestEvent, app *pocketbase.PocketBase) error {
 	sequence := data["sequence"].(string)
 
 	if !isValidSequence(sequence) {
-		log.Println("Invalid sequence format")
 		return apis.NewBadRequestError("Invalid sequence format", nil)
 	}
 
 	if mapType != "single" && mapType != "multi" {
-		log.Println("Invalid map type")
 		return apis.NewBadRequestError("Invalid map type", nil)
 	}
 
 	if mapType == "single" && floors != 1 {
-		log.Println("Invalid number of floors for single map")
 		return apis.NewBadRequestError("Invalid floor for single map", nil)
+	}
+
+	if !AuthorizeByRole(app, c.Auth.Id, congregation, "administrator") {
+		return apis.NewForbiddenError("Administrator access required", nil)
 	}
 
 	option, err := fetchDefaultCongregationOption(app, congregation)
@@ -67,8 +67,6 @@ func HandleNewMap(c *core.RequestEvent, app *pocketbase.PocketBase) error {
 			log.Printf("Error creating map: %v", err)
 			return err
 		}
-
-		log.Printf("Map created successfully with ID: %s", mapRecord.Id)
 
 		aoCollection, err := txApp.FindCachedCollectionByNameOrId("address_options")
 		if err != nil {
@@ -134,7 +132,7 @@ func isValidSequence(sequence string) bool {
 	return re.MatchString(sequence)
 }
 
-func fetchTerritoryMaxSequence(app *pocketbase.PocketBase, territoryId string) (int, error) {
+func fetchTerritoryMaxSequence(app core.App, territoryId string) (int, error) {
 	result := struct {
 		MaxSequence int `db:"max_sequence"`
 	}{}

@@ -3,7 +3,6 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -25,7 +24,7 @@ import (
 //  3. Updates all addresses and map details within a single transaction to the new territory.
 //  4. Processes territory aggregates for both the old and new territories.
 //  5. Returns a success message if the update is successful, otherwise returns an error.
-func HandleMapTerritoryUpdate(e *core.RequestEvent, app *pocketbase.PocketBase) error {
+func HandleMapTerritoryUpdate(e *core.RequestEvent, app core.App) error {
 	requestInfo, _ := e.RequestInfo()
 	data := requestInfo.Body
 	mapId := data["map"].(string)
@@ -41,6 +40,10 @@ func HandleMapTerritoryUpdate(e *core.RequestEvent, app *pocketbase.PocketBase) 
 	mapDetails, err := fetchMapData(app, mapId)
 	if err != nil {
 		return apis.NewNotFoundError("Error fetching map details", nil)
+	}
+
+	if !AuthorizeByRole(app, e.Auth.Id, mapDetails.GetString("congregation"), "administrator") {
+		return apis.NewForbiddenError("Administrator access required", nil)
 	}
 
 	// Update all addresses and map details within a single transaction

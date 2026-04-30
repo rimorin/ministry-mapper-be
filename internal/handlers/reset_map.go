@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -22,11 +21,21 @@ import (
 //
 // Returns:
 // - error: An error object if any error occurs during the process, otherwise nil.
-func HandleResetMap(e *core.RequestEvent, app *pocketbase.PocketBase) error {
+func HandleResetMap(e *core.RequestEvent, app core.App) error {
 	requestInfo, _ := e.RequestInfo()
 	userName := e.Auth.Get("name").(string)
 	data := requestInfo.Body
 	mapId := data["map"].(string)
+
+	mapData, err := fetchMapData(app, mapId)
+	if err != nil {
+		return apis.NewNotFoundError("Map not found", nil)
+	}
+
+	if !AuthorizeByRole(app, e.Auth.Id, mapData.GetString("congregation"), "administrator") {
+		return apis.NewForbiddenError("Administrator access required", nil)
+	}
+
 	records, err := app.FindRecordsByFilter("addresses", "map = {:id} && (status = 'not_home' || status = 'done')", "", 0, 0, dbx.Params{"id": mapId})
 
 	if err != nil {
@@ -57,7 +66,7 @@ func HandleResetMap(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 }
 
 // ResetMapTerritory processes the territory aggregates for a given map
-func ResetMapTerritory(mapId string, app *pocketbase.PocketBase) error {
+func ResetMapTerritory(mapId string, app core.App) error {
 	mapDetails, err := app.FindRecordById("maps", mapId)
 	if err != nil {
 		return apis.NewNotFoundError("Error fetching map details", nil)
@@ -82,11 +91,21 @@ func ResetMapTerritory(mapId string, app *pocketbase.PocketBase) error {
 //  3. Runs a transaction to update the status of these addresses to 'not_done' and resets the 'not_home_tries' count.
 //  4. Recalculates map aggregates for each affected map, then territory aggregates.
 //  5. Returns a JSON response indicating the success of the operation.
-func HandleResetTerritory(c *core.RequestEvent, app *pocketbase.PocketBase) error {
+func HandleResetTerritory(c *core.RequestEvent, app core.App) error {
 	requestInfo, _ := c.RequestInfo()
 	userName := c.Auth.Get("name").(string)
 	data := requestInfo.Body
 	territoryId := data["territory"].(string)
+
+	territory, err := app.FindRecordById("territories", territoryId)
+	if err != nil {
+		return apis.NewNotFoundError("Territory not found", nil)
+	}
+
+	if !AuthorizeByRole(app, c.Auth.Id, territory.GetString("congregation"), "administrator", "conductor") {
+		return apis.NewForbiddenError("Administrator or conductor access required", nil)
+	}
+
 	records, err := app.FindRecordsByFilter("addresses", "territory = {:id} && (status = 'not_home' || status = 'done')", "", 0, 0, dbx.Params{"id": territoryId})
 
 	if err != nil {

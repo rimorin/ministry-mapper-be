@@ -12,7 +12,7 @@ import (
 
 	"github.com/mailersend/mailersend-go"
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/apis"
 )
 
@@ -75,7 +75,7 @@ type CongregationData struct {
 	ID string `db:"congregation"`
 }
 
-func ProcessNote(congID string, app *pocketbase.PocketBase, timeBuffer time.Duration) error {
+func ProcessNote(congID string, app core.App, timeBuffer time.Duration) error {
 	log.Printf("Processing notes for congregation: %s", congID)
 
 	if congID == "" {
@@ -214,7 +214,7 @@ func ProcessNote(congID string, app *pocketbase.PocketBase, timeBuffer time.Dura
 //
 // Returns:
 // - error: An error if there is an issue fetching or processing the notes, otherwise nil.
-func ProcessNotes(app *pocketbase.PocketBase, timeIntervalMinutes int) error {
+func ProcessNotes(app core.App, timeIntervalMinutes int) error {
 	log.Println("Starting notes processing")
 
 	congregations := []CongregationData{}

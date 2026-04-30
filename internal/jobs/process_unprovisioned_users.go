@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/mailersend/mailersend-go"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -59,7 +58,7 @@ type unprovisionedNewUser struct {
 //   - Day 7:   Disable the account (NIST AC-2 "prompt deprovisioning").
 //   - Day 37+: Permanently delete the disabled account (30-day investigation window per
 //     "disable first, delete later" IAM best practice).
-func processUnprovisionedUsers(app *pocketbase.PocketBase) error {
+func processUnprovisionedUsers(app core.App) error {
 	log.Println("processUnprovisionedUsers: starting")
 
 	appURL := os.Getenv("PB_APP_URL")
@@ -225,7 +224,7 @@ func sendUnprovisionedUserEmail(toEmail, toName string, isFinal bool, daysRemain
 // have no congregation linkage yet — there is no congregation-scoped admin to notify.
 // Returns the number of superadmins successfully notified so the caller can decide whether to
 // stamp admin_alerted_at.
-func alertAdminsUnprovisionedUsers(app *pocketbase.PocketBase, newUsers []unprovisionedNewUser, appURL string) (int, error) {
+func alertAdminsUnprovisionedUsers(app core.App, newUsers []unprovisionedNewUser, appURL string) (int, error) {
 	superusers, err := app.FindRecordsByFilter(core.CollectionNameSuperusers, "", "", 0, 0)
 	if err != nil {
 		return 0, fmt.Errorf("alertAdminsUnprovisionedUsers: query failed: %w", err)
@@ -267,7 +266,7 @@ func alertAdminsUnprovisionedUsers(app *pocketbase.PocketBase, newUsers []unprov
 }
 
 // updateUserField sets a single string field on a user record without triggering full validation.
-func updateUserField(app *pocketbase.PocketBase, userID, field, value string) error {
+func updateUserField(app core.App, userID, field, value string) error {
 	record, err := app.FindRecordById("users", userID)
 	if err != nil {
 		return err

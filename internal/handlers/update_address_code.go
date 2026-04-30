@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -21,7 +20,7 @@ type UpdateMapSequenceRequest struct {
 }
 
 // countUniqueAddressCodes counts the number of distinct address codes in a map
-func countUniqueAddressCodes(app *pocketbase.PocketBase, mapId string) (int, error) {
+func countUniqueAddressCodes(app core.App, mapId string) (int, error) {
 	result := struct {
 		Count int `db:"count"`
 	}{}
@@ -45,7 +44,7 @@ func countUniqueAddressCodes(app *pocketbase.PocketBase, mapId string) (int, err
 //  1. Retrieves and validates the request body containing map ID and list of code/sequence pairs.
 //  2. Updates the sequence numbers for each code within a transaction.
 //  3. Returns an appropriate response based on the success or failure of the update operation.
-func HandleMapUpdateSequence(e *core.RequestEvent, app *pocketbase.PocketBase) error {
+func HandleMapUpdateSequence(e *core.RequestEvent, app core.App) error {
 	data := UpdateMapSequenceRequest{}
 	if err := e.BindBody(&data); err != nil {
 		return apis.NewBadRequestError("Invalid request body", nil)
@@ -59,10 +58,19 @@ func HandleMapUpdateSequence(e *core.RequestEvent, app *pocketbase.PocketBase) e
 		return apis.NewBadRequestError("codes array is required", nil)
 	}
 
+	mapData, err := fetchMapData(app, data.MapId)
+	if err != nil {
+		return apis.NewNotFoundError("Map not found", nil)
+	}
+
+	if !AuthorizeByRole(app, e.Auth.Id, mapData.GetString("congregation"), "administrator") {
+		return apis.NewForbiddenError("Administrator access required", nil)
+	}
+
 	log.Println("Updating sequences for", len(data.Codes), "codes in map", data.MapId)
 
 	// Update all addresses with the code/sequence pairs within a transaction
-	err := app.RunInTransaction(func(txApp core.App) error {
+	err = app.RunInTransaction(func(txApp core.App) error {
 		for _, codeSeq := range data.Codes {
 			// Find all address records with matching code and map
 			records, err := txApp.FindRecordsByFilter(
@@ -109,11 +117,20 @@ func HandleMapUpdateSequence(e *core.RequestEvent, app *pocketbase.PocketBase) e
 //
 // Returns:
 //   - error: An error if the deletion process fails, otherwise nil.
-func HandleMapDelete(c *core.RequestEvent, app *pocketbase.PocketBase) error {
+func HandleMapDelete(c *core.RequestEvent, app core.App) error {
 	requestInfo, _ := c.RequestInfo()
 	data := requestInfo.Body
 	code := data["code"].(string)
 	mapId := data["map"].(string)
+
+	mapData, err := fetchMapData(app, mapId)
+	if err != nil {
+		return apis.NewNotFoundError("Map not found", nil)
+	}
+
+	if !AuthorizeByRole(app, c.Auth.Id, mapData.GetString("congregation"), "administrator") {
+		return apis.NewForbiddenError("Administrator access required", nil)
+	}
 
 	log.Println("Deleting addresses for code", code, "in map", mapId)
 

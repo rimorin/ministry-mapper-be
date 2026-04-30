@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -48,7 +47,7 @@ type addressResponse struct {
 	Options      []addressOption `json:"options"`
 }
 
-func HandleGetMapAddresses(c *core.RequestEvent, app *pocketbase.PocketBase) error {
+func HandleGetMapAddresses(c *core.RequestEvent, app core.App) error {
 	data := GetMapAddressesRequest{}
 	if err := c.BindBody(&data); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})

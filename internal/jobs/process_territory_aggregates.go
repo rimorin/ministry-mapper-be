@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/core"
 )
 
 // territoryAggregate holds the batched aggregate result for a single territory.
@@ -56,7 +56,7 @@ func buildInClause(ids []string, prefix string) (string, dbx.Params) {
 // Map aggregates (progress + aggregate counts) and territory aggregates
 // (progress) are updated in two sequential batched SQL queries — no concurrent
 // goroutines, no write contention.
-func updateTerritoryAggregates(app *pocketbase.PocketBase, timeIntervalMinutes int) error {
+func updateTerritoryAggregates(app core.App, timeIntervalMinutes int) error {
 	log.Printf("Starting territory aggregates update (interval: %d minutes)", timeIntervalMinutes)
 
 	cutoff := time.Now().UTC().Add(time.Duration(-timeIntervalMinutes) * time.Minute)

@@ -4,8 +4,8 @@ import (
 	"log"
 
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
+	"github.com/pocketbase/pocketbase/core"
 )
 
 type Aggregates struct {
@@ -29,7 +29,7 @@ type Aggregates struct {
 //
 // Returns:
 //   - error: An error if any issues occur during processing, otherwise nil.
-func ProcessMapAggregates(mapID string, app *pocketbase.PocketBase, resetTerritoryAggregates ...bool) error {
+func ProcessMapAggregates(mapID string, app core.App, resetTerritoryAggregates ...bool) error {
 	if mapID == "" {
 		return apis.NewBadRequestError("Map ID is required", nil)
 	}
@@ -104,7 +104,6 @@ func ProcessMapAggregates(mapID string, app *pocketbase.PocketBase, resetTerrito
 		}
 	}
 
-	log.Printf("Map aggregates updated for map: %s", mapID)
 	return nil
 }
 
@@ -125,9 +124,7 @@ func ProcessMapAggregates(mapID string, app *pocketbase.PocketBase, resetTerrito
 //  5. Updates the territory record with the calculated progress percentage.
 //  6. Saves the updated territory record.
 //  7. Logs the completion of the update with the progress percentage.
-func ProcessTerritoryAggregates(territoryID string, app *pocketbase.PocketBase) error {
-	log.Printf("Processing aggregates for territoryID: %s", territoryID)
-
+func ProcessTerritoryAggregates(territoryID string, app core.App) error {
 	aggregates := Aggregates{}
 	err := app.DB().NewQuery(`
 		SELECT
@@ -174,8 +171,6 @@ func ProcessTerritoryAggregates(territoryID string, app *pocketbase.PocketBase) 
 		log.Printf("Error saving territory record for territoryID %s: %v", territoryID, err)
 		return err
 	}
-
-	log.Printf("Updated territory record %s with progress %d%%", territoryRecord.Id, donePercentage)
 
 	return nil
 }
