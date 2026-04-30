@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -30,7 +29,7 @@ func healthResponse(code int, message string) map[string]any {
 //
 // A 10-second timeout is enforced so the endpoint always responds promptly even
 // if SQLite is stuck scanning a corrupted page.
-func HandleDBHealth(e *core.RequestEvent, app *pocketbase.PocketBase) error {
+func HandleDBHealth(e *core.RequestEvent, app core.App) error {
 	var result struct {
 		Result string `db:"quick_check"`
 	}

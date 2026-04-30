@@ -1,6 +1,6 @@
 # Stage 1: Build the Go application
 # Uses golang alpine as base image for smaller size
-FROM golang:1.25-alpine AS builder
+FROM golang:1.25.3-alpine AS builder
 
 # Metadata and version information
 LABEL maintainer="John Eric"
@@ -21,17 +21,13 @@ RUN go mod download
 # This layer changes when any source file changes
 COPY . .
 
-# Generate build info with timestamp and git commit info
-ARG BUILD_TIME
-ARG COMMIT_SHA
-
 # Build the application with optimizations
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s" \
     -o main .
 
 # Stage 2: Create the minimal runtime image
-FROM alpine:latest
+FROM alpine:3.22
 
 # Install tzdata for time zone support and curl for healthchecks
 RUN apk add --no-cache tzdata curl

@@ -9,7 +9,6 @@ import (
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	ld "github.com/launchdarkly/go-server-sdk/v7"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -35,10 +34,14 @@ func IsAISummaryEnabled() bool {
 // ConfigureScheduler initializes and starts the application's background tasks
 // using a cron-based scheduler. It sets up periodic tasks for territory management
 // and message processing.
-func ConfigureScheduler(app *pocketbase.PocketBase) {
-	ldClient, err := ld.MakeClient(os.Getenv("LAUNCHDARKLY_SDK_KEY"), 5*time.Second)
-	if err != nil {
-		log.Printf("LaunchDarkly client initialisation error: %v", err)
+func ConfigureScheduler(app core.App) {
+	var ldClient *ld.LDClient
+	if key := os.Getenv("LAUNCHDARKLY_SDK_KEY"); key != "" {
+		var err error
+		ldClient, err = ld.MakeClient(key, 5*time.Second)
+		if err != nil {
+			log.Printf("LaunchDarkly client initialisation error: %v", err)
+		}
 	}
 	universalContext := ldcontext.NewWithKind("environment", os.Getenv("LAUNCHDARKLY_CONTEXT_KEY"))
 
@@ -58,7 +61,12 @@ func ConfigureScheduler(app *pocketbase.PocketBase) {
 
 	addTask := func(name, schedule, flagKey string, task func() error) {
 		scheduler.MustAdd(name, schedule, func() {
-			if enabled, _ := ldClient.BoolVariation(flagKey, universalContext, true); enabled {
+			// When LD is not configured, default all feature flags to enabled.
+			enabled := true
+			if ldClient != nil {
+				enabled, _ = ldClient.BoolVariation(flagKey, universalContext, true)
+			}
+			if enabled {
 				middleware.WithJobRecovery(name, task)
 			}
 		})

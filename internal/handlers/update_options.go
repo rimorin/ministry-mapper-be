@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -279,7 +278,7 @@ func handleOptionDeletion(txDao core.App, id, defaultId, congregation string) er
 }
 
 // HandleOptionUpdate processes batch updates of congregation options within a transaction
-func HandleOptionUpdate(c *core.RequestEvent, app *pocketbase.PocketBase) error {
+func HandleOptionUpdate(c *core.RequestEvent, app core.App) error {
 	requestInfo, _ := c.RequestInfo()
 	data := requestInfo.Body
 
@@ -295,6 +294,10 @@ func HandleOptionUpdate(c *core.RequestEvent, app *pocketbase.PocketBase) error 
 
 	if len(strings.TrimSpace(congregation)) == 0 {
 		return apis.NewBadRequestError("congregation cannot be empty", nil)
+	}
+
+	if !AuthorizeByRole(app, c.Auth.Id, congregation, "administrator") {
+		return apis.NewForbiddenError("Administrator access required", nil)
 	}
 
 	log.Printf("Processing options update for congregation: %s", congregation)

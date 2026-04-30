@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -86,86 +85,6 @@ func invokeGeneratorStub(fn ReportGeneratorFn) error {
 // with seeded data. The table above is the authoritative specification.
 // ---------------------------------------------------------------------------
 
-// TestHandleGenerateReport_SyncScenarios uses a table to verify the handler's
-// synchronous decision logic. The generator stub is never reached for error cases
-// (scenarios 2–7) — only scenario 8 dispatches the goroutine.
-func TestHandleGenerateReport_SyncScenarios(t *testing.T) {
-	scenarios := []struct {
-		name           string
-		congregation   string
-		userRole       string
-		userEmail      string
-		expectedStatus int
-		expectedMsg    string
-	}{
-		{
-			// Scenario 2
-			name:           "malformed JSON body",
-			congregation:   "",
-			expectedStatus: 400,
-			expectedMsg:    "Invalid request body",
-		},
-		{
-			// Scenario 3
-			name:           "missing congregation field",
-			congregation:   "",
-			userRole:       "administrator",
-			expectedStatus: 400,
-			expectedMsg:    "congregation is required",
-		},
-		{
-			// Scenario 4
-			name:           "non-admin user is rejected",
-			congregation:   "valid_congregation_id",
-			userRole:       "conductor",
-			expectedStatus: 403,
-			expectedMsg:    "Not an administrator for this congregation",
-		},
-		{
-			// Scenario 5
-			name:           "congregation not found after role check",
-			congregation:   "deleted_congregation_id",
-			userRole:       "administrator",
-			expectedStatus: 404,
-			expectedMsg:    "Congregation not found",
-		},
-		{
-			// Scenario 6
-			name:           "requesting user account not found",
-			congregation:   "valid_congregation_id",
-			userRole:       "administrator",
-			userEmail:      "<user deleted>",
-			expectedStatus: 400,
-			expectedMsg:    "Could not validate your account",
-		},
-		{
-			// Scenario 7
-			name:           "requesting user has no email configured",
-			congregation:   "valid_congregation_id",
-			userRole:       "administrator",
-			userEmail:      "",
-			expectedStatus: 400,
-			expectedMsg:    "Your account has no email address configured",
-		},
-		{
-			// Scenario 8
-			name:           "all checks pass — goroutine dispatched",
-			congregation:   "valid_congregation_id",
-			userRole:       "administrator",
-			userEmail:      "admin@example.com",
-			expectedStatus: 202,
-			expectedMsg:    "Report generation started",
-		},
-	}
-
-	for _, s := range scenarios {
-		t.Run(s.name, func(t *testing.T) {
-			t.Logf("congregation=%q role=%q email=%q → HTTP %d (%s)",
-				s.congregation, s.userRole, s.userEmail, s.expectedStatus, s.expectedMsg)
-		})
-	}
-}
-
 // TestHandleGenerateReport_GeneratorError verifies that a generator returning
 // an error does not panic and is handled gracefully (errors go to Sentry).
 func TestHandleGenerateReport_GeneratorError(t *testing.T) {
@@ -174,7 +93,7 @@ func TestHandleGenerateReport_GeneratorError(t *testing.T) {
 	called := false
 	var capturedErr error
 
-	generator := ReportGeneratorFn(func(app *pocketbase.PocketBase, cong *core.Record, recipient *core.Record) error {
+	generator := ReportGeneratorFn(func(app core.App, cong *core.Record, recipient *core.Record) error {
 		called = true
 		return expectedErr
 	})
@@ -197,7 +116,7 @@ func TestHandleGenerateReport_GeneratorError(t *testing.T) {
 func TestHandleGenerateReport_GeneratorSuccess(t *testing.T) {
 	called := false
 
-	generator := ReportGeneratorFn(func(app *pocketbase.PocketBase, cong *core.Record, recipient *core.Record) error {
+	generator := ReportGeneratorFn(func(app core.App, cong *core.Record, recipient *core.Record) error {
 		called = true
 		return nil
 	})

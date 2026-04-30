@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -34,7 +33,7 @@ type MapAggregates struct {
 
 // HandleTerritoryQuicklink automatically assigns the best available map to a user
 // based on workload balance, proximity, and completion progress.
-func HandleTerritoryQuicklink(c *core.RequestEvent, app *pocketbase.PocketBase) error {
+func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 	// === INPUT VALIDATION ===
 	requestInfo, _ := c.RequestInfo()
 	data := requestInfo.Body
@@ -156,7 +155,7 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app *pocketbase.PocketBase) 
 
 // getMapsWithAssignmentCount gets all maps for a territory with their current assignment counts.
 // Only counts active (non-expired) "normal" type assignments.
-func getMapsWithAssignmentCount(app *pocketbase.PocketBase, territoryId string) ([]MapWithDistance, error) {
+func getMapsWithAssignmentCount(app core.App, territoryId string) ([]MapWithDistance, error) {
 	maps := []MapWithDistance{}
 
 	query := `
@@ -256,7 +255,7 @@ func findBestMap(maps []MapWithDistance, currentLat, currentLong float64) *MapWi
 }
 
 // getCongregationIdFromTerritory retrieves the congregation ID associated with a territory.
-func getCongregationIdFromTerritory(app *pocketbase.PocketBase, territoryId string) (string, error) {
+func getCongregationIdFromTerritory(app core.App, territoryId string) (string, error) {
 	territory, err := app.FindRecordById("territories", territoryId)
 	if err != nil {
 		return "", err
@@ -266,7 +265,7 @@ func getCongregationIdFromTerritory(app *pocketbase.PocketBase, territoryId stri
 
 // getCongregationExpiryHours gets assignment expiry hours from congregation settings.
 // Defaults to 24 hours if not set.
-func getCongregationExpiryHours(app *pocketbase.PocketBase, congregationId string) (float64, error) {
+func getCongregationExpiryHours(app core.App, congregationId string) (float64, error) {
 	congregation, err := app.FindRecordById("congregations", congregationId)
 	if err != nil {
 		return 0, err
@@ -281,7 +280,7 @@ func getCongregationExpiryHours(app *pocketbase.PocketBase, congregationId strin
 }
 
 // createAssignment creates a new assignment record linking a user to a map with expiry.
-func createAssignment(app *pocketbase.PocketBase, mapId, userId, publisher, congId string, expiryHours float64) (string, error) {
+func createAssignment(app core.App, mapId, userId, publisher, congId string, expiryHours float64) (string, error) {
 	collection, err := app.FindCollectionByNameOrId("assignments")
 	if err != nil {
 		return "", err
@@ -307,7 +306,7 @@ func createAssignment(app *pocketbase.PocketBase, mapId, userId, publisher, cong
 
 // getMapAssignees gets all publishers currently assigned to a map.
 // Excludes the specified assignment and generates "slip-XXXX" names for empty publishers.
-func getMapAssignees(app *pocketbase.PocketBase, mapId, excludeAssignmentId string) ([]string, error) {
+func getMapAssignees(app core.App, mapId, excludeAssignmentId string) ([]string, error) {
 	assignees := []struct {
 		Publisher string `db:"publisher"`
 	}{}

@@ -5,24 +5,23 @@ import (
 	"strings"
 
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 )
 
-func fetchAddressByCode(app *pocketbase.PocketBase, code string, mapId string) (*core.Record, error) {
+func fetchAddressByCode(app core.App, code string, mapId string) (*core.Record, error) {
 	return app.FindFirstRecordByFilter("addresses", "code = {:code} && map = {:map}", dbx.Params{"code": code, "map": mapId})
 }
 
-func fetchAddressesByCode(app *pocketbase.PocketBase, code string, mapId string) ([]*core.Record, error) {
+func fetchAddressesByCode(app core.App, code string, mapId string) ([]*core.Record, error) {
 	return app.FindRecordsByFilter("addresses", "code = {:code} && map = {:map}", "", 0, 0, dbx.Params{"code": code, "map": mapId})
 }
 
-func fetchAddressesByMap(app *pocketbase.PocketBase, mapId string) ([]*core.Record, error) {
+func fetchAddressesByMap(app core.App, mapId string) ([]*core.Record, error) {
 	return app.FindRecordsByFilter("addresses", "map = {:id}", "", 0, 0, dbx.Params{"id": mapId})
 }
 
 // fetchMapFloors returns the distinct floor levels for a given map.
-func fetchMapFloors(app *pocketbase.PocketBase, mapId string) ([]int, error) {
+func fetchMapFloors(app core.App, mapId string) ([]int, error) {
 	floors := []struct {
 		Level int `db:"floor"`
 	}{}
@@ -38,7 +37,7 @@ func fetchMapFloors(app *pocketbase.PocketBase, mapId string) ([]int, error) {
 }
 
 // fetchMapMaxSequence returns the maximum address sequence for a map, defaulting to 1.
-func fetchMapMaxSequence(app *pocketbase.PocketBase, mapId string) (int, error) {
+func fetchMapMaxSequence(app core.App, mapId string) (int, error) {
 	sequence := struct {
 		Number int `db:"sequence"`
 	}{}
@@ -50,14 +49,14 @@ func fetchMapMaxSequence(app *pocketbase.PocketBase, mapId string) (int, error) 
 	return sequence.Number, err
 }
 
-func fetchMapData(app *pocketbase.PocketBase, mapId string) (*core.Record, error) {
+func fetchMapData(app core.App, mapId string) (*core.Record, error) {
 	return app.FindRecordById("maps", mapId)
 }
 
 // AuthorizeByRole checks if userId has one of the specified roles in the given congregation.
 // If no allowedRoles are provided, any role grants access.
 // Uses LIMIT 1 for early exit instead of COUNT(*).
-func AuthorizeByRole(app *pocketbase.PocketBase, userId string, congregationId string, allowedRoles ...string) bool {
+func AuthorizeByRole(app core.App, userId string, congregationId string, allowedRoles ...string) bool {
 	var v struct {
 		V int `db:"v"`
 	}
@@ -90,7 +89,7 @@ func AuthorizeByRole(app *pocketbase.PocketBase, userId string, congregationId s
 }
 
 // AuthorizeLinkAccess checks if a link ID maps to a valid, non-expired assignment for the given map.
-func AuthorizeLinkAccess(app *pocketbase.PocketBase, linkId string, mapId string) bool {
+func AuthorizeLinkAccess(app core.App, linkId string, mapId string) bool {
 	var v struct {
 		V int `db:"v"`
 	}
@@ -104,7 +103,7 @@ func AuthorizeLinkAccess(app *pocketbase.PocketBase, linkId string, mapId string
 
 // AuthorizeLinkForCongregation checks if a link ID maps to a valid, non-expired
 // assignment belonging to the given congregation.
-func AuthorizeLinkForCongregation(app *pocketbase.PocketBase, linkId string, congregationId string) bool {
+func AuthorizeLinkForCongregation(app core.App, linkId string, congregationId string) bool {
 	var v struct {
 		V int `db:"v"`
 	}
@@ -118,7 +117,7 @@ func AuthorizeLinkForCongregation(app *pocketbase.PocketBase, linkId string, con
 
 // AuthorizeMapAccess checks if the request has access to the given map.
 // If link-id is present it takes precedence and must be valid; otherwise role check is used.
-func AuthorizeMapAccess(c *core.RequestEvent, app *pocketbase.PocketBase, mapId string) bool {
+func AuthorizeMapAccess(c *core.RequestEvent, app core.App, mapId string) bool {
 	if c.HasSuperuserAuth() {
 		return true
 	}
@@ -131,7 +130,7 @@ func AuthorizeMapAccess(c *core.RequestEvent, app *pocketbase.PocketBase, mapId 
 
 // authorizeUserForMap checks if userId has any role in the map's congregation
 // using a single joined query instead of two separate lookups.
-func authorizeUserForMap(app *pocketbase.PocketBase, userId string, mapId string) bool {
+func authorizeUserForMap(app core.App, userId string, mapId string) bool {
 	var v struct {
 		V int `db:"v"`
 	}
@@ -146,7 +145,7 @@ func authorizeUserForMap(app *pocketbase.PocketBase, userId string, mapId string
 
 // authorizeUserForMaps checks if userId has a role in the congregation of every
 // map in mapIds using a single query. Returns true only if all maps are authorized.
-func authorizeUserForMaps(app *pocketbase.PocketBase, userId string, mapIds []string) bool {
+func authorizeUserForMaps(app core.App, userId string, mapIds []string) bool {
 	if len(mapIds) == 0 {
 		return false
 	}
@@ -174,16 +173,16 @@ func authorizeUserForMaps(app *pocketbase.PocketBase, userId string, mapIds []st
 	return err == nil && result.Cnt == len(unique)
 }
 
-func fetchDefaultCongregationOption(app *pocketbase.PocketBase, congregation string) (*core.Record, error) {
+func fetchDefaultCongregationOption(app core.App, congregation string) (*core.Record, error) {
 	return app.FindFirstRecordByFilter("options", "congregation = {:congregation} && is_default = 1", dbx.Params{"congregation": congregation})
 }
 
-func fetchMapAddressCodes(app *pocketbase.PocketBase, mapId string, floor int) ([]*core.Record, error) {
+func fetchMapAddressCodes(app core.App, mapId string, floor int) ([]*core.Record, error) {
 	return app.FindRecordsByFilter("addresses", "floor = {:floor} && map = {:id}", "", 0, 0, dbx.Params{"id": mapId, "floor": floor})
 }
 
 // fetchMapMaxFloor returns the highest floor number for a map, defaulting to 1.
-func fetchMapMaxFloor(app *pocketbase.PocketBase, mapId string) (int, error) {
+func fetchMapMaxFloor(app core.App, mapId string) (int, error) {
 	maxFloor := struct {
 		MaxFloor int `db:"max_floor"`
 	}{}
@@ -196,7 +195,7 @@ func fetchMapMaxFloor(app *pocketbase.PocketBase, mapId string) (int, error) {
 }
 
 // fetchMapLowestFloor returns the lowest floor number for a map, defaulting to 1.
-func fetchMapLowestFloor(app *pocketbase.PocketBase, mapId string) (int, error) {
+func fetchMapLowestFloor(app core.App, mapId string) (int, error) {
 	lowestFloor := struct {
 		MinFloor int `db:"min_floor"`
 	}{}

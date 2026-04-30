@@ -4,13 +4,12 @@ import (
 	"net/http"
 
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
 
 // countFloorsInMap counts the number of distinct floors in a map
-func countFloorsInMap(app *pocketbase.PocketBase, mapId string) (int, error) {
+func countFloorsInMap(app core.App, mapId string) (int, error) {
 	floors := struct {
 		Count int `db:"count"`
 	}{}
@@ -30,11 +29,20 @@ func countFloorsInMap(app *pocketbase.PocketBase, mapId string) (int, error) {
 //
 // Returns:
 //   - error: An error if the operation fails, otherwise nil.
-func HandleRemoveMapFloor(e *core.RequestEvent, app *pocketbase.PocketBase) error {
+func HandleRemoveMapFloor(e *core.RequestEvent, app core.App) error {
 	requestInfo, _ := e.RequestInfo()
 	data := requestInfo.Body
 	floor := data["floor"].(float64)
 	mapId := data["map"].(string)
+
+	mapData, err := fetchMapData(app, mapId)
+	if err != nil {
+		return apis.NewNotFoundError("Error fetching map data", nil)
+	}
+
+	if !AuthorizeByRole(app, e.Auth.Id, mapData.GetString("congregation"), "administrator") {
+		return apis.NewForbiddenError("Administrator access required", nil)
+	}
 
 	// count floors and ensure that there is more than one floor
 	floorCount, err := countFloorsInMap(app, mapId)

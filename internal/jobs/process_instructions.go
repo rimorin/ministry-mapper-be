@@ -11,7 +11,7 @@ import (
 
 	"github.com/mailersend/mailersend-go"
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/apis"
 )
 
@@ -58,7 +58,7 @@ func generateInstructionsAISummary(messages []messagesData, mapName string) Over
 	}
 }
 
-func processInstruction(mapID string, app *pocketbase.PocketBase) error {
+func processInstruction(mapID string, app core.App) error {
 	log.Printf("Processing instructions for map: %s", mapID)
 
 	if mapID == "" {
@@ -194,7 +194,7 @@ func processInstruction(mapID string, app *pocketbase.PocketBase) error {
 	return nil
 }
 
-func processInstructions(app *pocketbase.PocketBase, timeIntervalMinutes int) error {
+func processInstructions(app core.App, timeIntervalMinutes int) error {
 	log.Println("Starting instructions processing")
 
 	maps := []MapData{}

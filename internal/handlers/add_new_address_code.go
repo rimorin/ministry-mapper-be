@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -35,10 +34,19 @@ var codeFormatRegex = regexp.MustCompile(`^[a-zA-Z0-9-]+$`)
 //
 // Returns:
 // - An error if validation fails or database operations fail, otherwise a detailed JSON response.
-func HandleMapAdd(e *core.RequestEvent, app *pocketbase.PocketBase) error {
+func HandleMapAdd(e *core.RequestEvent, app core.App) error {
 	requestInfo, _ := e.RequestInfo()
 	data := requestInfo.Body
 	mapId := data["map"].(string)
+
+	mapData, err := fetchMapData(app, mapId)
+	if err != nil {
+		return apis.NewNotFoundError("Error fetching map data", nil)
+	}
+
+	if !AuthorizeByRole(app, e.Auth.Id, mapData.GetString("congregation"), "administrator") {
+		return apis.NewForbiddenError("Administrator access required", nil)
+	}
 
 	// Phase 1: STRICT Validation - Extract and validate codes array
 	codesRaw, ok := data["codes"].([]interface{})
@@ -118,12 +126,7 @@ func HandleMapAdd(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 		return apis.NewNotFoundError("Error fetching sequence", nil)
 	}
 
-	mapData, err := fetchMapData(app, mapId)
-	if err != nil {
-		return apis.NewNotFoundError("Error fetching map data", nil)
-	}
-
-	defaultCode, err := fetchDefaultCongregationOption(app, mapData.Get("congregation").(string))
+	defaultCode, err := fetchDefaultCongregationOption(app, mapData.GetString("congregation"))
 	if err != nil {
 		return apis.NewNotFoundError("Error fetching default code", nil)
 	}
@@ -146,11 +149,11 @@ func HandleMapAdd(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 			for _, floor := range floors {
 				record := core.NewRecord(collection)
 				record.Set("code", code)
-				record.Set("congregation", mapData.Get("congregation"))
+				record.Set("congregation", mapData.GetString("congregation"))
 				record.Set("floor", floor)
 				record.Set("map", mapId)
 				record.Set("status", "not_done")
-				record.Set("territory", mapData.Get("territory"))
+				record.Set("territory", mapData.GetString("territory"))
 				record.Set("sequence", currentSequence)
 				record.Set("source", "admin")
 				record.Set("created_by", e.Auth.Get("name").(string))
@@ -161,7 +164,7 @@ func HandleMapAdd(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 				aoRec := core.NewRecord(aoCollection)
 				aoRec.Set("address", record.Id)
 				aoRec.Set("option", defaultCode.Id)
-				aoRec.Set("congregation", fmt.Sprintf("%v", mapData.Get("congregation")))
+				aoRec.Set("congregation", mapData.GetString("congregation"))
 				aoRec.Set("map", mapId)
 				if err := txApp.SaveNoValidate(aoRec); err != nil {
 					return err

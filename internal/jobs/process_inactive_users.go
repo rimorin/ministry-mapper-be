@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/core"
 )
 
 // inactiveUser holds the database row fields needed to process an inactive user.
@@ -53,7 +53,7 @@ const (
 //
 // The inactivity clock uses last_login if available, falling back to the account
 // creation date for users who have never logged in.
-func processInactiveUsers(app *pocketbase.PocketBase) error {
+func processInactiveUsers(app core.App) error {
 	log.Println("processInactiveUsers: starting")
 
 	appURL := os.Getenv("PB_APP_URL")

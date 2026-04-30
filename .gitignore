@@ -4,5 +4,10 @@ pb_*
 # ignore .env file
 .env
 
-# ignore local sqlite db
+# ignore local sqlite db and SQLite WAL/SHM transient files
 *.db
+*.db-shm
+*.db-wal
+
+# test fixture DB is generated locally by scripts/test.sh — never committed
+test_pb_data/
