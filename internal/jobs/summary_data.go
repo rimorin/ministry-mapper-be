@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -141,7 +140,7 @@ func reportMonth() time.Time {
 }
 
 // queryTerritoryProgress fetches the current territory status snapshot from analytics_territories.
-func queryTerritoryProgress(app *pocketbase.PocketBase, congregationId string, monthlyDoneRate float64) ([]TerritoryProgress, error) {
+func queryTerritoryProgress(app core.App, congregationId string, monthlyDoneRate float64) ([]TerritoryProgress, error) {
 	type row struct {
 		Id          string  `db:"id"`
 		Code        string  `db:"code"`
@@ -191,7 +190,7 @@ func queryTerritoryProgress(app *pocketbase.PocketBase, congregationId string, m
 }
 
 // queryMonthlyActivity fetches status-change totals for the given period from analytics_daily_status.
-func queryMonthlyActivity(app *pocketbase.PocketBase, congregationId string, period ReportPeriod) (items []ActivityItem, total int, peakDay, slowWeek string, monthlyDoneRate float64, err error) {
+func queryMonthlyActivity(app core.App, congregationId string, period ReportPeriod) (items []ActivityItem, total int, peakDay, slowWeek string, monthlyDoneRate float64, err error) {
 	monthStart := period.Start.Format("2006-01-02")
 	monthEnd := period.End.Format("2006-01-02")
 
@@ -288,7 +287,7 @@ func queryMonthlyActivity(app *pocketbase.PocketBase, congregationId string, per
 
 // queryMonthlyActivityByTerritory breaks down the period's status changes per territory.
 // This is the primary "what happened this period" signal for each territory.
-func queryMonthlyActivityByTerritory(app *pocketbase.PocketBase, congregationId string, period ReportPeriod) ([]TerritoryMonthlyActivity, error) {
+func queryMonthlyActivityByTerritory(app core.App, congregationId string, period ReportPeriod) ([]TerritoryMonthlyActivity, error) {
 	monthStart := period.Start.Format("2006-01-02")
 	monthEnd := period.End.Format("2006-01-02")
 
@@ -351,7 +350,7 @@ func queryMonthlyActivityByTerritory(app *pocketbase.PocketBase, congregationId 
 
 // queryNotHomeFatigue fetches not-home retry counts per territory from analytics_not_home.
 // Stale counts are addresses where the publisher has not re-attempted in more than 14 days.
-func queryNotHomeFatigue(app *pocketbase.PocketBase, congregationId string) ([]NotHomeFatigue, error) {
+func queryNotHomeFatigue(app core.App, congregationId string) ([]NotHomeFatigue, error) {
 	type row struct {
 		TerritoryCode string `db:"territory_code"`
 		MaxedOut      int    `db:"maxed_out"`
@@ -393,7 +392,7 @@ func queryNotHomeFatigue(app *pocketbase.PocketBase, congregationId string) ([]N
 
 // queryMapHealth fetches per-map progress from analytics_maps and classifies
 // maps as stalled (0%, work remaining), completed (100%), or high DNC (top 3).
-func queryMapHealth(app *pocketbase.PocketBase, congregationId string) (stalled, completed, highDNC []MapHealthItem, err error) {
+func queryMapHealth(app core.App, congregationId string) (stalled, completed, highDNC []MapHealthItem, err error) {
 	type row struct {
 		TerritoryCode  string  `db:"territory_code"`
 		MapCode        string  `db:"map_code"`
@@ -465,7 +464,7 @@ func queryMapHealth(app *pocketbase.PocketBase, congregationId string) (stalled,
 
 // queryInactiveTerritories returns codes of non-complete territories that had no
 // activity in analytics_daily_status during the given period.
-func queryInactiveTerritories(app *pocketbase.PocketBase, congregationId string, territories []TerritoryProgress, period ReportPeriod) []string {
+func queryInactiveTerritories(app core.App, congregationId string, territories []TerritoryProgress, period ReportPeriod) []string {
 	monthStart := period.Start.Format("2006-01-02")
 	monthEnd := period.End.Format("2006-01-02")
 
@@ -501,7 +500,7 @@ func queryInactiveTerritories(app *pocketbase.PocketBase, congregationId string,
 
 // BuildSummaryData queries all four analytics views and assembles a SummaryData struct
 // ready for prompt building. The Available field is left false until the LLM call succeeds.
-func BuildSummaryData(app *pocketbase.PocketBase, congregation *core.Record, period ReportPeriod) (SummaryData, error) {
+func BuildSummaryData(app core.App, congregation *core.Record, period ReportPeriod) (SummaryData, error) {
 	cid := congregation.Id
 	name, _ := congregation.Get("name").(string)
 

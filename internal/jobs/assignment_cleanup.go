@@ -4,7 +4,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -19,7 +18,7 @@ import (
 //
 // Returns:
 //   - error: An error if the cleanup process fails, otherwise nil.
-func assignmentsCleanup(app *pocketbase.PocketBase) error {
+func assignmentsCleanup(app core.App) error {
 	log.Println("Starting assignments cleanup")
 
 	// Fetch full records in one query — avoids a second FindRecordById per record inside the loop.

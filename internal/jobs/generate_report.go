@@ -15,7 +15,6 @@ import (
 
 	"github.com/mailersend/mailersend-go"
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/xuri/excelize/v2"
 )
@@ -67,7 +66,7 @@ type ReportRecipient struct {
 	Email string `db:"email"`
 }
 
-func GenerateMonthlyReport(app *pocketbase.PocketBase, aiEnabled bool) {
+func GenerateMonthlyReport(app core.App, aiEnabled bool) {
 	log.Println("Starting monthly report generation...")
 
 	congregations, err := app.FindRecordsByFilter("congregations", "", "", 0, 0)
@@ -88,7 +87,7 @@ func GenerateMonthlyReport(app *pocketbase.PocketBase, aiEnabled bool) {
 
 // generateReportBuffer builds the Excel report for a congregation and returns
 // the filename and raw bytes. Shared by both send variants below.
-func generateReportBuffer(app *pocketbase.PocketBase, congregation *core.Record, period ReportPeriod) (string, []byte, error) {
+func generateReportBuffer(app core.App, congregation *core.Record, period ReportPeriod) (string, []byte, error) {
 	f := excelize.NewFile()
 
 	congregationOptions, err := app.FindRecordsByFilter(
@@ -144,7 +143,7 @@ func generateReportBuffer(app *pocketbase.PocketBase, congregation *core.Record,
 
 // GenerateAndSendCongregationReport generates the Excel report and emails it
 // to all administrators of the congregation. Used by the monthly scheduled job.
-func GenerateAndSendCongregationReport(app *pocketbase.PocketBase, congregation *core.Record, aiEnabled bool) error {
+func GenerateAndSendCongregationReport(app core.App, congregation *core.Record, aiEnabled bool) error {
 	period := PreviousCalendarMonth()
 	filename, content, err := generateReportBuffer(app, congregation, period)
 	if err != nil {
@@ -160,7 +159,7 @@ func GenerateAndSendCongregationReport(app *pocketbase.PocketBase, congregation 
 
 // GenerateAndSendCongregationReportToUser generates the Excel report and emails it
 // only to the specified recipient. Used by the on-demand report endpoint.
-func GenerateAndSendCongregationReportToUser(app *pocketbase.PocketBase, congregation *core.Record, recipient *core.Record) error {
+func GenerateAndSendCongregationReportToUser(app core.App, congregation *core.Record, recipient *core.Record) error {
 	period := RollingDays(OnDemandReportDays)
 	filename, content, err := generateReportBuffer(app, congregation, period)
 	if err != nil {
@@ -176,7 +175,7 @@ func GenerateAndSendCongregationReportToUser(app *pocketbase.PocketBase, congreg
 
 // generateAISummary calls the OpenAI API to produce a narrative for the given period.
 // Returns SummaryData{} with Available=false on any failure so the template gracefully omits the section.
-func generateAISummary(app *pocketbase.PocketBase, congregation *core.Record, aiEnabled bool, period ReportPeriod) SummaryData {
+func generateAISummary(app core.App, congregation *core.Record, aiEnabled bool, period ReportPeriod) SummaryData {
 	if !aiEnabled {
 		return SummaryData{}
 	}
@@ -319,7 +318,7 @@ func parseProgressValue(value interface{}) (float64, bool) {
 	return 0, false
 }
 
-func createDetailsSheet(app *pocketbase.PocketBase, f *excelize.File, congregation *core.Record, options []*core.Record) error {
+func createDetailsSheet(app core.App, f *excelize.File, congregation *core.Record, options []*core.Record) error {
 	f.SetSheetName("Sheet1", "Details")
 	sheet := "Details"
 
@@ -537,7 +536,7 @@ func createDetailsSheet(app *pocketbase.PocketBase, f *excelize.File, congregati
 	return nil
 }
 
-func createAddressSheet(app *pocketbase.PocketBase, f *excelize.File, congregation *core.Record) error {
+func createAddressSheet(app core.App, f *excelize.File, congregation *core.Record) error {
 	sheetName := "Addresses"
 	index, err := f.NewSheet(sheetName)
 	if err != nil {
@@ -678,7 +677,7 @@ func createAddressSheet(app *pocketbase.PocketBase, f *excelize.File, congregati
 	return nil
 }
 
-func createTerritorySheet(app *pocketbase.PocketBase, f *excelize.File, territory *core.Record, options []*core.Record) error {
+func createTerritorySheet(app core.App, f *excelize.File, territory *core.Record, options []*core.Record) error {
 	territoryCode := fmt.Sprintf("%v", territory.Get("code"))
 	if territoryCode == "" || territoryCode == "<nil>" {
 		territoryCode = territory.Id // Fallback to territory ID if code is empty
@@ -1067,7 +1066,7 @@ func createTerritorySheet(app *pocketbase.PocketBase, f *excelize.File, territor
 	return nil
 }
 
-func createAddressTable(app *pocketbase.PocketBase, f *excelize.File, sheetName string, mapRecord *core.Record, options []*core.Record, startRow *int) error {
+func createAddressTable(app core.App, f *excelize.File, sheetName string, mapRecord *core.Record, options []*core.Record, startRow *int) error {
 	// Get addresses for this map
 	addresses, err := app.FindRecordsByFilter(
 		"addresses",
@@ -1423,7 +1422,7 @@ func getStatusSymbol(status string) string {
 	}
 }
 
-func sendReportEmailFromBuffer(app *pocketbase.PocketBase, congregation *core.Record, filename string, content []byte, aiEnabled bool, period ReportPeriod) error {
+func sendReportEmailFromBuffer(app core.App, congregation *core.Record, filename string, content []byte, aiEnabled bool, period ReportPeriod) error {
 	log.Printf("Sending report email for congregation: %s", congregation.Get("code"))
 
 	if os.Getenv("MAILERSEND_API_KEY") == "" {
@@ -1505,7 +1504,7 @@ func sendReportEmailFromBuffer(app *pocketbase.PocketBase, congregation *core.Re
 
 // sendReportEmailToRecipient sends the report to a single specified recipient
 // instead of all congregation administrators. Used for on-demand report requests.
-func sendReportEmailToRecipient(app *pocketbase.PocketBase, congregation *core.Record, filename string, content []byte, recipient *core.Record, summary SummaryData, period ReportPeriod) error {
+func sendReportEmailToRecipient(app core.App, congregation *core.Record, filename string, content []byte, recipient *core.Record, summary SummaryData, period ReportPeriod) error {
 	name, _ := recipient.Get("name").(string)
 	email, _ := recipient.Get("email").(string)
 	if email == "" {

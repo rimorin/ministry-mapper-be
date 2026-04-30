@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -27,7 +26,7 @@ import (
 //  4. Fetches the address codes associated with the map and the current floor.
 //  5. Runs a transaction to update the addresses with the new floor number and other details.
 //  6. Processes the map aggregates and returns a success message.
-func HandleMapFloor(e *core.RequestEvent, app *pocketbase.PocketBase) error {
+func HandleMapFloor(e *core.RequestEvent, app core.App) error {
 	requestInfo, _ := e.RequestInfo()
 	data := requestInfo.Body
 	add_higher := data["add_higher"].(bool)
@@ -36,6 +35,10 @@ func HandleMapFloor(e *core.RequestEvent, app *pocketbase.PocketBase) error {
 	mapData, err := fetchMapData(app, mapId)
 	if err != nil {
 		return apis.NewNotFoundError("Error fetching map data", nil)
+	}
+
+	if !AuthorizeByRole(app, e.Auth.Id, mapData.GetString("congregation"), "administrator") {
+		return apis.NewForbiddenError("Administrator access required", nil)
 	}
 
 	defaultType, err := fetchDefaultCongregationOption(app, mapData.Get("congregation").(string))

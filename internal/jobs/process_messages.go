@@ -11,7 +11,7 @@ import (
 
 	"github.com/mailersend/mailersend-go"
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/apis"
 )
 
@@ -84,7 +84,7 @@ type Recipient struct {
 	Email string `db:"email"`
 }
 
-func processMessage(mapID string, app *pocketbase.PocketBase) error {
+func processMessage(mapID string, app core.App) error {
 	log.Printf("Processing messages for map: %s", mapID)
 
 	if mapID == "" {
@@ -229,7 +229,7 @@ func processMessage(mapID string, app *pocketbase.PocketBase) error {
 //
 // Returns:
 //   - error: An error if there is an issue fetching or processing messages, otherwise nil.
-func processMessages(app *pocketbase.PocketBase, timeIntervalMinutes int) error {
+func processMessages(app core.App, timeIntervalMinutes int) error {
 	log.Println("Starting messages processing")
 
 	maps := []MapData{}

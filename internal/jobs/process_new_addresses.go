@@ -12,7 +12,7 @@ import (
 
 	"github.com/mailersend/mailersend-go"
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/core"
 )
 
 type newAddressEntry struct {
@@ -50,7 +50,7 @@ type territoryRow struct {
 
 // ProcessNewAddress sends a daily digest of app-created addresses to all
 // administrators of the given congregation.
-func ProcessNewAddress(congID string, app *pocketbase.PocketBase, since time.Time, tmpl *template.Template) error {
+func ProcessNewAddress(congID string, app core.App, since time.Time, tmpl *template.Template) error {
 	log.Printf("Processing new addresses for congregation: %s", congID)
 
 	congRecord, err := app.FindRecordById("congregations", congID)
@@ -278,7 +278,7 @@ func ProcessNewAddress(congID string, app *pocketbase.PocketBase, since time.Tim
 // ProcessNewAddresses finds all congregations that had addresses created via the
 // app (source = "app") in the last timeIntervalHours hours and sends a digest
 // email to their administrators.
-func ProcessNewAddresses(app *pocketbase.PocketBase, since time.Time) error {
+func ProcessNewAddresses(app core.App, since time.Time) error {
 	log.Println("Starting new addresses processing")
 
 	congregations := []CongregationData{}

@@ -7,14 +7,13 @@ import (
 	"strings"
 
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
 
 // authOrLink authorizes via link-id (if present) or role. Link-id takes precedence.
 // For updates/deletes, use Original() values to prevent field-mutation bypass.
-func authOrLink(e *core.RecordRequestEvent, app *pocketbase.PocketBase, useOriginal bool) error {
+func authOrLink(e *core.RecordRequestEvent, app core.App, useOriginal bool) error {
 	if e.HasSuperuserAuth() {
 		return e.Next()
 	}
@@ -42,7 +41,7 @@ func authOrLink(e *core.RecordRequestEvent, app *pocketbase.PocketBase, useOrigi
 }
 
 // adminOnly authorizes if the user is an administrator for the congregation.
-func adminOnly(e *core.RecordRequestEvent, app *pocketbase.PocketBase, congId string) error {
+func adminOnly(e *core.RecordRequestEvent, app core.App, congId string) error {
 	if e.HasSuperuserAuth() {
 		return e.Next()
 	}
@@ -56,7 +55,7 @@ func adminOnly(e *core.RecordRequestEvent, app *pocketbase.PocketBase, congId st
 }
 
 // adminOrConductor authorizes if the user is an administrator or conductor for the congregation.
-func adminOrConductor(e *core.RecordRequestEvent, app *pocketbase.PocketBase, congId string) error {
+func adminOrConductor(e *core.RecordRequestEvent, app core.App, congId string) error {
 	if e.HasSuperuserAuth() {
 		return e.Next()
 	}
@@ -77,18 +76,10 @@ func getCongId(e *core.RecordRequestEvent, useOriginal bool) string {
 	return e.Record.GetString("congregation")
 }
 
-var mapIdPattern = regexp.MustCompile(`map\s*=\s*"([^"]+)"`)
-var congIdPattern = regexp.MustCompile(`congregation\s*=\s*"([^"]+)"`)
-var territoryIdPattern = regexp.MustCompile(`territory\s*=\s*"([^"]+)"`)
-var userIdPattern = regexp.MustCompile(`user\s*=\s*"([^"]+)"`)
-
-func extractMapIdFromFilter(filter string) string {
-	matches := mapIdPattern.FindStringSubmatch(filter)
-	if len(matches) >= 2 {
-		return matches[1]
-	}
-	return ""
-}
+var mapIdPattern = regexp.MustCompile(`map\s*=\s*['"]([^'"]+)['"]`)
+var congIdPattern = regexp.MustCompile(`congregation\s*=\s*['"]([^'"]+)['"]`)
+var territoryIdPattern = regexp.MustCompile(`territory\s*=\s*['"]([^'"]+)['"]`)
+var userIdPattern = regexp.MustCompile(`user\s*=\s*['"]([^'"]+)['"]`)
 
 func extractAllMapIdsFromFilter(filter string) []string {
 	matches := mapIdPattern.FindAllStringSubmatch(filter, -1)
@@ -101,20 +92,26 @@ func extractAllMapIdsFromFilter(filter string) []string {
 	return ids
 }
 
-func extractCongIdFromFilter(filter string) string {
-	matches := congIdPattern.FindStringSubmatch(filter)
-	if len(matches) >= 2 {
-		return matches[1]
+func extractAllCongIdsFromFilter(filter string) []string {
+	matches := congIdPattern.FindAllStringSubmatch(filter, -1)
+	ids := make([]string, 0, len(matches))
+	for _, m := range matches {
+		if len(m) >= 2 {
+			ids = append(ids, m[1])
+		}
 	}
-	return ""
+	return ids
 }
 
-func extractTerritoryIdFromFilter(filter string) string {
-	matches := territoryIdPattern.FindStringSubmatch(filter)
-	if len(matches) >= 2 {
-		return matches[1]
+func extractAllTerritoryIdsFromFilter(filter string) []string {
+	matches := territoryIdPattern.FindAllStringSubmatch(filter, -1)
+	ids := make([]string, 0, len(matches))
+	for _, m := range matches {
+		if len(m) >= 2 {
+			ids = append(ids, m[1])
+		}
 	}
-	return ""
+	return ids
 }
 
 func extractUserIdFromFilter(filter string) string {
@@ -125,7 +122,19 @@ func extractUserIdFromFilter(filter string) string {
 	return ""
 }
 
-func getTerritoryCongregation(app *pocketbase.PocketBase, territoryId string) string {
+func uniqueStrings(ss []string) []string {
+	seen := make(map[string]struct{}, len(ss))
+	out := make([]string, 0, len(ss))
+	for _, s := range ss {
+		if _, ok := seen[s]; !ok {
+			seen[s] = struct{}{}
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func getTerritoryCongregation(app core.App, territoryId string) string {
 	var result struct {
 		Congregation string `db:"congregation"`
 	}
@@ -140,19 +149,21 @@ func getTerritoryCongregation(app *pocketbase.PocketBase, territoryId string) st
 
 // authorizeMapSubscription checks if a user/link can subscribe to map-scoped collections.
 // If link-id is present it takes precedence and must be valid; otherwise role check is used.
-func authorizeMapSubscription(app *pocketbase.PocketBase, auth *core.Record, linkId string, filter string) bool {
-	mapId := extractMapIdFromFilter(filter)
-	if mapId == "" {
+// All map IDs present in the filter must be authorized.
+func authorizeMapSubscription(app core.App, auth *core.Record, linkId string, filter string) bool {
+	mapIds := uniqueStrings(extractAllMapIdsFromFilter(filter))
+	if len(mapIds) == 0 {
 		return false
 	}
 	if linkId != "" {
-		return AuthorizeLinkAccess(app, linkId, mapId)
+		// A link-id is scoped to exactly one map; reject multi-map filters.
+		return len(mapIds) == 1 && AuthorizeLinkAccess(app, linkId, mapIds[0])
 	}
-	return auth != nil && authorizeUserForMap(app, auth.Id, mapId)
+	return auth != nil && authorizeUserForMaps(app, auth.Id, mapIds)
 }
 
 // isAdminAnywhere checks if the user is an administrator in any congregation.
-func isAdminAnywhere(app *pocketbase.PocketBase, userId string) bool {
+func isAdminAnywhere(app core.App, userId string) bool {
 	var v struct{ V int `db:"v"` }
 	err := app.DB().NewQuery(`
 		SELECT 1 as v FROM roles
@@ -163,7 +174,7 @@ func isAdminAnywhere(app *pocketbase.PocketBase, userId string) bool {
 }
 
 // isAdminOrConductorAnywhere checks if the user is an administrator or conductor in any congregation.
-func isAdminOrConductorAnywhere(app *pocketbase.PocketBase, userId string) bool {
+func isAdminOrConductorAnywhere(app core.App, userId string) bool {
 	var v struct{ V int `db:"v"` }
 	err := app.DB().NewQuery(`
 		SELECT 1 as v FROM roles
@@ -219,17 +230,19 @@ func authorizeView(e *core.RecordRequestEvent, authCheck func() bool, linkCheck 
 
 // linkMapListAuth validates map access for LIST requests.
 // If link-id is present it takes precedence and must be valid; otherwise role check is used.
-func linkMapListAuth(e *core.RecordsListRequestEvent, app *pocketbase.PocketBase) error {
-	mapId := extractMapIdFromFilter(e.Request.URL.Query().Get("filter"))
+// All map IDs present in the filter must be authorized.
+func linkMapListAuth(e *core.RecordsListRequestEvent, app core.App) error {
+	mapIds := uniqueStrings(extractAllMapIdsFromFilter(e.Request.URL.Query().Get("filter")))
 	return authorizeList(e,
-		func() bool { return mapId != "" && authorizeUserForMap(app, e.Auth.Id, mapId) },
-		func(linkId string) bool { return mapId != "" && AuthorizeLinkAccess(app, linkId, mapId) },
+		func() bool { return len(mapIds) > 0 && authorizeUserForMaps(app, e.Auth.Id, mapIds) },
+		// A link-id is scoped to exactly one map; reject multi-map filters.
+		func(linkId string) bool { return len(mapIds) == 1 && AuthorizeLinkAccess(app, linkId, mapIds[0]) },
 	)
 }
 
 // RegisterAuthHooks registers authorization hooks for all create/update/delete operations
 // and list/view hooks that replace @collection joins with efficient indexed queries.
-func RegisterAuthHooks(app *pocketbase.PocketBase) {
+func RegisterAuthHooks(app core.App) {
 	// --- List/View hooks (post-query authorization) ---
 
 	// Realtime subscribe: validate link-id authorization at subscribe time.
@@ -298,7 +311,7 @@ func RegisterAuthHooks(app *pocketbase.PocketBase) {
 		return linkMapListAuth(e, app)
 	})
 
-	// maps LIST: auth user must have role in the target congregation.
+	// maps LIST: auth user must have role in every congregation referenced by the filter.
 	app.OnRecordsListRequest("maps").BindFunc(func(e *core.RecordsListRequestEvent) error {
 		if e.HasSuperuserAuth() {
 			return e.Next()
@@ -307,24 +320,25 @@ func RegisterAuthHooks(app *pocketbase.PocketBase) {
 			return apis.NewForbiddenError("Auth required", nil)
 		}
 		filter := e.Request.URL.Query().Get("filter")
-		// Maps can be filtered by congregation= or territory=
-		congId := extractCongIdFromFilter(filter)
-		if congId == "" {
-			territoryId := extractTerritoryIdFromFilter(filter)
-			if territoryId != "" {
-				congId = getTerritoryCongregation(app, territoryId)
+		congIds := uniqueStrings(extractAllCongIdsFromFilter(filter))
+		for _, territoryId := range uniqueStrings(extractAllTerritoryIdsFromFilter(filter)) {
+			if cid := getTerritoryCongregation(app, territoryId); cid != "" {
+				congIds = append(congIds, cid)
 			}
 		}
-		if congId == "" {
+		congIds = uniqueStrings(congIds)
+		if len(congIds) == 0 {
 			return apis.NewForbiddenError("Missing congregation or territory filter", nil)
 		}
-		if !AuthorizeByRole(app, e.Auth.Id, congId) {
-			return apis.NewForbiddenError("Unauthorized", nil)
+		for _, congId := range congIds {
+			if !AuthorizeByRole(app, e.Auth.Id, congId) {
+				return apis.NewForbiddenError("Unauthorized", nil)
+			}
 		}
 		return e.Next()
 	})
 
-	// territories LIST: auth user must have role in the congregation.
+	// territories LIST: auth user must have role in every congregation referenced by the filter.
 	app.OnRecordsListRequest("territories").BindFunc(func(e *core.RecordsListRequestEvent) error {
 		if e.HasSuperuserAuth() {
 			return e.Next()
@@ -333,12 +347,14 @@ func RegisterAuthHooks(app *pocketbase.PocketBase) {
 			return apis.NewForbiddenError("Auth required", nil)
 		}
 		filter := e.Request.URL.Query().Get("filter")
-		congId := extractCongIdFromFilter(filter)
-		if congId == "" {
+		congIds := uniqueStrings(extractAllCongIdsFromFilter(filter))
+		if len(congIds) == 0 {
 			return apis.NewForbiddenError("Missing congregation filter", nil)
 		}
-		if !AuthorizeByRole(app, e.Auth.Id, congId) {
-			return apis.NewForbiddenError("Unauthorized", nil)
+		for _, congId := range congIds {
+			if !AuthorizeByRole(app, e.Auth.Id, congId) {
+				return apis.NewForbiddenError("Unauthorized", nil)
+			}
 		}
 		return e.Next()
 	})
@@ -395,13 +411,27 @@ func RegisterAuthHooks(app *pocketbase.PocketBase) {
 		)
 	})
 
-	// options LIST: validate auth user has role, or link-id belongs to congregation.
+	// options LIST: validate auth user has role in every congregation in the filter,
+	// or link-id belongs to the single congregation queried.
 	app.OnRecordsListRequest("options").BindFunc(func(e *core.RecordsListRequestEvent) error {
 		filter := e.Request.URL.Query().Get("filter")
-		congId := extractCongIdFromFilter(filter)
+		congIds := uniqueStrings(extractAllCongIdsFromFilter(filter))
 		return authorizeList(e,
-			func() bool { return congId != "" && AuthorizeByRole(app, e.Auth.Id, congId) },
-			func(linkId string) bool { return congId != "" && AuthorizeLinkForCongregation(app, linkId, congId) },
+			func() bool {
+				if len(congIds) == 0 {
+					return false
+				}
+				for _, congId := range congIds {
+					if !AuthorizeByRole(app, e.Auth.Id, congId) {
+						return false
+					}
+				}
+				return true
+			},
+			// A link-id is congregation-scoped; reject multi-congregation filters.
+			func(linkId string) bool {
+				return len(congIds) == 1 && AuthorizeLinkForCongregation(app, linkId, congIds[0])
+			},
 		)
 	})
 
@@ -418,7 +448,7 @@ func RegisterAuthHooks(app *pocketbase.PocketBase) {
 		)
 	})
 
-	// roles LIST: auth user must have a role in the queried congregation.
+	// roles LIST: auth user must have a role in every congregation referenced by the filter.
 	app.OnRecordsListRequest("roles").BindFunc(func(e *core.RecordsListRequestEvent) error {
 		if e.HasSuperuserAuth() {
 			return e.Next()
@@ -427,12 +457,14 @@ func RegisterAuthHooks(app *pocketbase.PocketBase) {
 			return apis.NewForbiddenError("Auth required", nil)
 		}
 		filter := e.Request.URL.Query().Get("filter")
-		congId := extractCongIdFromFilter(filter)
-		if congId != "" {
-			if AuthorizeByRole(app, e.Auth.Id, congId) {
-				return e.Next()
+		congIds := uniqueStrings(extractAllCongIdsFromFilter(filter))
+		if len(congIds) > 0 {
+			for _, congId := range congIds {
+				if !AuthorizeByRole(app, e.Auth.Id, congId) {
+					return apis.NewForbiddenError("Unauthorized", nil)
+				}
 			}
-			return apis.NewForbiddenError("Unauthorized", nil)
+			return e.Next()
 		}
 		// user= filter only: allow if querying own roles
 		userId := extractUserIdFromFilter(filter)

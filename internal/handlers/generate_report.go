@@ -5,7 +5,6 @@ import (
 
 	sentry "github.com/getsentry/sentry-go"
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -16,12 +15,12 @@ type GenerateReportRequest struct {
 
 // ReportGeneratorFn is the function signature for congregation report generation.
 // Injected from the jobs package at registration time to avoid import cycles.
-type ReportGeneratorFn func(app *pocketbase.PocketBase, congregation *core.Record, recipient *core.Record) error
+type ReportGeneratorFn func(app core.App, congregation *core.Record, recipient *core.Record) error
 
 // HandleGenerateReport triggers an on-demand Excel report for a congregation.
 // The authenticated user must have the administrator role for the specified congregation.
 // The report is generated asynchronously and emailed only to the requesting user.
-func HandleGenerateReport(c *core.RequestEvent, app *pocketbase.PocketBase, generator ReportGeneratorFn) error {
+func HandleGenerateReport(c *core.RequestEvent, app core.App, generator ReportGeneratorFn) error {
 	data := GenerateReportRequest{}
 	if err := c.BindBody(&data); err != nil {
 		return apis.NewBadRequestError("Invalid request body", nil)

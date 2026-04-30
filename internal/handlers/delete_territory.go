@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -15,7 +14,7 @@ import (
 // via raw SQL to suppress cascade realtime events. The territory is deleted via
 // txApp.Delete inside the same transaction, which fires exactly one realtime event
 // after the transaction commits.
-func HandleDeleteTerritory(e *core.RequestEvent, app *pocketbase.PocketBase) error {
+func HandleDeleteTerritory(e *core.RequestEvent, app core.App) error {
 	requestInfo, _ := e.RequestInfo()
 	data := requestInfo.Body
 	territoryId, ok := data["territory"].(string)
@@ -26,6 +25,10 @@ func HandleDeleteTerritory(e *core.RequestEvent, app *pocketbase.PocketBase) err
 	territory, err := app.FindRecordById("territories", territoryId)
 	if err != nil {
 		return apis.NewNotFoundError("Territory not found", nil)
+	}
+
+	if !AuthorizeByRole(app, e.Auth.Id, territory.GetString("congregation"), "administrator", "conductor") {
+		return apis.NewForbiddenError("Administrator or conductor access required", nil)
 	}
 
 	err = app.RunInTransaction(func(txApp core.App) error {
