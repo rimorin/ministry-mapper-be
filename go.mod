@@ -1,6 +1,6 @@
 module ministry-mapper
 
-go 1.25.0
+go 1.26.2
 
 require (
 	github.com/getsentry/sentry-go v0.46.0
