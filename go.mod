@@ -3,12 +3,12 @@ module ministry-mapper
 go 1.26.2
 
 require (
-	github.com/getsentry/sentry-go v0.46.0
+	github.com/getsentry/sentry-go v0.46.1
 	github.com/launchdarkly/go-sdk-common/v3 v3.5.0
-	github.com/launchdarkly/go-server-sdk/v7 v7.14.6
+	github.com/launchdarkly/go-server-sdk/v7 v7.14.7
 	github.com/mailersend/mailersend-go v1.6.4
-	github.com/openai/openai-go/v3 v3.32.0
-	github.com/pocketbase/pocketbase v0.37.4
+	github.com/openai/openai-go/v3 v3.33.0
+	github.com/pocketbase/pocketbase v0.37.5
 	github.com/xuri/excelize/v2 v2.10.1
 )
 
