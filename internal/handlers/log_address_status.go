@@ -8,12 +8,22 @@ import (
 )
 
 // LogAddressStatusChange records a status change event in the addresses_log collection.
-// It should be called from OnRecordAfterUpdateSuccess when the address status has changed.
+// It should be called from OnRecordAfterUpdateSuccess when the address status has changed,
+// or when not_home_tries is incremented (status stays not_home but the aggregate bucket shifts).
 func LogAddressStatusChange(e *core.RecordEvent) {
 	oldStatus, _ := e.Record.Original().Get("status").(string)
 	newStatus, _ := e.Record.Get("status").(string)
 
-	if oldStatus == newStatus || oldStatus == "" || newStatus == "" {
+	if oldStatus == "" || newStatus == "" {
+		return
+	}
+
+	oldTries := e.Record.Original().GetInt("not_home_tries")
+	newTries := e.Record.GetInt("not_home_tries")
+
+	statusUnchanged := oldStatus == newStatus
+	triesUnchanged := oldTries == newTries
+	if statusUnchanged && (triesUnchanged || newStatus != "not_home") {
 		return
 	}
 
