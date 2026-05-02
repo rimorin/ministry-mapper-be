@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"log"
+	"math"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
@@ -65,7 +66,7 @@ func ProcessMapAggregates(mapID string, app core.App, resetTerritoryAggregates .
 
 	donePercentage := 0
 	if total > 0 {
-		donePercentage = int(float64(aggregates.Done+aggregates.NotHomeMaxTries) / float64(total) * 100)
+		donePercentage = int(math.Round(float64(aggregates.Done+aggregates.NotHomeMaxTries) / float64(total) * 100))
 	}
 
 	amap := map[string]interface{}{
@@ -141,7 +142,7 @@ func ProcessTerritoryAggregates(territoryID string, app core.App) error {
 			FROM address_options ao
 			JOIN options o ON ao.option = o.id
 			WHERE ao.address = a.id
-			AND ao.congregation = a.congregation
+			AND ao.map = a.map
 			AND o.is_countable = TRUE
 		)
 		AND a.status IN ('done', 'not_done', 'do_not_call', 'invalid', 'not_home')
@@ -156,7 +157,7 @@ func ProcessTerritoryAggregates(territoryID string, app core.App) error {
 
 	donePercentage := 0
 	if total > 0 {
-		donePercentage = int(float64(aggregates.Done+aggregates.NotHomeMaxTries) / float64(total) * 100)
+		donePercentage = int(math.Round(float64(aggregates.Done+aggregates.NotHomeMaxTries) / float64(total) * 100))
 	}
 
 	territoryRecord, err := app.FindRecordById("territories", territoryID)
