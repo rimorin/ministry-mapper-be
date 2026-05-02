@@ -3,6 +3,7 @@ package jobs
 import (
 	"fmt"
 	"log"
+	"math"
 	"strings"
 	"time"
 
@@ -178,7 +179,7 @@ func updateTerritoryAggregates(app core.App, timeIntervalMinutes int) error {
 				aggregates["invalid"] = agg.Invalid
 				total := agg.Done + agg.NotDone + agg.NotHomeMaxTries + agg.NotHomeLessTries
 				if total > 0 {
-					progress = int(float64(agg.Done+agg.NotHomeMaxTries) / float64(total) * 100)
+					progress = int(math.Round(float64(agg.Done+agg.NotHomeMaxTries) / float64(total) * 100))
 				}
 			}
 
@@ -260,7 +261,7 @@ func updateTerritoryAggregates(app core.App, timeIntervalMinutes int) error {
 			if agg, ok := territoryResultIndex[t.ID]; ok {
 				total := agg.Done + agg.NotDone + agg.NotHomeMaxTries + agg.NotHomeLessTries
 				if total > 0 {
-					progress = int(float64(agg.Done+agg.NotHomeMaxTries) / float64(total) * 100)
+					progress = int(math.Round(float64(agg.Done+agg.NotHomeMaxTries) / float64(total) * 100))
 				}
 			}
 
