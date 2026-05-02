@@ -47,6 +47,14 @@ func buildInClause(ids []string, prefix string) (string, dbx.Params) {
 	return strings.Join(placeholders, ", "), params
 }
 
+// RunAggregates is the exported entry point for the aggregate update job.
+// It recalculates map and territory progress for any maps/territories that had
+// address status changes in the past intervalMinutes window.
+// Exposed so integration tests can invoke the job directly without a scheduler.
+func RunAggregates(app core.App, intervalMinutes int) error {
+	return updateTerritoryAggregates(app, intervalMinutes)
+}
+
 // updateTerritoryAggregates recalculates map and territory aggregate stats for
 // any maps/territories that had address status changes in the past
 // timeIntervalMinutes window. It uses addresses_log as the change-detection
