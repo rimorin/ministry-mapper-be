@@ -20,18 +20,17 @@ func TestDomainHook_LogAddressStatusChange(t *testing.T) {
 
 	scenarios := []tests.ApiScenario{
 		{
-			// testalpha01a001 is not_done; patching to not_home creates a log entry
+			// testalpha01a001 is not_done; updating to not_home creates a log entry
 			Name:   "status change creates addresses_log entry",
-			Method: http.MethodPatch,
-			URL:    "/api/collections/addresses/records/testalpha01a001",
-			Body:   strings.NewReader(`{"status":"not_home","updated_by":"Admin","notes":""}`),
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"not_home","updated_by":"Admin","notes":""}`),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
 			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testalpha01a001"`},
+			TestAppFactory: setupTestApp,
+			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
 				logs, err := app.FindRecordsByFilter(
 					"addresses_log",
@@ -55,18 +54,17 @@ func TestDomainHook_LogAddressStatusChange(t *testing.T) {
 			},
 		},
 		{
-			// Patching with same status must not create a log entry
+			// Updating with same status must not create a log entry
 			Name:   "no status change does not create addresses_log entry",
-			Method: http.MethodPatch,
-			URL:    "/api/collections/addresses/records/testalpha01a001",
-			Body:   strings.NewReader(`{"status":"not_done","updated_by":"Admin","notes":""}`),
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"not_done","updated_by":"Admin","notes":""}`),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
 			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testalpha01a001"`},
+			TestAppFactory: setupTestApp,
+			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
 				logs, err := app.FindRecordsByFilter(
 					"addresses_log",
@@ -85,16 +83,15 @@ func TestDomainHook_LogAddressStatusChange(t *testing.T) {
 			// testalpha01a003 is not_home with not_home_tries=0; incrementing tries
 			// must create a log entry so the batch aggregate job picks up the change.
 			Name:   "not_home_tries increment creates addresses_log entry",
-			Method: http.MethodPatch,
-			URL:    "/api/collections/addresses/records/testalpha01a003",
-			Body:   strings.NewReader(`{"status":"not_home","not_home_tries":1,"updated_by":"Admin","notes":""}`),
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_home","not_home_tries":1,"updated_by":"Admin","notes":""}`),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
 			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testalpha01a003"`},
+			TestAppFactory: setupTestApp,
+			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
 				logs, err := app.FindRecordsByFilter(
 					"addresses_log",
@@ -110,18 +107,17 @@ func TestDomainHook_LogAddressStatusChange(t *testing.T) {
 			},
 		},
 		{
-			// Patching a not_home address with the same tries value must not create a log entry.
+			// Updating a not_home address with the same tries value must not create a log entry.
 			Name:   "same not_home_tries does not create addresses_log entry",
-			Method: http.MethodPatch,
-			URL:    "/api/collections/addresses/records/testalpha01a003",
-			Body:   strings.NewReader(`{"status":"not_home","not_home_tries":0,"updated_by":"Admin","notes":""}`),
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_home","not_home_tries":0,"updated_by":"Admin","notes":""}`),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
 			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testalpha01a003"`},
+			TestAppFactory: setupTestApp,
+			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
 				logs, err := app.FindRecordsByFilter(
 					"addresses_log",
@@ -140,11 +136,11 @@ func TestDomainHook_LogAddressStatusChange(t *testing.T) {
 			// Decrementing tries (3→1) must also create a log entry: the address
 			// shifts from the notHomeMaxTries bucket (numerator) to notHomeLessTries
 			// (denominator only), changing the aggregate. Factory pre-sets tries=3
-			// so the PATCH to tries=1 is a genuine decrement.
+			// so the update to tries=1 is a genuine decrement.
 			Name:   "not_home_tries decrement creates addresses_log entry",
-			Method: http.MethodPatch,
-			URL:    "/api/collections/addresses/records/testalpha01a003",
-			Body:   strings.NewReader(`{"status":"not_home","not_home_tries":1,"updated_by":"Admin","notes":""}`),
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_home","not_home_tries":1,"updated_by":"Admin","notes":""}`),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
@@ -161,8 +157,7 @@ func TestDomainHook_LogAddressStatusChange(t *testing.T) {
 				}
 				return app
 			},
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testalpha01a003"`},
+			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
 				logs, err := app.FindRecordsByFilter(
 					"addresses_log",
@@ -239,15 +234,14 @@ func TestDomainHook_AggregateFullChain(t *testing.T) {
 	scenarios := []tests.ApiScenario{
 		{
 			Name:   "not_home_tries hitting max_tries causes batch job to recompute progress to 100",
-			Method: http.MethodPatch,
-			URL:    "/api/collections/addresses/records/testalpha01a003",
-			Body:   strings.NewReader(`{"status":"not_home","not_home_tries":3,"updated_by":"Admin","notes":""}`),
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_home","not_home_tries":3,"updated_by":"Admin","notes":""}`),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
 			},
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testalpha01a003"`},
+			ExpectedStatus: 204,
 			TestAppFactory: func(t testing.TB) *tests.TestApp {
 				app := setupTestApp(t)
 				// Pre-set testalpha01a004 to max_tries so it's already in the
@@ -353,16 +347,15 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 			// testalpha01a004 stays not_home tries=0 < max_tries=3 (denominator only).
 			// total=2, numerator=1 → progress=50; aggregates.done=1, notHome=1.
 			Name:   "done status contributes to numerator — progress 50",
-			Method: http.MethodPatch,
-			URL:    "/api/collections/addresses/records/testalpha01a003",
-			Body:   strings.NewReader(`{"status":"done","updated_by":"Admin","notes":""}`),
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"done","updated_by":"Admin","notes":""}`),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
 			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testalpha01a003"`},
+			TestAppFactory: setupTestApp,
+			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
 				if err := jobs.RunAggregates(app, 60); err != nil {
 					t.Fatalf("aggregate job failed: %v", err)
@@ -386,12 +379,12 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 		{
 			// not_home with tries < max_tries stays in the denominator only.
 			// Factory pre-sets testalpha01a004 to tries=3 (numerator).
-			// PATCH increments testalpha01a003 to tries=1 (still < max_tries=3, denom only).
+			// Update increments testalpha01a003 to tries=1 (still < max_tries=3, denom only).
 			// total=2, numerator=1 → progress=50; aggregates.notHome=1.
 			Name:   "not_home below max_tries stays in denominator only — progress 50",
-			Method: http.MethodPatch,
-			URL:    "/api/collections/addresses/records/testalpha01a003",
-			Body:   strings.NewReader(`{"status":"not_home","not_home_tries":1,"updated_by":"Admin","notes":""}`),
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_home","not_home_tries":1,"updated_by":"Admin","notes":""}`),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
@@ -408,8 +401,7 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 				}
 				return app
 			},
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testalpha01a003"`},
+			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
 				if err := jobs.RunAggregates(app, 60); err != nil {
 					t.Fatalf("aggregate job failed: %v", err)
@@ -430,12 +422,12 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 		{
 			// not_done countable address reduces progress below 100%.
 			// Factory resets testalpha01a003 back to not_done (SaveNoValidate, no hook).
-			// PATCH increments testalpha01a004 to tries=3 (max_tries) → log entry.
+			// Update increments testalpha01a004 to tries=3 (max_tries) → log entry.
 			// total=2 (notDone=1 + notHomeMaxTries=1), numerator=1 → progress=50; aggregates.notDone=1.
 			Name:   "not_done countable address reduces progress — progress 50",
-			Method: http.MethodPatch,
-			URL:    "/api/collections/addresses/records/testalpha01a004",
-			Body:   strings.NewReader(`{"status":"not_home","not_home_tries":3,"updated_by":"Admin","notes":""}`),
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a004","map_id":"testmapalpha01a","status":"not_home","not_home_tries":3,"updated_by":"Admin","notes":""}`),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
@@ -452,8 +444,7 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 				}
 				return app
 			},
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testalpha01a004"`},
+			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
 				if err := jobs.RunAggregates(app, 60); err != nil {
 					t.Fatalf("aggregate job failed: %v", err)
@@ -477,16 +468,15 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 			// Changing one to done triggers an addresses_log entry and runs the batch job,
 			// but the aggregate query returns no rows → total=0, progress=0.
 			Name:   "map with no countable addresses keeps progress at 0",
-			Method: http.MethodPatch,
-			URL:    "/api/collections/addresses/records/testalpha01b001",
-			Body:   strings.NewReader(`{"status":"done","updated_by":"Admin","notes":""}`),
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01b001","map_id":"testmapalpha01b","status":"done","updated_by":"Admin","notes":""}`),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
 			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testalpha01b001"`},
+			TestAppFactory: setupTestApp,
+			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
 				if err := jobs.RunAggregates(app, 60); err != nil {
 					t.Fatalf("aggregate job failed: %v", err)
@@ -502,13 +492,13 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 		},
 		{
 			// do_not_call is excluded from total entirely (not just the numerator).
-			// Factory pre-sets testalpha01a004 to done. PATCH testalpha01a003 to do_not_call.
+			// Factory pre-sets testalpha01a004 to done. Update testalpha01a003 to do_not_call.
 			// total=1 (done only, dnc excluded), numerator=1 → progress=100.
 			// aggregates.dnc=1, aggregates.done=1 confirm correct JSON storage.
 			Name:   "do_not_call excluded from total — done + dnc gives progress 100",
-			Method: http.MethodPatch,
-			URL:    "/api/collections/addresses/records/testalpha01a003",
-			Body:   strings.NewReader(`{"status":"do_not_call","updated_by":"Admin","notes":""}`),
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"do_not_call","updated_by":"Admin","notes":""}`),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
@@ -525,8 +515,7 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 				}
 				return app
 			},
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testalpha01a003"`},
+			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
 				if err := jobs.RunAggregates(app, 60); err != nil {
 					t.Fatalf("aggregate job failed: %v", err)
@@ -549,13 +538,13 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 		},
 		{
 			// invalid is excluded from total entirely.
-			// Factory pre-sets testalpha01a004 to not_done. PATCH testalpha01a003 to invalid.
+			// Factory pre-sets testalpha01a004 to not_done. Update testalpha01a003 to invalid.
 			// total=1 (notDone only, invalid excluded), numerator=0 → progress=0.
 			// aggregates.invalid=1, aggregates.notDone=1 confirm correct JSON storage.
 			Name:   "invalid excluded from total — invalid + not_done gives progress 0",
-			Method: http.MethodPatch,
-			URL:    "/api/collections/addresses/records/testalpha01a003",
-			Body:   strings.NewReader(`{"status":"invalid","updated_by":"Admin","notes":""}`),
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"invalid","updated_by":"Admin","notes":""}`),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
@@ -572,8 +561,7 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 				}
 				return app
 			},
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testalpha01a003"`},
+			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
 				if err := jobs.RunAggregates(app, 60); err != nil {
 					t.Fatalf("aggregate job failed: %v", err)
@@ -597,12 +585,12 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 		{
 			// When every countable address is dnc or invalid, total=0. The division
 			// guard must fire and progress stays 0 rather than panicking or NaN.
-			// Factory pre-sets testalpha01a004 to do_not_call. PATCH testalpha01a003 to do_not_call.
+			// Factory pre-sets testalpha01a004 to do_not_call. Update testalpha01a003 to do_not_call.
 			// total=0 → progress=0; aggregates.dnc=2 confirms they are tracked.
 			Name:   "all countable addresses dnc — total is 0, progress stays 0",
-			Method: http.MethodPatch,
-			URL:    "/api/collections/addresses/records/testalpha01a003",
-			Body:   strings.NewReader(`{"status":"do_not_call","updated_by":"Admin","notes":""}`),
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"do_not_call","updated_by":"Admin","notes":""}`),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
@@ -619,8 +607,7 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 				}
 				return app
 			},
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testalpha01a003"`},
+			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
 				if err := jobs.RunAggregates(app, 60); err != nil {
 					t.Fatalf("aggregate job failed: %v", err)
@@ -650,7 +637,7 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 //
 // Setup: add address_option for testalpha01a001 (making it the third countable
 // address in testmapalpha01a alongside 003 and 004). Pre-set testalpha01a004 to
-// done. PATCH testalpha01a003 to done → 2 done + 1 not_done = 2/3 → 67.
+// done. Update testalpha01a003 to done → 2 done + 1 not_done = 2/3 → 67.
 func TestDomainHook_AggregateRounding(t *testing.T) {
 	adminToken, err := generateToken("admin@alpha.test")
 	if err != nil {
@@ -660,15 +647,14 @@ func TestDomainHook_AggregateRounding(t *testing.T) {
 	scenarios := []tests.ApiScenario{
 		{
 			Name:   "2/3 progress rounds up to 67 not truncates to 66",
-			Method: http.MethodPatch,
-			URL:    "/api/collections/addresses/records/testalpha01a003",
-			Body:   strings.NewReader(`{"status":"done","updated_by":"Admin","notes":""}`),
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"done","updated_by":"Admin","notes":""}`),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
 			},
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testalpha01a003"`},
+			ExpectedStatus: 204,
 			TestAppFactory: func(t testing.TB) *tests.TestApp {
 				app := setupTestApp(t)
 
