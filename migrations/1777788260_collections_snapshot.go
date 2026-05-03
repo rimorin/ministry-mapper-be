@@ -14,6 +14,7 @@ func init() {
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 15,
@@ -28,6 +29,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text455797646",
 						"max": 0,
@@ -42,6 +44,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text127846527",
 						"max": 0,
@@ -56,6 +59,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text1582905952",
 						"max": 0,
@@ -106,6 +110,7 @@ func init() {
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 15,
@@ -120,6 +125,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text455797646",
 						"max": 0,
@@ -134,6 +140,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text127846527",
 						"max": 0,
@@ -148,6 +155,7 @@ func init() {
 					},
 					{
 						"cost": 8,
+						"help": "",
 						"hidden": true,
 						"id": "password901924565",
 						"max": 0,
@@ -161,6 +169,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": true,
 						"id": "text3866985172",
 						"max": 0,
@@ -211,6 +220,7 @@ func init() {
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 15,
@@ -225,6 +235,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text455797646",
 						"max": 0,
@@ -239,6 +250,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text127846527",
 						"max": 0,
@@ -253,6 +265,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text2462348188",
 						"max": 0,
@@ -267,6 +280,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text1044722854",
 						"max": 0,
@@ -318,6 +332,7 @@ func init() {
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 15,
@@ -332,6 +347,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text455797646",
 						"max": 0,
@@ -346,6 +362,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text127846527",
 						"max": 0,
@@ -360,6 +377,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text4228609354",
 						"max": 0,
@@ -428,6 +446,7 @@ func init() {
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 15,
@@ -442,6 +461,7 @@ func init() {
 					},
 					{
 						"cost": 0,
+						"help": "",
 						"hidden": true,
 						"id": "password901924565",
 						"max": 0,
@@ -455,6 +475,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "[a-zA-Z0-9]{50}",
+						"help": "",
 						"hidden": true,
 						"id": "text2504183744",
 						"max": 60,
@@ -469,6 +490,7 @@ func init() {
 					},
 					{
 						"exceptDomains": null,
+						"help": "",
 						"hidden": false,
 						"id": "email3885137012",
 						"name": "email",
@@ -479,6 +501,7 @@ func init() {
 						"type": "email"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "bool1547992806",
 						"name": "emailVisibility",
@@ -488,6 +511,7 @@ func init() {
 						"type": "bool"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "bool256245529",
 						"name": "verified",
@@ -600,6 +624,7 @@ func init() {
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 15,
@@ -614,6 +639,7 @@ func init() {
 					},
 					{
 						"cost": 10,
+						"help": "",
 						"hidden": true,
 						"id": "password901924565",
 						"max": 0,
@@ -627,6 +653,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "[a-zA-Z0-9_]{50}",
+						"help": "",
 						"hidden": true,
 						"id": "text2504183744",
 						"max": 60,
@@ -641,6 +668,7 @@ func init() {
 					},
 					{
 						"exceptDomains": null,
+						"help": "",
 						"hidden": false,
 						"id": "email3885137012",
 						"name": "email",
@@ -651,6 +679,7 @@ func init() {
 						"type": "email"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "bool1547992806",
 						"name": "emailVisibility",
@@ -660,6 +689,7 @@ func init() {
 						"type": "bool"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "bool256245529",
 						"name": "verified",
@@ -670,6 +700,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "user[0-9]{5}[A-Za-z]",
+						"help": "",
 						"hidden": false,
 						"id": "s4xgbyzv",
 						"max": 50,
@@ -683,6 +714,7 @@ func init() {
 						"type": "text"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "deehajec",
 						"name": "disabled",
@@ -692,6 +724,7 @@ func init() {
 						"type": "bool"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "date3359898891",
 						"max": "",
@@ -723,6 +756,7 @@ func init() {
 						"type": "autodate"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "date1895987106",
 						"max": "",
@@ -734,6 +768,7 @@ func init() {
 						"type": "date"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "date831265623",
 						"max": "",
@@ -745,6 +780,7 @@ func init() {
 						"type": "date"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "date2996491108",
 						"max": "",
@@ -756,6 +792,7 @@ func init() {
 						"type": "date"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "date2559000314",
 						"max": "",
@@ -767,6 +804,7 @@ func init() {
 						"type": "date"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "date1970400544",
 						"max": "",
@@ -778,6 +816,7 @@ func init() {
 						"type": "date"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "date3432129150",
 						"max": "",
@@ -797,7 +836,7 @@ func init() {
 					"CREATE UNIQUE INDEX ` + "`" + `_flm2xtzrt82ltf7_email_idx` + "`" + ` ON ` + "`" + `users` + "`" + ` (` + "`" + `email` + "`" + `) WHERE ` + "`" + `email` + "`" + ` != ''",
 					"CREATE UNIQUE INDEX ` + "`" + `_flm2xtzrt82ltf7_tokenKey_idx` + "`" + ` ON ` + "`" + `users` + "`" + ` (` + "`" + `tokenKey` + "`" + `)"
 				],
-				"listRule": "@request.auth.id != \"\" && @request.query.filter:isset = true && (@request.query.filter ~ \"email~\" || @request.query.filter ~ \"name~\") && @request.query.fields:isset = true && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.role ?= 'administrator' && verified = true && disabled = false",
+				"listRule": "@request.auth.id != \"\" && @request.query.filter:isset = true && (@request.query.filter ~ \"email~\" || @request.query.filter ~ \"name~\") && @request.query.fields:isset = true && verified = true",
 				"manageRule": null,
 				"mfa": {
 					"duration": 1800,
@@ -846,14 +885,15 @@ func init() {
 				"verificationToken": {
 					"duration": 604800
 				},
-				"viewRule": "@request.auth.id != \"\" && verified = true && disabled = false"
+				"viewRule": "@request.auth.id != \"\""
 			},
 			{
-				"createRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)",
+				"createRule": null,
 				"deleteRule": null,
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 15,
@@ -869,6 +909,7 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
+						"help": "",
 						"hidden": false,
 						"id": "giek43fp",
 						"maxSelect": 1,
@@ -882,6 +923,7 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "kyfdlowtckhj9wm",
+						"help": "",
 						"hidden": false,
 						"id": "g01gueai",
 						"maxSelect": 1,
@@ -895,6 +937,7 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "rupq6yj561mghrr",
+						"help": "",
 						"hidden": false,
 						"id": "6bpfvzkp",
 						"maxSelect": 1,
@@ -906,6 +949,7 @@ func init() {
 						"type": "relation"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "sjdy6xys",
 						"max": null,
@@ -919,6 +963,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "hptttvad",
 						"max": 0,
@@ -932,6 +977,7 @@ func init() {
 						"type": "text"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "agrc9m5o",
 						"maxSelect": 1,
@@ -949,6 +995,7 @@ func init() {
 						]
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "p5927pws",
 						"max": null,
@@ -961,6 +1008,7 @@ func init() {
 						"type": "number"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "d33qfsys",
 						"max": null,
@@ -974,6 +1022,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "cygablhk",
 						"max": 0,
@@ -987,6 +1036,7 @@ func init() {
 						"type": "text"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "wfd4nxfq",
 						"max": "",
@@ -999,6 +1049,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "phiszer0",
 						"max": 0,
@@ -1012,6 +1063,7 @@ func init() {
 						"type": "text"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "ujtyptly",
 						"max": "",
@@ -1023,6 +1075,7 @@ func init() {
 						"type": "date"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "ri9uyzlz",
 						"maxSize": 2000000,
@@ -1034,6 +1087,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text385774305",
 						"max": 0,
@@ -1067,6 +1121,7 @@ func init() {
 						"type": "autodate"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "select1602912115",
 						"maxSelect": 1,
@@ -1084,6 +1139,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text3725765462",
 						"max": 0,
@@ -1106,19 +1162,20 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_vEPqxAk` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `status` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_4xBUDiPsKJ` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `source` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)"
 				],
-				"listRule": "// PB Limitation: Reduce role joins for registered users as addresses are huge\n(@request.auth.id != \"\" || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id)) && @request.query.filter:isset = true && @request.query.fields:isset = true && @request.query.filter ~ \"map=\"",
+				"listRule": "(@request.auth.id != \"\" || @request.headers.link_id != \"\") && @request.query.filter:isset = true && @request.query.fields:isset = true && @request.query.filter ~ \"map=\"",
 				"name": "addresses",
 				"system": false,
 				"type": "base",
-				"updateRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)",
+				"updateRule": null,
 				"viewRule": null
 			},
 			{
-				"createRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && (@collection.roles:access.role ?= 'administrator' || @collection.roles:access.role ?= 'conductor')",
-				"deleteRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && (@collection.roles:access.role ?= 'administrator' || @collection.roles:access.role ?= 'conductor')",
+				"createRule": "@request.auth.id != \"\"",
+				"deleteRule": "@request.auth.id != \"\"",
 				"fields": [
 					{
 						"autogeneratePattern": "[a-zA-Z0-9]{25}",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 25,
@@ -1134,6 +1191,7 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
+						"help": "",
 						"hidden": false,
 						"id": "relation2104863268",
 						"maxSelect": 1,
@@ -1147,6 +1205,7 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "rupq6yj561mghrr",
+						"help": "",
 						"hidden": false,
 						"id": "kdnmbi1t",
 						"maxSelect": 1,
@@ -1160,6 +1219,7 @@ func init() {
 					{
 						"cascadeDelete": false,
 						"collectionId": "flm2xtzrt82ltf7",
+						"help": "",
 						"hidden": false,
 						"id": "56zovha9",
 						"maxSelect": 1,
@@ -1171,6 +1231,7 @@ func init() {
 						"type": "relation"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "6uegqyqw",
 						"maxSelect": 1,
@@ -1185,6 +1246,7 @@ func init() {
 						]
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "rcjynvmi",
 						"max": "",
@@ -1197,6 +1259,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "afm4d6iw",
 						"max": 0,
@@ -1242,7 +1305,7 @@ func init() {
 				"system": false,
 				"type": "base",
 				"updateRule": null,
-				"viewRule": "((@request.auth.id != \"\") || (@request.headers.link_id != \"\" && @request.headers.link_id = id)) && expiry_date > @now"
+				"viewRule": "(@request.auth.id != \"\" || @request.headers.link_id != \"\") && expiry_date > @now"
 			},
 			{
 				"createRule": null,
@@ -1250,6 +1313,7 @@ func init() {
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 15,
@@ -1264,6 +1328,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "esjglexz",
 						"max": 0,
@@ -1278,6 +1343,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "naozar5p",
 						"max": 0,
@@ -1291,6 +1357,7 @@ func init() {
 						"type": "text"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "jamr0gou",
 						"max": null,
@@ -1303,6 +1370,7 @@ func init() {
 						"type": "number"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "yb3nx2pi",
 						"max": null,
@@ -1315,6 +1383,7 @@ func init() {
 						"type": "number"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "ggikdoy5",
 						"maxSelect": 1,
@@ -1340,6 +1409,7 @@ func init() {
 						]
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "6eofw7xa",
 						"maxSelect": 1,
@@ -1398,15 +1468,16 @@ func init() {
 				"name": "congregations",
 				"system": false,
 				"type": "base",
-				"updateRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= id && @collection.roles:access.role ?= 'administrator'",
-				"viewRule": "@request.auth.id != \"\" || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.congregation ?= id)"
+				"updateRule": "@request.auth.id != \"\"",
+				"viewRule": "@request.auth.id != \"\" || @request.headers.link_id != \"\""
 			},
 			{
-				"createRule": null,
-				"deleteRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && @collection.roles:access.role ?= 'administrator'",
+				"createRule": "",
+				"deleteRule": "@request.auth.id != \"\"",
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 15,
@@ -1422,6 +1493,7 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
+						"help": "",
 						"hidden": false,
 						"id": "ttfueaey",
 						"maxSelect": 1,
@@ -1435,6 +1507,7 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "kyfdlowtckhj9wm",
+						"help": "",
 						"hidden": false,
 						"id": "xdh2kztc",
 						"maxSelect": 1,
@@ -1446,6 +1519,7 @@ func init() {
 						"type": "relation"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "number1384568619",
 						"max": null,
@@ -1459,6 +1533,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "0",
+						"help": "",
 						"hidden": false,
 						"id": "kzw1eles",
 						"max": 0,
@@ -1473,6 +1548,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "jcmizkx8",
 						"max": 0,
@@ -1486,6 +1562,7 @@ func init() {
 						"type": "text"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "0c8dwkfn",
 						"max": null,
@@ -1498,6 +1575,7 @@ func init() {
 						"type": "number"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "hrriffh0",
 						"maxSelect": 1,
@@ -1512,6 +1590,7 @@ func init() {
 						]
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "ffmqerej",
 						"maxSize": 2000000,
@@ -1522,6 +1601,7 @@ func init() {
 						"type": "json"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "tg5jbhns",
 						"maxSize": 2000000,
@@ -1557,22 +1637,22 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_QjY4Y2c` + "`" + ` ON ` + "`" + `maps` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `code` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_O2TlLJr` + "`" + ` ON ` + "`" + `maps` + "`" + ` (` + "`" + `territory` + "`" + `)",
 					"CREATE INDEX ` + "`" + `idx_TzbzxPXi9e` + "`" + ` ON ` + "`" + `maps` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `sequence` + "`" + `\n)",
-					"CREATE INDEX ` + "`" + `idx_NfI5WhsRsK` + "`" + ` ON ` + "`" + `maps` + "`" + ` (` + "`" + `updated` + "`" + `)",
 					"CREATE INDEX ` + "`" + `idx_Vflk3nOhz5` + "`" + ` ON ` + "`" + `maps` + "`" + ` (` + "`" + `congregation` + "`" + `)"
 				],
 				"listRule": "@request.auth.id != \"\" && @request.query.filter:isset = true && (@request.query.filter ~ \"territory=\" || @request.query.filter ~ \"congregation=\") && @request.query.fields:isset = true",
 				"name": "maps",
 				"system": false,
 				"type": "base",
-				"updateRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && @collection.roles:access.role ?= 'administrator'",
-				"viewRule": "(@request.auth.id != \"\" || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= id))"
+				"updateRule": "@request.auth.id != \"\"",
+				"viewRule": "@request.auth.id != \"\" || @request.headers.link_id != \"\""
 			},
 			{
-				"createRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)",
-				"deleteRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && @collection.roles:access.role ?= 'administrator'",
+				"createRule": "@request.auth.id != \"\" || @request.headers.link_id != \"\"",
+				"deleteRule": "@request.auth.id != \"\"",
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 15,
@@ -1588,6 +1668,7 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
+						"help": "",
 						"hidden": false,
 						"id": "relation2104863268",
 						"maxSelect": 1,
@@ -1601,6 +1682,7 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "rupq6yj561mghrr",
+						"help": "",
 						"hidden": false,
 						"id": "lb92rmc2",
 						"maxSelect": 1,
@@ -1613,6 +1695,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "j7t6dxkw",
 						"max": 0,
@@ -1627,6 +1710,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "lc9jrc1o",
 						"max": 0,
@@ -1640,6 +1724,7 @@ func init() {
 						"type": "text"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "hzogq6vi",
 						"name": "read",
@@ -1649,6 +1734,7 @@ func init() {
 						"type": "bool"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "fhdf7arz",
 						"name": "pinned",
@@ -1658,6 +1744,7 @@ func init() {
 						"type": "bool"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "bsza9gbi",
 						"maxSelect": 1,
@@ -1699,11 +1786,11 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_4xBZkdzeoM` + "`" + ` ON ` + "`" + `messages` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `pinned` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_IFmnqzx737` + "`" + ` ON ` + "`" + `messages` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `type` + "`" + `,\n  ` + "`" + `read` + "`" + `\n)"
 				],
-				"listRule": "((@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)) && @request.query.filter:isset = true && @request.query.filter ~ \"map=\" && @request.query.fields:isset = true",
+				"listRule": "(@request.auth.id != \"\" || @request.headers.link_id != \"\") && @request.query.filter:isset = true && @request.query.filter ~ \"map=\" && @request.query.fields:isset = true",
 				"name": "messages",
 				"system": false,
 				"type": "base",
-				"updateRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && @collection.roles:access.role ?= 'administrator'",
+				"updateRule": "@request.auth.id != \"\"",
 				"viewRule": null
 			},
 			{
@@ -1712,6 +1799,7 @@ func init() {
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 15,
@@ -1727,6 +1815,7 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
+						"help": "",
 						"hidden": false,
 						"id": "mesd36gy",
 						"maxSelect": 1,
@@ -1739,6 +1828,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "8r3y9ys9",
 						"max": 0,
@@ -1753,6 +1843,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "tssb1qmr",
 						"max": 0,
@@ -1766,6 +1857,7 @@ func init() {
 						"type": "text"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "jnyrgh8q",
 						"name": "is_countable",
@@ -1775,6 +1867,7 @@ func init() {
 						"type": "bool"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "96m2zgww",
 						"name": "is_default",
@@ -1784,6 +1877,7 @@ func init() {
 						"type": "bool"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "cknekhpo",
 						"max": null,
@@ -1821,19 +1915,20 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_oBkThEt` + "`" + ` ON ` + "`" + `options` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `sequence` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_LDPjOnA` + "`" + ` ON ` + "`" + `options` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `is_default` + "`" + `\n)"
 				],
-				"listRule": "(@request.auth.id != \"\" || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id)) && @request.query.filter:isset = true && @request.query.filter ~ \"congregation=\" && @request.query.fields:isset = true",
+				"listRule": "(@request.auth.id != \"\" || @request.headers.link_id != \"\") && @request.query.filter:isset = true && @request.query.filter ~ \"congregation=\" && @request.query.fields:isset = true",
 				"name": "options",
 				"system": false,
 				"type": "base",
 				"updateRule": null,
-				"viewRule": "((@request.auth.id != \"\" && @request.query.filter:isset = true && @request.query.filter ~ \"user=\" ) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id)) && @request.query.fields:isset = true"
+				"viewRule": "@request.auth.id != \"\" || @request.headers.link_id != \"\""
 			},
 			{
-				"createRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && @collection.roles:access.role ?= 'administrator'",
-				"deleteRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && @collection.roles:access.role ?= 'administrator'",
+				"createRule": "@request.auth.id != \"\"",
+				"deleteRule": "@request.auth.id != \"\"",
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 15,
@@ -1849,6 +1944,7 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "flm2xtzrt82ltf7",
+						"help": "",
 						"hidden": false,
 						"id": "ye2rjidt",
 						"maxSelect": 1,
@@ -1862,6 +1958,7 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
+						"help": "",
 						"hidden": false,
 						"id": "5g34l9g3",
 						"maxSelect": 1,
@@ -1873,6 +1970,7 @@ func init() {
 						"type": "relation"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "ttkyanqt",
 						"maxSelect": 1,
@@ -1915,19 +2013,20 @@ func init() {
 					"CREATE INDEX ` + "`" + `idx_Dya44KEsGS` + "`" + ` ON ` + "`" + `roles` + "`" + ` (\n  ` + "`" + `user` + "`" + `,\n  ` + "`" + `congregation` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_PUEoaq44d4` + "`" + ` ON ` + "`" + `roles` + "`" + ` (\n  ` + "`" + `user` + "`" + `,\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `role` + "`" + `\n)"
 				],
-				"listRule": "@request.auth.id != \"\" && @request.query.filter:isset = true && (@request.query.filter ~ \"user=\" || @request.query.filter ~ \"congregation=\") && @request.query.fields:isset = true && user.disabled = false && user.verified = true",
+				"listRule": "@request.auth.id != \"\" && @request.query.filter:isset = true && (@request.query.filter ~ \"user=\" || @request.query.filter ~ \"congregation=\") && @request.query.fields:isset = true",
 				"name": "roles",
 				"system": false,
 				"type": "base",
-				"updateRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && @collection.roles:access.role ?= 'administrator'",
+				"updateRule": "@request.auth.id != \"\"",
 				"viewRule": null
 			},
 			{
-				"createRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && @collection.roles:access.role ?= 'administrator'",
-				"deleteRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && @collection.roles:access.role ?= 'administrator'",
+				"createRule": "@request.auth.id != \"\"",
+				"deleteRule": "@request.auth.id != \"\"",
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 15,
@@ -1943,6 +2042,7 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
+						"help": "",
 						"hidden": false,
 						"id": "jrmzerem",
 						"maxSelect": 1,
@@ -1955,6 +2055,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "ciqyzr1i",
 						"max": 0,
@@ -1969,6 +2070,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "k9gj6j8e",
 						"max": 0,
@@ -1982,6 +2084,7 @@ func init() {
 						"type": "text"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "5wijb8gx",
 						"max": 100,
@@ -1994,6 +2097,7 @@ func init() {
 						"type": "number"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "json2551633526",
 						"maxSize": 0,
@@ -2033,7 +2137,7 @@ func init() {
 				"name": "territories",
 				"system": false,
 				"type": "base",
-				"updateRule": "@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation && @collection.roles:access.role ?= 'administrator'",
+				"updateRule": "@request.auth.id != \"\"",
 				"viewRule": "@request.auth.id != \"\" && @request.query.filter:isset = true && @request.query.filter ~ \"user=\" && @request.query.fields:isset = true"
 			},
 			{
@@ -2042,6 +2146,7 @@ func init() {
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 15,
@@ -2057,6 +2162,7 @@ func init() {
 					{
 						"cascadeDelete": false,
 						"collectionId": "thnq0jvp13lr8ct",
+						"help": "",
 						"hidden": false,
 						"id": "relation223244161",
 						"maxSelect": 1,
@@ -2070,6 +2176,7 @@ func init() {
 					{
 						"cascadeDelete": false,
 						"collectionId": "zzljam3htisq5tv",
+						"help": "",
 						"hidden": false,
 						"id": "relation2104863268",
 						"maxSelect": 1,
@@ -2082,6 +2189,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text3916708198",
 						"max": 0,
@@ -2096,6 +2204,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text2477632187",
 						"max": 0,
@@ -2110,6 +2219,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text852473499",
 						"max": 0,
@@ -2124,6 +2234,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text2207931702",
 						"max": 0,
@@ -2138,6 +2249,7 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text280784287",
 						"max": 0,
@@ -2173,9 +2285,6 @@ func init() {
 				],
 				"id": "pbc_3761286587",
 				"indexes": [
-					"CREATE INDEX ` + "`" + `idx_zJ75UsEjFK` + "`" + ` ON ` + "`" + `addresses_log` + "`" + ` (` + "`" + `address` + "`" + `)",
-					"CREATE INDEX ` + "`" + `idx_g8Vt8JC1av` + "`" + ` ON ` + "`" + `addresses_log` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)",
-					"CREATE INDEX ` + "`" + `idx_2gqasRAvRc` + "`" + ` ON ` + "`" + `addresses_log` + "`" + ` (\n  ` + "`" + `new_status` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_RQh6UExsxs` + "`" + ` ON ` + "`" + `addresses_log` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_BOxiQNfT5i` + "`" + ` ON ` + "`" + `addresses_log` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)"
 				],
@@ -2192,6 +2301,7 @@ func init() {
 				"fields": [
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 0,
@@ -2206,8 +2316,9 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "0",
+						"help": "",
 						"hidden": false,
-						"id": "_clone_zM2Z",
+						"id": "_clone_UTrD",
 						"max": 0,
 						"min": 0,
 						"name": "code",
@@ -2219,8 +2330,9 @@ func init() {
 						"type": "text"
 					},
 					{
+						"help": "",
 						"hidden": false,
-						"id": "_clone_fVkl",
+						"id": "_clone_DT9A",
 						"maxSelect": 1,
 						"name": "type",
 						"presentable": false,
@@ -2235,8 +2347,9 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "kyfdlowtckhj9wm",
+						"help": "",
 						"hidden": false,
-						"id": "_clone_yYvV",
+						"id": "_clone_XHDc",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "territory",
@@ -2248,8 +2361,9 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
+						"help": "",
 						"hidden": false,
-						"id": "_clone_lfNX",
+						"id": "_clone_kWvx",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2259,8 +2373,9 @@ func init() {
 						"type": "relation"
 					},
 					{
+						"help": "",
 						"hidden": false,
-						"id": "_clone_uFNS",
+						"id": "_clone_VByI",
 						"max": null,
 						"min": null,
 						"name": "progress",
@@ -2271,8 +2386,9 @@ func init() {
 						"type": "number"
 					},
 					{
+						"help": "",
 						"hidden": false,
-						"id": "_clone_r65W",
+						"id": "_clone_P2DC",
 						"max": null,
 						"min": null,
 						"name": "sequence",
@@ -2284,7 +2400,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_goOU",
+						"id": "_clone_4PdC",
 						"name": "created",
 						"onCreate": true,
 						"onUpdate": false,
@@ -2294,7 +2410,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_bIhF",
+						"id": "_clone_IXSX",
 						"name": "updated",
 						"onCreate": true,
 						"onUpdate": true,
@@ -2303,6 +2419,7 @@ func init() {
 						"type": "autodate"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "json271442091",
 						"maxSize": 1,
@@ -2313,6 +2430,7 @@ func init() {
 						"type": "json"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "json3324279190",
 						"maxSize": 1,
@@ -2323,6 +2441,7 @@ func init() {
 						"type": "json"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "json2816447981",
 						"maxSize": 1,
@@ -2333,6 +2452,7 @@ func init() {
 						"type": "json"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "json2673527845",
 						"maxSize": 1,
@@ -2343,6 +2463,7 @@ func init() {
 						"type": "json"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "json4221139584",
 						"maxSize": 1,
@@ -2353,6 +2474,7 @@ func init() {
 						"type": "json"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "json2499937429",
 						"maxSize": 1,
@@ -2363,6 +2485,7 @@ func init() {
 						"type": "json"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "json2518964612",
 						"maxSize": 1,
@@ -2389,6 +2512,7 @@ func init() {
 				"fields": [
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 0,
@@ -2403,8 +2527,9 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
-						"id": "_clone_zPDz",
+						"id": "_clone_N6Sf",
 						"max": 0,
 						"min": 0,
 						"name": "code",
@@ -2417,8 +2542,9 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
-						"id": "_clone_m19y",
+						"id": "_clone_wyfo",
 						"max": 0,
 						"min": 0,
 						"name": "description",
@@ -2432,8 +2558,9 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
+						"help": "",
 						"hidden": false,
-						"id": "_clone_TLX2",
+						"id": "_clone_a76t",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2443,8 +2570,9 @@ func init() {
 						"type": "relation"
 					},
 					{
+						"help": "",
 						"hidden": false,
-						"id": "_clone_8kSD",
+						"id": "_clone_SJkl",
 						"max": 100,
 						"min": 0,
 						"name": "progress",
@@ -2456,8 +2584,9 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
-						"id": "_clone_2YmM",
+						"id": "_clone_cS8d",
 						"max": 0,
 						"min": 0,
 						"name": "congregation_name",
@@ -2469,6 +2598,7 @@ func init() {
 						"type": "text"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "number3541174528",
 						"max": null,
@@ -2481,6 +2611,7 @@ func init() {
 						"type": "number"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "json271442091",
 						"maxSize": 1,
@@ -2491,6 +2622,7 @@ func init() {
 						"type": "json"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "json3324279190",
 						"maxSize": 1,
@@ -2501,6 +2633,7 @@ func init() {
 						"type": "json"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "json2816447981",
 						"maxSize": 1,
@@ -2511,6 +2644,7 @@ func init() {
 						"type": "json"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "json2673527845",
 						"maxSize": 1,
@@ -2521,6 +2655,7 @@ func init() {
 						"type": "json"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "json4221139584",
 						"maxSize": 1,
@@ -2547,6 +2682,7 @@ func init() {
 				"fields": [
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 0,
@@ -2560,6 +2696,7 @@ func init() {
 						"type": "text"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "json3852478864",
 						"maxSize": 1,
@@ -2572,8 +2709,9 @@ func init() {
 					{
 						"cascadeDelete": false,
 						"collectionId": "zzljam3htisq5tv",
+						"help": "",
 						"hidden": false,
-						"id": "_clone_5WMi",
+						"id": "_clone_n4Nu",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2584,8 +2722,9 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
-						"id": "_clone_FICW",
+						"id": "_clone_RBbT",
 						"max": 0,
 						"min": 0,
 						"name": "territory",
@@ -2598,8 +2737,9 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
-						"id": "_clone_wr8E",
+						"id": "_clone_cZi4",
 						"max": 0,
 						"min": 0,
 						"name": "new_status",
@@ -2611,6 +2751,7 @@ func init() {
 						"type": "text"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "number3641309487",
 						"max": null,
@@ -2639,6 +2780,7 @@ func init() {
 				"fields": [
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 0,
@@ -2654,8 +2796,9 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "zzljam3htisq5tv",
+						"help": "",
 						"hidden": false,
-						"id": "_clone_JDjH",
+						"id": "_clone_DSLM",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2667,8 +2810,9 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "kyfdlowtckhj9wm",
+						"help": "",
 						"hidden": false,
-						"id": "_clone_pJBZ",
+						"id": "_clone_o4mW",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "territory",
@@ -2680,8 +2824,9 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "rupq6yj561mghrr",
+						"help": "",
 						"hidden": false,
-						"id": "_clone_F3zP",
+						"id": "_clone_RBFG",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "map",
@@ -2691,8 +2836,9 @@ func init() {
 						"type": "relation"
 					},
 					{
+						"help": "",
 						"hidden": false,
-						"id": "_clone_X1fL",
+						"id": "_clone_miQ2",
 						"max": null,
 						"min": null,
 						"name": "not_home_tries",
@@ -2703,8 +2849,9 @@ func init() {
 						"type": "number"
 					},
 					{
+						"help": "",
 						"hidden": false,
-						"id": "_clone_E2i9",
+						"id": "_clone_xPxN",
 						"max": null,
 						"min": null,
 						"name": "max_tries",
@@ -2715,6 +2862,7 @@ func init() {
 						"type": "number"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "json529595029",
 						"maxSize": 1,
@@ -2726,7 +2874,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_Dsbv",
+						"id": "_clone_GnYW",
 						"name": "updated",
 						"onCreate": true,
 						"onUpdate": true,
@@ -2751,6 +2899,7 @@ func init() {
 				"fields": [
 					{
 						"autogeneratePattern": "",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 0,
@@ -2765,8 +2914,9 @@ func init() {
 					},
 					{
 						"autogeneratePattern": "user[0-9]{5}[A-Za-z]",
+						"help": "",
 						"hidden": false,
-						"id": "_clone_15dk",
+						"id": "_clone_T8Qx",
 						"max": 50,
 						"min": 2,
 						"name": "name",
@@ -2779,8 +2929,9 @@ func init() {
 					},
 					{
 						"exceptDomains": null,
+						"help": "",
 						"hidden": false,
-						"id": "_clone_oCO0",
+						"id": "_clone_0bFd",
 						"name": "email",
 						"onlyDomains": null,
 						"presentable": false,
@@ -2789,8 +2940,9 @@ func init() {
 						"type": "email"
 					},
 					{
+						"help": "",
 						"hidden": false,
-						"id": "_clone_7Gir",
+						"id": "_clone_NNsX",
 						"max": "",
 						"min": "",
 						"name": "last_login",
@@ -2800,6 +2952,7 @@ func init() {
 						"type": "date"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "number2848119790",
 						"max": null,
@@ -2812,8 +2965,9 @@ func init() {
 						"type": "number"
 					},
 					{
+						"help": "",
 						"hidden": false,
-						"id": "_clone_EpWf",
+						"id": "_clone_du4G",
 						"name": "disabled",
 						"presentable": false,
 						"required": false,
@@ -2821,8 +2975,9 @@ func init() {
 						"type": "bool"
 					},
 					{
+						"help": "",
 						"hidden": false,
-						"id": "_clone_hgsW",
+						"id": "_clone_cciN",
 						"name": "verified",
 						"presentable": false,
 						"required": false,
@@ -2831,7 +2986,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_511n",
+						"id": "_clone_TDqy",
 						"name": "created",
 						"onCreate": true,
 						"onUpdate": false,
@@ -2840,6 +2995,7 @@ func init() {
 						"type": "autodate"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "number1912974413",
 						"max": null,
@@ -2852,6 +3008,7 @@ func init() {
 						"type": "number"
 					},
 					{
+						"help": "",
 						"hidden": false,
 						"id": "json661675632",
 						"maxSize": 1,
@@ -2873,11 +3030,12 @@ func init() {
 				"viewRule": null
 			},
 			{
-				"createRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)",
-				"deleteRule": "(@request.auth.id != \"\" && @collection.roles:access.user ?= @request.auth.id && @collection.roles:access.congregation ?= congregation) || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id && @collection.assignments:link.map ?= map)",
+				"createRule": null,
+				"deleteRule": null,
 				"fields": [
 					{
 						"autogeneratePattern": "[a-z0-9]{15}",
+						"help": "",
 						"hidden": false,
 						"id": "text3208210256",
 						"max": 15,
@@ -2893,6 +3051,7 @@ func init() {
 					{
 						"cascadeDelete": true,
 						"collectionId": "thnq0jvp13lr8ct",
+						"help": "",
 						"hidden": false,
 						"id": "relation223244161",
 						"maxSelect": 1,
@@ -2906,6 +3065,7 @@ func init() {
 					{
 						"cascadeDelete": false,
 						"collectionId": "rupq6yj561mghrr",
+						"help": "",
 						"hidden": false,
 						"id": "relation2477632187",
 						"maxSelect": 1,
@@ -2919,6 +3079,7 @@ func init() {
 					{
 						"cascadeDelete": false,
 						"collectionId": "wz7avhl19otivv6",
+						"help": "",
 						"hidden": false,
 						"id": "relation1518731440",
 						"maxSelect": 1,
@@ -2932,6 +3093,7 @@ func init() {
 					{
 						"cascadeDelete": false,
 						"collectionId": "zzljam3htisq5tv",
+						"help": "",
 						"hidden": false,
 						"id": "relation2104863268",
 						"maxSelect": 1,
@@ -2968,12 +3130,12 @@ func init() {
 					"CREATE UNIQUE INDEX ` + "`" + `idx_sdPZuFbD9t` + "`" + ` ON ` + "`" + `address_options` + "`" + ` (\n  ` + "`" + `address` + "`" + `,\n  ` + "`" + `option` + "`" + `,\n  ` + "`" + `map` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_SDhkFBbBup` + "`" + ` ON ` + "`" + `address_options` + "`" + ` (` + "`" + `map` + "`" + `)"
 				],
-				"listRule": "(@request.auth.id != \"\" || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id)) && @request.query.filter:isset = true && @request.query.fields:isset = true && @request.query.filter ~ \"map=\"",
+				"listRule": "(@request.auth.id != \"\" || @request.headers.link_id != \"\") && @request.query.filter:isset = true && @request.query.fields:isset = true && @request.query.filter ~ \"map=\"",
 				"name": "address_options",
 				"system": false,
 				"type": "base",
 				"updateRule": null,
-				"viewRule": "(@request.auth.id != \"\" || (@request.headers.link_id != \"\" && @collection.assignments:link.id ?= @request.headers.link_id)) && @request.query.filter:isset = true && @request.query.fields:isset = true && @request.query.filter ~ \"map=\""
+				"viewRule": "@request.auth.id != \"\" || @request.headers.link_id != \"\""
 			}
 		]`
 

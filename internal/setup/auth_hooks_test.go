@@ -1834,51 +1834,51 @@ func TestAuthHook_AddressesCreateRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body := `{"map":"testmapalpha01a","territory":"testterralpha01","congregation":"testcongalpha01","code":"09","status":"not_done","floor":1,"sequence":100}`
+	body := `{"map_id":"testmapalpha01a","code":"09","status":"not_done","floor":1}`
 
 	scenarios := []tests.ApiScenario{
 		{
-			Name:   "unauthenticated request is rejected with 400",
+			Name:   "unauthenticated request is rejected with 403",
 			Method: http.MethodPost,
-			URL:    "/api/collections/addresses/records",
+			URL:    "/address/add",
 			Body:   strings.NewReader(body),
 			Headers: map[string]string{
 				"Content-Type": "application/json",
 			},
 			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  400,
-			ExpectedContent: []string{`"status":400`},
+			ExpectedStatus:  403,
+			ExpectedContent: []string{`"status":403`},
 		},
 		{
 			Name:   "conductor can create address",
 			Method: http.MethodPost,
-			URL:    "/api/collections/addresses/records",
+			URL:    "/address/add",
 			Body:   strings.NewReader(body),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": conductorToken,
 			},
 			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testmapalpha01a"`},
+			ExpectedStatus:  201,
+			ExpectedContent: []string{`"id"`},
 		},
 		{
 			Name:   "readonly user can create address (any role is allowed)",
 			Method: http.MethodPost,
-			URL:    "/api/collections/addresses/records",
+			URL:    "/address/add",
 			Body:   strings.NewReader(body),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": readonlyToken,
 			},
 			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testmapalpha01a"`},
+			ExpectedStatus:  201,
+			ExpectedContent: []string{`"id"`},
 		},
 		{
 			Name:   "conductor from different congregation is rejected with 403",
 			Method: http.MethodPost,
-			URL:    "/api/collections/addresses/records",
+			URL:    "/address/add",
 			Body:   strings.NewReader(body),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
@@ -1891,15 +1891,28 @@ func TestAuthHook_AddressesCreateRequest(t *testing.T) {
 		{
 			Name:   "valid link-id allows address creation without auth token",
 			Method: http.MethodPost,
-			URL:    "/api/collections/addresses/records",
+			URL:    "/address/add",
 			Body:   strings.NewReader(body),
 			Headers: map[string]string{
 				"Content-Type": "application/json",
 				"link-id":      "testassignalpha01",
 			},
 			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testmapalpha01a"`},
+			ExpectedStatus:  201,
+			ExpectedContent: []string{`"id"`},
+		},
+		{
+			Name:   "client-generated address_id is used as record id",
+			Method: http.MethodPost,
+			URL:    "/address/add",
+			Body:   strings.NewReader(`{"address_id":"clientgenid0001","map_id":"testmapalpha01a","code":"88","status":"not_done","floor":1}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": conductorToken,
+			},
+			TestAppFactory: setupTestApp,
+			ExpectedStatus: 201,
+			ExpectedContent: []string{`"id":"clientgenid0001"`},
 		},
 	}
 
@@ -1918,35 +1931,37 @@ func TestAuthHook_AddressesUpdateRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body := `{"status":"not_home"}`
+	body := `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"not_home"}`
 
 	scenarios := []tests.ApiScenario{
 		{
-			Name:            "unauthenticated request cannot find address (404)",
-			Method:          http.MethodPatch,
-			URL:             "/api/collections/addresses/records/testalpha01a001",
-			Body:            strings.NewReader(body),
+			Name:   "unauthenticated request is rejected with 403",
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(body),
+			Headers: map[string]string{
+				"Content-Type": "application/json",
+			},
 			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  404,
-			ExpectedContent: []string{`"status":404`},
+			ExpectedStatus:  403,
+			ExpectedContent: []string{`"status":403`},
 		},
 		{
 			Name:   "conductor can update address",
-			Method: http.MethodPatch,
-			URL:    "/api/collections/addresses/records/testalpha01a001",
+			Method: http.MethodPost,
+			URL:    "/address/update",
 			Body:   strings.NewReader(body),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": conductorToken,
 			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testalpha01a001"`},
+			TestAppFactory: setupTestApp,
+			ExpectedStatus: 204,
 		},
 		{
 			Name:   "conductor from different congregation is rejected with 403",
-			Method: http.MethodPatch,
-			URL:    "/api/collections/addresses/records/testalpha01a001",
+			Method: http.MethodPost,
+			URL:    "/address/update",
 			Body:   strings.NewReader(body),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
@@ -1958,16 +1973,15 @@ func TestAuthHook_AddressesUpdateRequest(t *testing.T) {
 		},
 		{
 			Name:   "valid link-id allows address update without auth token",
-			Method: http.MethodPatch,
-			URL:    "/api/collections/addresses/records/testalpha01a001",
+			Method: http.MethodPost,
+			URL:    "/address/update",
 			Body:   strings.NewReader(body),
 			Headers: map[string]string{
 				"Content-Type": "application/json",
 				"link-id":      "testassignalpha01",
 			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testalpha01a001"`},
+			TestAppFactory: setupTestApp,
+			ExpectedStatus: 204,
 		},
 	}
 
@@ -1976,12 +1990,12 @@ func TestAuthHook_AddressesUpdateRequest(t *testing.T) {
 	}
 }
 
+// TestAuthHook_AddressOptionsCreateRequest verifies that the address_options
+// collection has createRule=null (superuser-only). Direct REST API creation is
+// blocked for all callers; address_options must be managed via /address/add
+// or /address/update.
 func TestAuthHook_AddressOptionsCreateRequest(t *testing.T) {
 	conductorToken, err := generateToken("conductor@alpha.test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	betaConductorToken, err := generateToken("xcong@beta.test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1990,7 +2004,7 @@ func TestAuthHook_AddressOptionsCreateRequest(t *testing.T) {
 
 	scenarios := []tests.ApiScenario{
 		{
-			Name:   "unauthenticated request is rejected with 400",
+			Name:   "unauthenticated request is rejected with 403",
 			Method: http.MethodPost,
 			URL:    "/api/collections/address_options/records",
 			Body:   strings.NewReader(body),
@@ -1998,11 +2012,11 @@ func TestAuthHook_AddressOptionsCreateRequest(t *testing.T) {
 				"Content-Type": "application/json",
 			},
 			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  400,
-			ExpectedContent: []string{`"status":400`},
+			ExpectedStatus:  403,
+			ExpectedContent: []string{`"status":403`},
 		},
 		{
-			Name:   "conductor can create address option",
+			Name:   "authenticated conductor is rejected with 403 — use /address/update or /address/add",
 			Method: http.MethodPost,
 			URL:    "/api/collections/address_options/records",
 			Body:   strings.NewReader(body),
@@ -2011,24 +2025,11 @@ func TestAuthHook_AddressOptionsCreateRequest(t *testing.T) {
 				"Authorization": conductorToken,
 			},
 			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testmapalpha01a"`},
-		},
-		{
-			Name:   "conductor from different congregation is rejected with 403",
-			Method: http.MethodPost,
-			URL:    "/api/collections/address_options/records",
-			Body:   strings.NewReader(body),
-			Headers: map[string]string{
-				"Content-Type":  "application/json",
-				"Authorization": betaConductorToken,
-			},
-			TestAppFactory:  setupTestApp,
 			ExpectedStatus:  403,
 			ExpectedContent: []string{`"status":403`},
 		},
 		{
-			Name:   "valid link-id allows address option creation without auth token",
+			Name:   "link-id request is rejected with 403 — use /address/update or /address/add",
 			Method: http.MethodPost,
 			URL:    "/api/collections/address_options/records",
 			Body:   strings.NewReader(body),
@@ -2037,8 +2038,8 @@ func TestAuthHook_AddressOptionsCreateRequest(t *testing.T) {
 				"link-id":      "testassignalpha01",
 			},
 			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"testmapalpha01a"`},
+			ExpectedStatus:  403,
+			ExpectedContent: []string{`"status":403`},
 		},
 	}
 
@@ -2047,56 +2048,45 @@ func TestAuthHook_AddressOptionsCreateRequest(t *testing.T) {
 	}
 }
 
+// TestAuthHook_AddressOptionsDeleteRequest verifies that the address_options
+// collection has deleteRule=null (superuser-only). Direct REST API deletion is
+// blocked for all callers; address_options must be managed via /address/update.
 func TestAuthHook_AddressOptionsDeleteRequest(t *testing.T) {
 	conductorToken, err := generateToken("conductor@alpha.test")
 	if err != nil {
 		t.Fatal(err)
 	}
-	betaConductorToken, err := generateToken("xcong@beta.test")
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	// testaoalph01001 and testaoalph01002 both map to testmapalpha01a (alpha congregation)
 	scenarios := []tests.ApiScenario{
 		{
-			Name:            "unauthenticated request cannot find address option (404)",
+			Name:            "unauthenticated request is rejected with 403",
 			Method:          http.MethodDelete,
 			URL:             "/api/collections/address_options/records/testaoalph01001",
 			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  404,
-			ExpectedContent: []string{`"status":404`},
+			ExpectedStatus:  403,
+			ExpectedContent: []string{`"status":403`},
 		},
 		{
-			Name:   "conductor from different congregation is rejected with 403",
+			Name:   "authenticated conductor is rejected with 403 — use /address/update",
 			Method: http.MethodDelete,
 			URL:    "/api/collections/address_options/records/testaoalph01001",
 			Headers: map[string]string{
-				"Authorization": betaConductorToken,
+				"Authorization": conductorToken,
 			},
 			TestAppFactory:  setupTestApp,
 			ExpectedStatus:  403,
 			ExpectedContent: []string{`"status":403`},
 		},
 		{
-			Name:   "conductor in correct congregation can delete address option",
-			Method: http.MethodDelete,
-			URL:    "/api/collections/address_options/records/testaoalph01001",
-			Headers: map[string]string{
-				"Authorization": conductorToken,
-			},
-			TestAppFactory: setupTestApp,
-			ExpectedStatus: 204,
-		},
-		{
-			Name:   "valid link-id allows address option deletion without auth token",
+			Name:   "link-id request is rejected with 403 — use /address/update",
 			Method: http.MethodDelete,
 			URL:    "/api/collections/address_options/records/testaoalph01002",
 			Headers: map[string]string{
 				"link-id": "testassignalpha01",
 			},
-			TestAppFactory: setupTestApp,
-			ExpectedStatus: 204,
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  403,
+			ExpectedContent: []string{`"status":403`},
 		},
 	}
 
