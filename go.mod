@@ -3,16 +3,17 @@ module ministry-mapper
 go 1.26.2
 
 require (
-	github.com/getsentry/sentry-go v0.46.1
+	github.com/getsentry/sentry-go v0.46.2
 	github.com/launchdarkly/go-sdk-common/v3 v3.5.0
 	github.com/launchdarkly/go-server-sdk/v7 v7.14.7
 	github.com/mailersend/mailersend-go v1.6.4
-	github.com/openai/openai-go/v3 v3.33.0
-	github.com/pocketbase/pocketbase v0.37.5
+	github.com/openai/openai-go/v3 v3.35.0
+	github.com/pocketbase/pocketbase v0.38.0
 	github.com/xuri/excelize/v2 v2.10.1
 )
 
 require (
+	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/go-sql-driver/mysql v1.8.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
@@ -47,7 +48,7 @@ require (
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/ganigeorgiev/fexpr v0.5.0 // indirect
-	github.com/go-ozzo/ozzo-validation/v4 v4.3.0 // indirect
+	github.com/go-ozzo/ozzo-validation/v4 v4.3.0
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
