@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	sentry "github.com/getsentry/sentry-go"
@@ -51,6 +52,11 @@ func HandleGenerateReport(c *core.RequestEvent, app core.App, generator ReportGe
 	recipientID := c.Auth.Id
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				sentry.CaptureException(fmt.Errorf("report generation panic: %v", r))
+			}
+		}()
 		cong, err := app.FindRecordById("congregations", congregationID)
 		if err != nil {
 			sentry.CaptureException(err)
