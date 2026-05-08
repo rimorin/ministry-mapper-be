@@ -69,6 +69,9 @@ func RegisterRoutes(app core.App) {
 		authRoute("/map/territory/update", func(c *core.RequestEvent) error {
 			return handlers.HandleMapTerritoryUpdate(c, app)
 		})
+		authRoute("/maps/sequence", func(c *core.RequestEvent) error {
+			return handlers.HandleUpdateTerritoryMapSequence(c, app)
+		})
 
 		// Territory operations
 		authRoute("/territory/reset", func(c *core.RequestEvent) error {
