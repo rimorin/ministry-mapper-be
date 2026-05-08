@@ -28,6 +28,9 @@ func RegisterRoutes(app core.App) {
 		}
 
 		// Custom endpoints: handle their own auth (support link-id for publishers)
+		e.Router.POST("/link/map", middleware.WrapHandler(func(c *core.RequestEvent) error {
+			return handlers.HandleGetLinkMap(c, app)
+		}))
 		e.Router.POST("/map/addresses", middleware.WrapHandler(func(c *core.RequestEvent) error {
 			return handlers.HandleGetMapAddresses(c, app)
 		}))

@@ -200,6 +200,42 @@ func init() {
 				return fmt.Errorf("save map %s: %w", mp.id, err)
 			}
 		}
+		// testmapalphrich1: JSON description, coordinates, aggregates, non-zero progress
+		{
+			rec := core.NewRecord(mapCol)
+			rec.Id = "testmapalphrich1"
+			rec.Set("territory", "testterralpha02")
+			rec.Set("congregation", seedAlphaCongID)
+			rec.Set("code", "R")
+			rec.Set("description", `{"en":"Rich Map","zh":"富地图"}`)
+			rec.Set("type", "multi")
+			rec.Set("sequence", 12)
+			rec.Set("progress", 40)
+			rec.Set("coordinates", map[string]float64{"lat": 1.234, "lng": 103.456})
+			rec.Set("aggregates", map[string]any{"notDone": 3, "notHome": 1, "done": 2, "dnc": 0, "invalid": 0})
+			rec.Set("created", now)
+			rec.Set("updated", now)
+			if err := app.SaveNoValidate(rec); err != nil {
+				return fmt.Errorf("save map testmapalphrich1: %w", err)
+			}
+		}
+		// testmapalphempt1: empty description, null coordinates/aggregates, no addresses
+		{
+			rec := core.NewRecord(mapCol)
+			rec.Id = "testmapalphempt1"
+			rec.Set("territory", "testterralpha02")
+			rec.Set("congregation", seedAlphaCongID)
+			rec.Set("code", "X")
+			rec.Set("description", "")
+			rec.Set("type", "single")
+			rec.Set("sequence", 13)
+			rec.Set("progress", 0)
+			rec.Set("created", now)
+			rec.Set("updated", now)
+			if err := app.SaveNoValidate(rec); err != nil {
+				return fmt.Errorf("save map testmapalphempt1: %w", err)
+			}
+		}
 
 		// -------------------------------------------------------------------
 		// Addresses
@@ -280,6 +316,53 @@ func init() {
 			}
 		}
 
+		// testmapalphrich1: 2 rich addresses with varied optional fields
+		{
+			rec := core.NewRecord(addrCol)
+			rec.Id = "testalpharich01"
+			rec.Set("map", "testmapalphrich1")
+			rec.Set("territory", "testterralpha02")
+			rec.Set("congregation", seedAlphaCongID)
+			rec.Set("code", "R01")
+			rec.Set("status", "not_home")
+			rec.Set("floor", 1)
+			rec.Set("sequence", 1)
+			rec.Set("not_home_tries", 2)
+			rec.Set("notes", "Speaks Mandarin")
+			rec.Set("coordinates", map[string]float64{"lat": 1.111, "lng": 103.111})
+			rec.Set("dnc_time", "")
+			rec.Set("source", "")
+			rec.Set("created_by", "")
+			rec.Set("updated_by", "")
+			rec.Set("created", now)
+			rec.Set("updated", now)
+			if err := app.SaveNoValidate(rec); err != nil {
+				return fmt.Errorf("save address testalpharich01: %w", err)
+			}
+		}
+		{
+			rec := core.NewRecord(addrCol)
+			rec.Id = "testalpharich02"
+			rec.Set("map", "testmapalphrich1")
+			rec.Set("territory", "testterralpha02")
+			rec.Set("congregation", seedAlphaCongID)
+			rec.Set("code", "R02")
+			rec.Set("status", "dnc")
+			rec.Set("floor", 1)
+			rec.Set("sequence", 2)
+			rec.Set("not_home_tries", 0)
+			rec.Set("notes", "")
+			rec.Set("dnc_time", "2024-01-15 10:00:00.000Z")
+			rec.Set("source", "")
+			rec.Set("created_by", "")
+			rec.Set("updated_by", "testuseralpha01")
+			rec.Set("created", now)
+			rec.Set("updated", now)
+			if err := app.SaveNoValidate(rec); err != nil {
+				return fmt.Errorf("save address testalpharich02: %w", err)
+			}
+		}
+
 		// -------------------------------------------------------------------
 		// Address Options (junction)
 		// -------------------------------------------------------------------
@@ -291,6 +374,7 @@ func init() {
 			{"testaoalph01001", "testalpha01a003", "testmapalpha01a", seedAlphaCongID, "testoptialpha01"},
 			{"testaoalph01002", "testalpha01a004", "testmapalpha01a", seedAlphaCongID, "testoptialpha01"},
 			{"testaoalph02001", "testalpha02a004", "testmapalpha02a", seedAlphaCongID, "testoptialpha02"},
+			{"testaorichaddr1", "testalpharich01", "testmapalphrich1", seedAlphaCongID, "testoptialpha01"},
 		} {
 			rec := core.NewRecord(aoCol)
 			rec.Id = ao.id
@@ -306,14 +390,20 @@ func init() {
 		}
 
 		// -------------------------------------------------------------------
-		// Messages (for update/delete auth tests)
+		// Messages
 		// -------------------------------------------------------------------
 		msgCol, err := app.FindCollectionByNameOrId("messages")
 		if err != nil {
 			return fmt.Errorf("find messages: %w", err)
 		}
-		for _, msg := range []struct{ id, mapID, congregation, message, msgType, createdBy string }{
-			{"testmsgalpha01a", "testmapalpha01a", seedAlphaCongID, "Seed test message", "publisher", "Test Publisher"},
+		for _, msg := range []struct {
+			id, mapID, congregation, message, msgType, createdBy string
+			pinned                                               bool
+		}{
+			{"testmsgalpha01a", "testmapalpha01a", seedAlphaCongID, "Seed test message", "publisher", "Test Publisher", false},
+			{"testmsgalphapin1", "testmapalpha01a", seedAlphaCongID, "Pinned admin notice", "administrator", "admin@alpha.test", true},
+			// testmapalphempt1 has an unpinned admin message — has_pinned_messages must still be false
+			{"testmsgalphunp1", "testmapalphempt1", seedAlphaCongID, "Unpinned admin notice", "administrator", "admin@alpha.test", false},
 		} {
 			rec := core.NewRecord(msgCol)
 			rec.Id = msg.id
@@ -322,7 +412,7 @@ func init() {
 			rec.Set("message", msg.message)
 			rec.Set("type", msg.msgType)
 			rec.Set("read", false)
-			rec.Set("pinned", false)
+			rec.Set("pinned", msg.pinned)
 			rec.Set("created_by", msg.createdBy)
 			rec.Set("created", now)
 			rec.Set("updated", now)
@@ -332,22 +422,27 @@ func init() {
 		}
 
 		// -------------------------------------------------------------------
-		// Assignments (for auth / link-id integration tests — far-future expiry)
+		// Assignments (for auth / link-id integration tests)
 		// -------------------------------------------------------------------
 		assignCol, err := app.FindCollectionByNameOrId("assignments")
 		if err != nil {
 			return fmt.Errorf("find assignments: %w", err)
 		}
-		for _, a := range []struct{ id, mapID, congregation, publisher string }{
-			{"testassignalpha01", "testmapalpha01a", seedAlphaCongID, "Test Publisher Alpha"},
-			{"testassignbeta001", "testmapbeta001a", seedBetaCongID, "Test Publisher Beta"},
+		for _, a := range []struct {
+			id, mapID, congregation, publisher, expiry string
+		}{
+			{"testassignalpha01", "testmapalpha01a", seedAlphaCongID, "Test Publisher Alpha", "2099-01-01 00:00:00.000Z"},
+			{"testassignbeta001", "testmapbeta001a", seedBetaCongID, "Test Publisher Beta", "2099-01-01 00:00:00.000Z"},
+			{"testassignexprd01", "testmapalpha01a", seedAlphaCongID, "Expired Publisher", "2000-01-01 00:00:00.000Z"},
+			{"testassignrich1", "testmapalphrich1", seedAlphaCongID, "Test Publisher Rich", "2099-01-01 00:00:00.000Z"},
+			{"testassignmpty1", "testmapalphempt1", seedAlphaCongID, "Test Publisher Empty", "2099-01-01 00:00:00.000Z"},
 		} {
 			rec := core.NewRecord(assignCol)
 			rec.Id = a.id
 			rec.Set("map", a.mapID)
 			rec.Set("congregation", a.congregation)
 			rec.Set("publisher", a.publisher)
-			rec.Set("expiry_date", "2099-01-01 00:00:00.000Z")
+			rec.Set("expiry_date", a.expiry)
 			rec.Set("type", "publisher")
 			rec.Set("created", now)
 			rec.Set("updated", now)
