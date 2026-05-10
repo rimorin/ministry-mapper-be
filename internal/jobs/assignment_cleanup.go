@@ -4,9 +4,10 @@ import (
 	"log"
 	"time"
 
+	"ministry-mapper/internal/handlers"
+
 	"github.com/pocketbase/pocketbase/core"
 )
-
 
 // assignmentsCleanup removes expired assignments from the database.
 // It fetches all assignments that have an expiry date earlier than the current date,
@@ -18,6 +19,11 @@ import (
 //
 // Returns:
 //   - error: An error if the cleanup process fails, otherwise nil.
+// RunAssignmentsCleanup is the exported entry point used by tests and the scheduler.
+func RunAssignmentsCleanup(app core.App) error {
+	return assignmentsCleanup(app)
+}
+
 func assignmentsCleanup(app core.App) error {
 	log.Println("Starting assignments cleanup")
 
@@ -42,6 +48,7 @@ func assignmentsCleanup(app core.App) error {
 	// and each txApp.Delete call fires PocketBase hooks/realtime events as expected.
 	err = app.RunInTransaction(func(txApp core.App) error {
 		for _, assignment := range assignments {
+			handlers.LogAssignmentExpired(txApp, assignment)
 			if err := txApp.Delete(assignment); err != nil {
 				log.Printf("Error deleting assignment with ID: %s, %v", assignment.Id, err)
 				return err

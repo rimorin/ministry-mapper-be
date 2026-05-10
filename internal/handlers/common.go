@@ -8,6 +8,13 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
+func authID(auth *core.Record) string {
+	if auth == nil {
+		return ""
+	}
+	return auth.Id
+}
+
 func fetchAddressByCode(app core.App, code string, mapId string) (*core.Record, error) {
 	return app.FindFirstRecordByFilter("addresses", "code = {:code} && map = {:map}", dbx.Params{"code": code, "map": mapId})
 }

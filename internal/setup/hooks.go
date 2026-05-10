@@ -25,7 +25,6 @@ func RegisterDomainHooks(app core.App) {
 		return e.Next()
 	})
 
-	// Log address status changes for audit trail
 	app.OnRecordAfterUpdateSuccess("addresses").BindFunc(func(e *core.RecordEvent) error {
 		handlers.LogAddressStatusChange(e)
 		return e.Next()
@@ -48,6 +47,47 @@ func RegisterDomainHooks(app core.App) {
 		e.Record.Set("email", strings.ToLower(strings.TrimSpace(email)))
 		e.Record.SetEmailVisibility(true)
 		return e.Next()
+	})
+
+	app.OnRecordCreateRequest("assignments").BindFunc(func(e *core.RecordRequestEvent) error {
+		if err := e.Next(); err != nil {
+			return err
+		}
+		handlers.LogAssignmentCreated(e)
+		return nil
+	})
+
+	app.OnRecordDeleteRequest("assignments").BindFunc(func(e *core.RecordRequestEvent) error {
+		if err := e.Next(); err != nil {
+			return err
+		}
+		handlers.LogAssignmentDeleted(e)
+		return nil
+	})
+
+	app.OnRecordCreateRequest("roles").BindFunc(func(e *core.RecordRequestEvent) error {
+		if err := e.Next(); err != nil {
+			return err
+		}
+		handlers.LogRoleGranted(e)
+		return nil
+	})
+
+	app.OnRecordUpdateRequest("roles").BindFunc(func(e *core.RecordRequestEvent) error {
+		oldRole := e.Record.Original().GetString("role")
+		if err := e.Next(); err != nil {
+			return err
+		}
+		handlers.LogRoleChanged(e, oldRole)
+		return nil
+	})
+
+	app.OnRecordDeleteRequest("roles").BindFunc(func(e *core.RecordRequestEvent) error {
+		if err := e.Next(); err != nil {
+			return err
+		}
+		handlers.LogRoleRevoked(e)
+		return nil
 	})
 
 	// Stamp unprovisioned_since when a user's last role is deleted
