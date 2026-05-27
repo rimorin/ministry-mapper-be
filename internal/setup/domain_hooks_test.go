@@ -5,12 +5,82 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
-	"ministry-mapper/internal/jobs"
+	"ministry-mapper/internal/handlers"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 )
+
+func waitForMapAggregates(t testing.TB, app *tests.TestApp, mapID string, wantProgress int, wantAggs map[string]int) *core.Record {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		mapRecord, err := app.FindRecordById("maps", mapID)
+		if err == nil && mapRecord.GetInt("progress") == wantProgress {
+			if wantAggs == nil {
+				waitForAsyncAggregateSettle()
+				return mapRecord
+			}
+
+			var aggs map[string]interface{}
+			if err := json.Unmarshal([]byte(mapRecord.GetString("aggregates")), &aggs); err == nil {
+				matched := true
+				for field, want := range wantAggs {
+					value, ok := aggs[field].(float64)
+					if !ok || int(value) != want {
+						matched = false
+						break
+					}
+				}
+				if matched {
+					waitForAsyncAggregateSettle()
+					return mapRecord
+				}
+			}
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	mapRecord, err := app.FindRecordById("maps", mapID)
+	if err != nil {
+		t.Fatalf("failed to find map record %s after waiting: %v", mapID, err)
+	}
+	if wantAggs != nil {
+		t.Fatalf("timed out waiting for map %s progress %d and aggregates %v; got progress %d aggregates %s", mapID, wantProgress, wantAggs, mapRecord.GetInt("progress"), mapRecord.GetString("aggregates"))
+	}
+	t.Fatalf("timed out waiting for map %s progress %d; got %d", mapID, wantProgress, mapRecord.GetInt("progress"))
+	return nil
+}
+
+func waitForTerritoryProgress(t testing.TB, app *tests.TestApp, territoryID string, wantProgress int) *core.Record {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		territory, err := app.FindRecordById("territories", territoryID)
+		if err == nil && territory.GetInt("progress") == wantProgress {
+			waitForAsyncAggregateSettle()
+			return territory
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	territory, err := app.FindRecordById("territories", territoryID)
+	if err != nil {
+		t.Fatalf("failed to find territory %s after waiting: %v", territoryID, err)
+	}
+	t.Fatalf("timed out waiting for territory %s progress %d; got %d", territoryID, wantProgress, territory.GetInt("progress"))
+	return nil
+}
+
+func waitForAsyncAggregateSettle() {
+	time.Sleep(50 * time.Millisecond)
+}
 
 func TestDomainHook_LogAddressStatusChange(t *testing.T) {
 	adminToken, err := generateToken("admin@alpha.test")
@@ -51,6 +121,7 @@ func TestDomainHook_LogAddressStatusChange(t *testing.T) {
 						t.Errorf("expected new_status 'not_home', got %q", logs[0].GetString("new_status"))
 					}
 				}
+				waitForAsyncAggregateSettle()
 			},
 		},
 		{
@@ -104,6 +175,7 @@ func TestDomainHook_LogAddressStatusChange(t *testing.T) {
 				if len(logs) == 0 {
 					t.Error("expected addresses_log entry when not_home_tries increments, found none")
 				}
+				waitForAsyncAggregateSettle()
 			},
 		},
 		{
@@ -170,6 +242,7 @@ func TestDomainHook_LogAddressStatusChange(t *testing.T) {
 				if len(logs) == 0 {
 					t.Error("expected addresses_log entry when not_home_tries decrements, found none")
 				}
+				waitForAsyncAggregateSettle()
 			},
 		},
 	}
@@ -215,16 +288,18 @@ func TestDomainHook_HandleRoleDelete_LastRole(t *testing.T) {
 }
 
 // TestDomainHook_AggregateFullChain verifies the full path from a not_home_tries
-// increment through to the map progress field being recomputed by the batch job.
+// increment through to the map progress field being recomputed by the async
+// address update hook.
 //
 // Seed state for testmapalpha01a (only countable addresses):
-//   testalpha01a003: not_home, tries=0, max_tries=3
-//   testalpha01a004: not_home, tries=0, max_tries=3
 //
-// The custom factory pre-sets testalpha01a004 to tries=3 (already at max).
-// The test PATCHes testalpha01a003 to tries=3, which (after the fix) writes an
-// addresses_log entry. RunAggregates then picks that up and recomputes: both
-// countable addresses are now notHomeMaxTries → progress = 100.
+//	testalpha01a003: not_home, tries=0, max_tries=3
+//	testalpha01a004: not_home, tries=0, max_tries=3
+//
+// The custom factory pre-sets testalpha01a004 to tries=3 (already at max) and
+// marks testalpha01a003 as source=app so the hook runs. The test PATCHes
+// testalpha01a003 to tries=3; both countable addresses are then notHomeMaxTries
+// and the hook recomputes progress to 100 immediately via FireAndForget.
 func TestDomainHook_AggregateFullChain(t *testing.T) {
 	adminToken, err := generateToken("admin@alpha.test")
 	if err != nil {
@@ -233,7 +308,7 @@ func TestDomainHook_AggregateFullChain(t *testing.T) {
 
 	scenarios := []tests.ApiScenario{
 		{
-			Name:   "not_home_tries hitting max_tries causes batch job to recompute progress to 100",
+			Name:   "not_home_tries hitting max_tries recalculates progress to 100 immediately",
 			Method: http.MethodPost,
 			URL:    "/address/update",
 			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_home","not_home_tries":3,"updated_by":"Admin","notes":""}`),
@@ -244,8 +319,7 @@ func TestDomainHook_AggregateFullChain(t *testing.T) {
 			ExpectedStatus: 204,
 			TestAppFactory: func(t testing.TB) *tests.TestApp {
 				app := setupTestApp(t)
-				// Pre-set testalpha01a004 to max_tries so it's already in the
-				// numerator before the test PATCH runs.
+
 				addr, err := app.FindRecordById("addresses", "testalpha01a004")
 				if err != nil {
 					t.Fatalf("failed to find testalpha01a004: %v", err)
@@ -254,10 +328,19 @@ func TestDomainHook_AggregateFullChain(t *testing.T) {
 				if err := app.SaveNoValidate(addr); err != nil {
 					t.Fatalf("failed to pre-set testalpha01a004 tries: %v", err)
 				}
+
+				addr, err = app.FindRecordById("addresses", "testalpha01a003")
+				if err != nil {
+					t.Fatalf("failed to find testalpha01a003: %v", err)
+				}
+				addr.Set("source", "app")
+				if err := app.SaveNoValidate(addr); err != nil {
+					t.Fatalf("failed to mark testalpha01a003 as app sourced: %v", err)
+				}
+
 				return app
 			},
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
-				// 1. Confirm the log entry was written (the fix under test).
 				logs, err := app.FindRecordsByFilter(
 					"addresses_log",
 					"address = 'testalpha01a003'",
@@ -270,23 +353,8 @@ func TestDomainHook_AggregateFullChain(t *testing.T) {
 					t.Fatal("expected addresses_log entry for not_home_tries increment, found none")
 				}
 
-				// 2. Run the batch aggregate job with a 60-minute lookback so it
-				//    catches the log entry that was just written.
-				if err := jobs.RunAggregates(app, 60); err != nil {
-					t.Fatalf("aggregate job failed: %v", err)
-				}
+				mapRecord := waitForMapAggregates(t, app, "testmapalpha01a", 100, map[string]int{"done": 0, "notHome": 0, "notDone": 0, "dnc": 0, "invalid": 0})
 
-				// 3. Both countable addresses are now at max_tries → progress = 100.
-				mapRecord, err := app.FindRecordById("maps", "testmapalpha01a")
-				if err != nil {
-					t.Fatalf("failed to find map record: %v", err)
-				}
-				if got := mapRecord.GetInt("progress"); got != 100 {
-					t.Errorf("expected map progress 100, got %d", got)
-				}
-
-				// 4. Aggregates JSON: all buckets zero (both addresses are notHomeMaxTries,
-				//    which is not stored — only notHomeLessTries is stored as "notHome").
 				var aggs map[string]interface{}
 				if err := json.Unmarshal([]byte(mapRecord.GetString("aggregates")), &aggs); err != nil {
 					t.Fatalf("failed to parse aggregates: %v", err)
@@ -297,11 +365,7 @@ func TestDomainHook_AggregateFullChain(t *testing.T) {
 					}
 				}
 
-				// 5. Territory progress also updated by the batch job.
-				territory, err := app.FindRecordById("territories", "testterralpha01")
-				if err != nil {
-					t.Fatalf("failed to find territory: %v", err)
-				}
+				territory := waitForTerritoryProgress(t, app, "testterralpha01", 100)
 				if got := territory.GetInt("progress"); got != 100 {
 					t.Errorf("expected territory progress 100, got %d", got)
 				}
@@ -318,8 +382,9 @@ func TestDomainHook_AggregateFullChain(t *testing.T) {
 // scenarios that TestDomainHook_AggregateFullChain does not exercise.
 //
 // Countable addresses in testmapalpha01a (both have address_options with is_countable=true):
-//   testalpha01a003: not_home, tries=0, max_tries=3
-//   testalpha01a004: not_home, tries=0, max_tries=3
+//
+//	testalpha01a003: not_home, tries=0, max_tries=3
+//	testalpha01a004: not_home, tries=0, max_tries=3
 //
 // testmapalpha01b has no address_options → zero countable addresses.
 func TestDomainHook_AggregateScenarios(t *testing.T) {
@@ -339,13 +404,28 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 	aggInt := func(aggs map[string]interface{}, key string) int {
 		return int(aggs[key].(float64))
 	}
+	withAppSource := func(addrID string, mutate func(testing.TB, *tests.TestApp)) func(testing.TB) *tests.TestApp {
+		return func(t testing.TB) *tests.TestApp {
+			app := setupTestApp(t)
+			if mutate != nil {
+				mutate(t, app)
+			}
+
+			addr, err := app.FindRecordById("addresses", addrID)
+			if err != nil {
+				t.Fatalf("failed to find %s: %v", addrID, err)
+			}
+			addr.Set("source", "app")
+			if err := app.SaveNoValidate(addr); err != nil {
+				t.Fatalf("failed to mark %s as app sourced: %v", addrID, err)
+			}
+
+			return app
+		}
+	}
 
 	scenarios := []tests.ApiScenario{
 		{
-			// done address contributes to numerator.
-			// testalpha01a003 changes not_home → done (status change → log entry).
-			// testalpha01a004 stays not_home tries=0 < max_tries=3 (denominator only).
-			// total=2, numerator=1 → progress=50; aggregates.done=1, notHome=1.
 			Name:   "done status contributes to numerator — progress 50",
 			Method: http.MethodPost,
 			URL:    "/address/update",
@@ -354,19 +434,10 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
 			},
-			TestAppFactory: setupTestApp,
+			TestAppFactory: withAppSource("testalpha01a003", nil),
 			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
-				if err := jobs.RunAggregates(app, 60); err != nil {
-					t.Fatalf("aggregate job failed: %v", err)
-				}
-				mapRecord, err := app.FindRecordById("maps", "testmapalpha01a")
-				if err != nil {
-					t.Fatalf("failed to find map record: %v", err)
-				}
-				if got := mapRecord.GetInt("progress"); got != 50 {
-					t.Errorf("expected progress 50, got %d", got)
-				}
+				mapRecord := waitForMapAggregates(t, app, "testmapalpha01a", 50, map[string]int{"done": 1, "notHome": 1})
 				aggs := parseAggs(t, mapRecord)
 				if aggInt(aggs, "done") != 1 {
 					t.Errorf("aggregates.done: want 1, got %d", aggInt(aggs, "done"))
@@ -377,10 +448,6 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 			},
 		},
 		{
-			// not_home with tries < max_tries stays in the denominator only.
-			// Factory pre-sets testalpha01a004 to tries=3 (numerator).
-			// Update increments testalpha01a003 to tries=1 (still < max_tries=3, denom only).
-			// total=2, numerator=1 → progress=50; aggregates.notHome=1.
 			Name:   "not_home below max_tries stays in denominator only — progress 50",
 			Method: http.MethodPost,
 			URL:    "/address/update",
@@ -389,8 +456,7 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
 			},
-			TestAppFactory: func(t testing.TB) *tests.TestApp {
-				app := setupTestApp(t)
+			TestAppFactory: withAppSource("testalpha01a003", func(t testing.TB, app *tests.TestApp) {
 				addr, err := app.FindRecordById("addresses", "testalpha01a004")
 				if err != nil {
 					t.Fatalf("failed to find testalpha01a004: %v", err)
@@ -399,20 +465,10 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 				if err := app.SaveNoValidate(addr); err != nil {
 					t.Fatalf("failed to pre-set testalpha01a004: %v", err)
 				}
-				return app
-			},
+			}),
 			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
-				if err := jobs.RunAggregates(app, 60); err != nil {
-					t.Fatalf("aggregate job failed: %v", err)
-				}
-				mapRecord, err := app.FindRecordById("maps", "testmapalpha01a")
-				if err != nil {
-					t.Fatalf("failed to find map record: %v", err)
-				}
-				if got := mapRecord.GetInt("progress"); got != 50 {
-					t.Errorf("expected progress 50, got %d", got)
-				}
+				mapRecord := waitForMapAggregates(t, app, "testmapalpha01a", 50, map[string]int{"notHome": 1})
 				aggs := parseAggs(t, mapRecord)
 				if aggInt(aggs, "notHome") != 1 {
 					t.Errorf("aggregates.notHome: want 1, got %d", aggInt(aggs, "notHome"))
@@ -420,10 +476,6 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 			},
 		},
 		{
-			// not_done countable address reduces progress below 100%.
-			// Factory resets testalpha01a003 back to not_done (SaveNoValidate, no hook).
-			// Update increments testalpha01a004 to tries=3 (max_tries) → log entry.
-			// total=2 (notDone=1 + notHomeMaxTries=1), numerator=1 → progress=50; aggregates.notDone=1.
 			Name:   "not_done countable address reduces progress — progress 50",
 			Method: http.MethodPost,
 			URL:    "/address/update",
@@ -432,8 +484,7 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
 			},
-			TestAppFactory: func(t testing.TB) *tests.TestApp {
-				app := setupTestApp(t)
+			TestAppFactory: withAppSource("testalpha01a004", func(t testing.TB, app *tests.TestApp) {
 				addr, err := app.FindRecordById("addresses", "testalpha01a003")
 				if err != nil {
 					t.Fatalf("failed to find testalpha01a003: %v", err)
@@ -442,20 +493,10 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 				if err := app.SaveNoValidate(addr); err != nil {
 					t.Fatalf("failed to reset testalpha01a003 to not_done: %v", err)
 				}
-				return app
-			},
+			}),
 			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
-				if err := jobs.RunAggregates(app, 60); err != nil {
-					t.Fatalf("aggregate job failed: %v", err)
-				}
-				mapRecord, err := app.FindRecordById("maps", "testmapalpha01a")
-				if err != nil {
-					t.Fatalf("failed to find map record: %v", err)
-				}
-				if got := mapRecord.GetInt("progress"); got != 50 {
-					t.Errorf("expected progress 50, got %d", got)
-				}
+				mapRecord := waitForMapAggregates(t, app, "testmapalpha01a", 50, map[string]int{"notDone": 1})
 				aggs := parseAggs(t, mapRecord)
 				if aggInt(aggs, "notDone") != 1 {
 					t.Errorf("aggregates.notDone: want 1, got %d", aggInt(aggs, "notDone"))
@@ -463,10 +504,6 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 			},
 		},
 		{
-			// Map with zero countable addresses: no division by zero, progress stays 0.
-			// testalpha01b001-005 have no address_options → none are countable.
-			// Changing one to done triggers an addresses_log entry and runs the batch job,
-			// but the aggregate query returns no rows → total=0, progress=0.
 			Name:   "map with no countable addresses keeps progress at 0",
 			Method: http.MethodPost,
 			URL:    "/address/update",
@@ -475,26 +512,16 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
 			},
-			TestAppFactory: setupTestApp,
+			TestAppFactory: withAppSource("testalpha01b001", nil),
 			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
-				if err := jobs.RunAggregates(app, 60); err != nil {
-					t.Fatalf("aggregate job failed: %v", err)
-				}
-				mapRecord, err := app.FindRecordById("maps", "testmapalpha01b")
-				if err != nil {
-					t.Fatalf("failed to find map record: %v", err)
-				}
+				mapRecord := waitForMapAggregates(t, app, "testmapalpha01b", 0, nil)
 				if got := mapRecord.GetInt("progress"); got != 0 {
 					t.Errorf("expected progress 0 for map with no countable addresses, got %d", got)
 				}
 			},
 		},
 		{
-			// do_not_call is excluded from total entirely (not just the numerator).
-			// Factory pre-sets testalpha01a004 to done. Update testalpha01a003 to do_not_call.
-			// total=1 (done only, dnc excluded), numerator=1 → progress=100.
-			// aggregates.dnc=1, aggregates.done=1 confirm correct JSON storage.
 			Name:   "do_not_call excluded from total — done + dnc gives progress 100",
 			Method: http.MethodPost,
 			URL:    "/address/update",
@@ -503,8 +530,7 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
 			},
-			TestAppFactory: func(t testing.TB) *tests.TestApp {
-				app := setupTestApp(t)
+			TestAppFactory: withAppSource("testalpha01a003", func(t testing.TB, app *tests.TestApp) {
 				addr, err := app.FindRecordById("addresses", "testalpha01a004")
 				if err != nil {
 					t.Fatalf("failed to find testalpha01a004: %v", err)
@@ -513,20 +539,10 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 				if err := app.SaveNoValidate(addr); err != nil {
 					t.Fatalf("failed to pre-set testalpha01a004 to done: %v", err)
 				}
-				return app
-			},
+			}),
 			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
-				if err := jobs.RunAggregates(app, 60); err != nil {
-					t.Fatalf("aggregate job failed: %v", err)
-				}
-				mapRecord, err := app.FindRecordById("maps", "testmapalpha01a")
-				if err != nil {
-					t.Fatalf("failed to find map record: %v", err)
-				}
-				if got := mapRecord.GetInt("progress"); got != 100 {
-					t.Errorf("expected progress 100 (dnc excluded from total), got %d", got)
-				}
+				mapRecord := waitForMapAggregates(t, app, "testmapalpha01a", 100, map[string]int{"done": 1, "dnc": 1})
 				aggs := parseAggs(t, mapRecord)
 				if aggInt(aggs, "done") != 1 {
 					t.Errorf("aggregates.done: want 1, got %d", aggInt(aggs, "done"))
@@ -537,10 +553,6 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 			},
 		},
 		{
-			// invalid is excluded from total entirely.
-			// Factory pre-sets testalpha01a004 to not_done. Update testalpha01a003 to invalid.
-			// total=1 (notDone only, invalid excluded), numerator=0 → progress=0.
-			// aggregates.invalid=1, aggregates.notDone=1 confirm correct JSON storage.
 			Name:   "invalid excluded from total — invalid + not_done gives progress 0",
 			Method: http.MethodPost,
 			URL:    "/address/update",
@@ -549,8 +561,7 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
 			},
-			TestAppFactory: func(t testing.TB) *tests.TestApp {
-				app := setupTestApp(t)
+			TestAppFactory: withAppSource("testalpha01a003", func(t testing.TB, app *tests.TestApp) {
 				addr, err := app.FindRecordById("addresses", "testalpha01a004")
 				if err != nil {
 					t.Fatalf("failed to find testalpha01a004: %v", err)
@@ -559,20 +570,10 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 				if err := app.SaveNoValidate(addr); err != nil {
 					t.Fatalf("failed to pre-set testalpha01a004 to not_done: %v", err)
 				}
-				return app
-			},
+			}),
 			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
-				if err := jobs.RunAggregates(app, 60); err != nil {
-					t.Fatalf("aggregate job failed: %v", err)
-				}
-				mapRecord, err := app.FindRecordById("maps", "testmapalpha01a")
-				if err != nil {
-					t.Fatalf("failed to find map record: %v", err)
-				}
-				if got := mapRecord.GetInt("progress"); got != 0 {
-					t.Errorf("expected progress 0 (invalid excluded from total, no done), got %d", got)
-				}
+				mapRecord := waitForMapAggregates(t, app, "testmapalpha01a", 0, map[string]int{"invalid": 1, "notDone": 1})
 				aggs := parseAggs(t, mapRecord)
 				if aggInt(aggs, "invalid") != 1 {
 					t.Errorf("aggregates.invalid: want 1, got %d", aggInt(aggs, "invalid"))
@@ -583,10 +584,6 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 			},
 		},
 		{
-			// When every countable address is dnc or invalid, total=0. The division
-			// guard must fire and progress stays 0 rather than panicking or NaN.
-			// Factory pre-sets testalpha01a004 to do_not_call. Update testalpha01a003 to do_not_call.
-			// total=0 → progress=0; aggregates.dnc=2 confirms they are tracked.
 			Name:   "all countable addresses dnc — total is 0, progress stays 0",
 			Method: http.MethodPost,
 			URL:    "/address/update",
@@ -595,8 +592,7 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
 			},
-			TestAppFactory: func(t testing.TB) *tests.TestApp {
-				app := setupTestApp(t)
+			TestAppFactory: withAppSource("testalpha01a003", func(t testing.TB, app *tests.TestApp) {
 				addr, err := app.FindRecordById("addresses", "testalpha01a004")
 				if err != nil {
 					t.Fatalf("failed to find testalpha01a004: %v", err)
@@ -605,24 +601,126 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 				if err := app.SaveNoValidate(addr); err != nil {
 					t.Fatalf("failed to pre-set testalpha01a004 to do_not_call: %v", err)
 				}
-				return app
-			},
+			}),
 			ExpectedStatus: 204,
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
-				if err := jobs.RunAggregates(app, 60); err != nil {
-					t.Fatalf("aggregate job failed: %v", err)
-				}
-				mapRecord, err := app.FindRecordById("maps", "testmapalpha01a")
-				if err != nil {
-					t.Fatalf("failed to find map record: %v", err)
-				}
-				if got := mapRecord.GetInt("progress"); got != 0 {
-					t.Errorf("expected progress 0 when all countable addresses are dnc, got %d", got)
-				}
+				mapRecord := waitForMapAggregates(t, app, "testmapalpha01a", 0, map[string]int{"dnc": 2})
 				aggs := parseAggs(t, mapRecord)
 				if aggInt(aggs, "dnc") != 2 {
 					t.Errorf("aggregates.dnc: want 2, got %d", aggInt(aggs, "dnc"))
 				}
+			},
+		},
+	}
+
+	for _, scenario := range scenarios {
+		scenario.Test(t)
+	}
+}
+
+// TestDomainHook_AggregateStatusReversals verifies that reversing address
+// statuses back to not_done correctly re-includes those addresses in the map
+// denominator when applicable.
+func TestDomainHook_AggregateStatusReversals(t *testing.T) {
+	adminToken, err := generateToken("admin@alpha.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	parseAggs := func(t testing.TB, record interface{ GetString(string) string }) map[string]interface{} {
+		t.Helper()
+		var aggs map[string]interface{}
+		if err := json.Unmarshal([]byte(record.GetString("aggregates")), &aggs); err != nil {
+			t.Fatalf("failed to parse aggregates: %v", err)
+		}
+		return aggs
+	}
+	aggInt := func(aggs map[string]interface{}, key string) int {
+		return int(aggs[key].(float64))
+	}
+	withAppSource := func(addrID string, fromStatus string) func(testing.TB) *tests.TestApp {
+		return func(t testing.TB) *tests.TestApp {
+			app := setupTestApp(t)
+
+			addr, err := app.FindRecordById("addresses", addrID)
+			if err != nil {
+				t.Fatalf("failed to find %s: %v", addrID, err)
+			}
+			addr.Set("status", fromStatus)
+			addr.Set("source", "app")
+			if err := app.SaveNoValidate(addr); err != nil {
+				t.Fatalf("failed to pre-set %s: %v", addrID, err)
+			}
+
+			otherAddr, err := app.FindRecordById("addresses", "testalpha01a004")
+			if err != nil {
+				t.Fatalf("failed to find testalpha01a004: %v", err)
+			}
+			otherAddr.Set("status", "not_done")
+			if err := app.SaveNoValidate(otherAddr); err != nil {
+				t.Fatalf("failed to pre-set testalpha01a004: %v", err)
+			}
+
+			return app
+		}
+	}
+	assertAggBreakdown := func(t testing.TB, mapRecord *core.Record, want map[string]int) {
+		t.Helper()
+		aggs := parseAggs(t, mapRecord)
+		for key, expected := range want {
+			if got := aggInt(aggs, key); got != expected {
+				t.Errorf("aggregates.%s: want %d, got %d", key, expected, got)
+			}
+		}
+	}
+
+	scenarios := []tests.ApiScenario{
+		{
+			Name:   "done to not_done adds address back to denominator",
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_done","updated_by":"Admin","notes":""}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory: withAppSource("testalpha01a003", "done"),
+			ExpectedStatus: 204,
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				mapRecord := waitForMapAggregates(t, app, "testmapalpha01a", 0, map[string]int{"notDone": 2, "done": 0, "notHome": 0, "dnc": 0, "invalid": 0})
+				assertAggBreakdown(t, mapRecord, map[string]int{"notDone": 2, "done": 0, "notHome": 0, "dnc": 0, "invalid": 0})
+			},
+		},
+		{
+			Name:   "do_not_call to not_done adds excluded address back to totals",
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_done","updated_by":"Admin","notes":""}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory: withAppSource("testalpha01a003", "do_not_call"),
+			ExpectedStatus: 204,
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				mapRecord := waitForMapAggregates(t, app, "testmapalpha01a", 0, map[string]int{"notDone": 2, "done": 0, "notHome": 0, "dnc": 0, "invalid": 0})
+				assertAggBreakdown(t, mapRecord, map[string]int{"notDone": 2, "done": 0, "notHome": 0, "dnc": 0, "invalid": 0})
+			},
+		},
+		{
+			Name:   "invalid to not_done adds excluded address back to totals",
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_done","updated_by":"Admin","notes":""}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory: withAppSource("testalpha01a003", "invalid"),
+			ExpectedStatus: 204,
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				mapRecord := waitForMapAggregates(t, app, "testmapalpha01a", 0, map[string]int{"notDone": 2, "done": 0, "notHome": 0, "dnc": 0, "invalid": 0})
+				assertAggBreakdown(t, mapRecord, map[string]int{"notDone": 2, "done": 0, "notHome": 0, "dnc": 0, "invalid": 0})
 			},
 		},
 	}
@@ -637,7 +735,8 @@ func TestDomainHook_AggregateScenarios(t *testing.T) {
 //
 // Setup: add address_option for testalpha01a001 (making it the third countable
 // address in testmapalpha01a alongside 003 and 004). Pre-set testalpha01a004 to
-// done. Update testalpha01a003 to done → 2 done + 1 not_done = 2/3 → 67.
+// done, mark testalpha01a003 as source=app, then update testalpha01a003 to done
+// so the hook eventually recalculates 2/3 → 67.
 func TestDomainHook_AggregateRounding(t *testing.T) {
 	adminToken, err := generateToken("admin@alpha.test")
 	if err != nil {
@@ -658,8 +757,6 @@ func TestDomainHook_AggregateRounding(t *testing.T) {
 			TestAppFactory: func(t testing.TB) *tests.TestApp {
 				app := setupTestApp(t)
 
-				// Add address_option for testalpha01a001 so it becomes the third
-				// countable address alongside 003 and 004.
 				aoCol, err := app.FindCollectionByNameOrId("address_options")
 				if err != nil {
 					t.Fatalf("failed to find address_options collection: %v", err)
@@ -673,7 +770,6 @@ func TestDomainHook_AggregateRounding(t *testing.T) {
 					t.Fatalf("failed to add address_option for testalpha01a001: %v", err)
 				}
 
-				// Pre-set testalpha01a004 to done so we get 2 done out of 3 total.
 				addr, err := app.FindRecordById("addresses", "testalpha01a004")
 				if err != nil {
 					t.Fatalf("failed to find testalpha01a004: %v", err)
@@ -683,19 +779,399 @@ func TestDomainHook_AggregateRounding(t *testing.T) {
 					t.Fatalf("failed to pre-set testalpha01a004 to done: %v", err)
 				}
 
+				addr, err = app.FindRecordById("addresses", "testalpha01a003")
+				if err != nil {
+					t.Fatalf("failed to find testalpha01a003: %v", err)
+				}
+				addr.Set("source", "app")
+				if err := app.SaveNoValidate(addr); err != nil {
+					t.Fatalf("failed to mark testalpha01a003 as app sourced: %v", err)
+				}
+
 				return app
 			},
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
-				if err := jobs.RunAggregates(app, 60); err != nil {
-					t.Fatalf("aggregate job failed: %v", err)
+				mapRecord := waitForMapAggregates(t, app, "testmapalpha01a", 67, map[string]int{"done": 2, "notDone": 1})
+				if got := mapRecord.GetInt("progress"); got != 67 {
+					t.Errorf("expected progress 67 (2/3 rounded), got %d", got)
 				}
-				// 2 done (003 + 004) / 3 total (+ 001 not_done) = 66.666... → rounds to 67.
+			},
+		},
+	}
+
+	for _, scenario := range scenarios {
+		scenario.Test(t)
+	}
+}
+
+func TestDomainHook_AggregateNotTriggeredForIrrelevantFields(t *testing.T) {
+	adminToken, err := generateToken("admin@alpha.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	seedSentinelMap := func(t testing.TB, app *tests.TestApp, progress int, aggs map[string]interface{}) {
+		t.Helper()
+		mapRecord, err := app.FindRecordById("maps", "testmapalpha01a")
+		if err != nil {
+			t.Fatalf("failed to find testmapalpha01a: %v", err)
+		}
+		mapRecord.Set("progress", progress)
+		mapRecord.Set("aggregates", aggs)
+		if err := app.SaveNoValidate(mapRecord); err != nil {
+			t.Fatalf("failed to seed sentinel map aggregates: %v", err)
+		}
+	}
+	assertSentinelMap := func(t testing.TB, app *tests.TestApp, wantProgress int, wantAggs map[string]int) {
+		t.Helper()
+		waitForAsyncAggregateSettle()
+
+		mapRecord, err := app.FindRecordById("maps", "testmapalpha01a")
+		if err != nil {
+			t.Fatalf("failed to reload map record: %v", err)
+		}
+		if got := mapRecord.GetInt("progress"); got != wantProgress {
+			t.Fatalf("expected progress to remain %d when aggregate hook is skipped, got %d", wantProgress, got)
+		}
+
+		var aggs map[string]interface{}
+		if err := json.Unmarshal([]byte(mapRecord.GetString("aggregates")), &aggs); err != nil {
+			t.Fatalf("failed to parse aggregates: %v", err)
+		}
+		for field, want := range wantAggs {
+			if got := int(aggs[field].(float64)); got != want {
+				t.Fatalf("expected aggregates.%s to remain %d when aggregate hook is skipped, got %d", field, want, got)
+			}
+		}
+	}
+	withAppSource := func(addrID string, mutate func(testing.TB, *tests.TestApp)) func(testing.TB) *tests.TestApp {
+		return func(t testing.TB) *tests.TestApp {
+			app := setupTestApp(t)
+			if mutate != nil {
+				mutate(t, app)
+			}
+
+			addr, err := app.FindRecordById("addresses", addrID)
+			if err != nil {
+				t.Fatalf("failed to find %s: %v", addrID, err)
+			}
+			addr.Set("source", "app")
+			if err := app.SaveNoValidate(addr); err != nil {
+				t.Fatalf("failed to mark %s as app sourced: %v", addrID, err)
+			}
+
+			seedSentinelMap(t, app, 77, map[string]interface{}{
+				"notDone": 9,
+				"done":    8,
+				"notHome": 7,
+				"invalid": 6,
+				"dnc":     5,
+			})
+
+			return app
+		}
+	}
+
+	scenarios := []tests.ApiScenario{
+		{
+			Name:   "notes-only update does not trigger aggregate recalculation",
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_home","not_home_tries":0,"updated_by":"Admin","notes":"follow up note"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			ExpectedStatus: 204,
+			TestAppFactory: withAppSource("testalpha01a003", func(t testing.TB, app *tests.TestApp) {
+				addr, err := app.FindRecordById("addresses", "testalpha01a003")
+				if err != nil {
+					t.Fatalf("failed to find testalpha01a003: %v", err)
+				}
+				addr.Set("updated_by", "Admin")
+				if err := app.SaveNoValidate(addr); err != nil {
+					t.Fatalf("failed to pre-set testalpha01a003 updated_by: %v", err)
+				}
+			}),
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				assertSentinelMap(t, app, 77, map[string]int{"notDone": 9, "done": 8, "notHome": 7, "invalid": 6, "dnc": 5})
+			},
+		},
+		{
+			Name:   "updated_by-only update does not trigger aggregate recalculation",
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_home","not_home_tries":0,"updated_by":"Field Overseer","notes":""}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			ExpectedStatus: 204,
+			TestAppFactory: withAppSource("testalpha01a003", nil),
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				assertSentinelMap(t, app, 77, map[string]int{"notDone": 9, "done": 8, "notHome": 7, "invalid": 6, "dnc": 5})
+			},
+		},
+	}
+
+	for _, scenario := range scenarios {
+		scenario.Test(t)
+	}
+}
+
+// TestDomainHook_AggregatesTriggeredForCreationSourceAddresses verifies that
+// addresses with creation-time source values (admin, map_init, floor_copy) still
+// trigger immediate aggregate recalculation when updated via POST /address/update.
+// These source values describe how the address was created, not the update context,
+// so field-worker updates to them must recalculate aggregates just like app-sourced
+// addresses. Only source=bulk_reset (an update-time marker set by reset handlers)
+// suppresses the hook.
+func TestDomainHook_AggregatesTriggeredForCreationSourceAddresses(t *testing.T) {
+	adminToken, err := generateToken("admin@alpha.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, src := range []string{"admin", "map_init", "floor_copy"} {
+		src := src
+		scenario := tests.ApiScenario{
+			Name:   src + " sourced address update triggers aggregate hook immediately",
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"done","updated_by":"Admin","notes":""}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			ExpectedStatus: 204,
+			TestAppFactory: func(t testing.TB) *tests.TestApp {
+				app := setupTestApp(t)
+
+				addr, err := app.FindRecordById("addresses", "testalpha01a003")
+				if err != nil {
+					t.Fatalf("failed to find testalpha01a003: %v", err)
+				}
+				addr.Set("source", src)
+				if err := app.SaveNoValidate(addr); err != nil {
+					t.Fatalf("failed to set source=%s on testalpha01a003: %v", src, err)
+				}
+
+				return app
+			},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				// Hook must fire even though source is a creation-time value, not "app".
+				// Progress should update to 50 (1 done out of 2 countable addresses).
+				waitForMapAggregates(t, app, "testmapalpha01a", 50, map[string]int{"done": 1, "notHome": 1})
+			},
+		}
+		scenario.Test(t)
+	}
+}
+
+func TestDomainHook_AggregateTriggeredForTriesChangeOnDoneStatus(t *testing.T) {
+	adminToken, err := generateToken("admin@alpha.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	scenarios := []tests.ApiScenario{
+		{
+			Name:   "tries change on done status still triggers aggregate recalculation",
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"done","not_home_tries":2,"updated_by":"Admin","notes":""}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			ExpectedStatus: 204,
+			TestAppFactory: func(t testing.TB) *tests.TestApp {
+				app := setupTestApp(t)
+
+				addr, err := app.FindRecordById("addresses", "testalpha01a003")
+				if err != nil {
+					t.Fatalf("failed to find testalpha01a003: %v", err)
+				}
+				addr.Set("source", "admin")
+				addr.Set("status", "done")
+				if err := app.SaveNoValidate(addr); err != nil {
+					t.Fatalf("failed to pre-set testalpha01a003 to done with suppressed source: %v", err)
+				}
+
+				addr, err = app.FindRecordById("addresses", "testalpha01a003")
+				if err != nil {
+					t.Fatalf("failed to reload testalpha01a003: %v", err)
+				}
+				addr.Set("source", "app")
+				if err := app.SaveNoValidate(addr); err != nil {
+					t.Fatalf("failed to mark testalpha01a003 as app sourced: %v", err)
+				}
+
+				mapRecord, err := app.FindRecordById("maps", "testmapalpha01a")
+				if err != nil {
+					t.Fatalf("failed to find testmapalpha01a: %v", err)
+				}
+				mapRecord.Set("progress", 77)
+				mapRecord.Set("aggregates", map[string]interface{}{
+					"notDone": 9,
+					"done":    8,
+					"notHome": 7,
+					"invalid": 6,
+					"dnc":     5,
+				})
+				if err := app.SaveNoValidate(mapRecord); err != nil {
+					t.Fatalf("failed to seed sentinel aggregates: %v", err)
+				}
+
+				return app
+			},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				mapRecord := waitForMapAggregates(t, app, "testmapalpha01a", 50, map[string]int{"done": 1, "notHome": 1})
+				if got := mapRecord.GetInt("progress"); got != 50 {
+					t.Errorf("expected progress 50 after false-positive aggregate recalculation, got %d", got)
+				}
+			},
+		},
+	}
+
+	for _, scenario := range scenarios {
+		scenario.Test(t)
+	}
+}
+
+func TestDomainHook_AggregateSkippedForMissingMapID(t *testing.T) {
+	app := setupTestApp(t)
+	defer app.Cleanup()
+
+	addr, err := app.FindRecordById("addresses", "testalpha01a003")
+	if err != nil {
+		t.Fatalf("failed to find testalpha01a003: %v", err)
+	}
+	addr.Set("map", "")
+	if err := app.SaveNoValidate(addr); err != nil {
+		t.Fatalf("failed to clear map on testalpha01a003: %v", err)
+	}
+
+	mapRecord, err := app.FindRecordById("maps", "testmapalpha01a")
+	if err != nil {
+		t.Fatalf("failed to find testmapalpha01a: %v", err)
+	}
+	mapRecord.Set("progress", 77)
+	if err := app.SaveNoValidate(mapRecord); err != nil {
+		t.Fatalf("failed to seed sentinel progress on testmapalpha01a: %v", err)
+	}
+
+	addr, err = app.FindRecordById("addresses", "testalpha01a003")
+	if err != nil {
+		t.Fatalf("failed to reload testalpha01a003: %v", err)
+	}
+
+	nextStatus := "done"
+	if addr.GetString("status") == nextStatus {
+		nextStatus = "not_done"
+	}
+	addr.Set("source", "app")
+	addr.Set("status", nextStatus)
+	if err := app.SaveNoValidate(addr); err != nil {
+		t.Fatalf("failed to trigger aggregate hook with empty map on testalpha01a003: %v", err)
+	}
+
+	waitForAsyncAggregateSettle()
+
+	mapRecord, err = app.FindRecordById("maps", "testmapalpha01a")
+	if err != nil {
+		t.Fatalf("failed to reload testmapalpha01a: %v", err)
+	}
+	if got := mapRecord.GetInt("progress"); got != 77 {
+		t.Fatalf("expected progress to remain 77 when aggregate hook is skipped for empty map, got %d", got)
+	}
+}
+
+func TestDomainHook_AggregatesSuppressedForBulkResetSource(t *testing.T) {
+	adminToken, err := generateToken("admin@alpha.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	scenarios := []tests.ApiScenario{
+		{
+			Name:   "bulk_reset sourced address update skips aggregate hook until explicit processing",
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body:   strings.NewReader(`{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"done","updated_by":"Admin","notes":""}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			ExpectedStatus: 204,
+			TestAppFactory: func(t testing.TB) *tests.TestApp {
+				app := setupTestApp(t)
+
+				addr, err := app.FindRecordById("addresses", "testalpha01a003")
+				if err != nil {
+					t.Fatalf("failed to find testalpha01a003: %v", err)
+				}
+				addr.Set("source", "bulk_reset")
+				if err := app.SaveNoValidate(addr); err != nil {
+					t.Fatalf("failed to mark testalpha01a003 as bulk_reset sourced: %v", err)
+				}
+
+				mapRecord, err := app.FindRecordById("maps", "testmapalpha01a")
+				if err != nil {
+					t.Fatalf("failed to find testmapalpha01a: %v", err)
+				}
+				mapRecord.Set("progress", 77)
+				mapRecord.Set("aggregates", map[string]interface{}{
+					"notDone": 9,
+					"done":    8,
+					"notHome": 7,
+					"invalid": 6,
+					"dnc":     5,
+				})
+				if err := app.SaveNoValidate(mapRecord); err != nil {
+					t.Fatalf("failed to seed sentinel aggregates: %v", err)
+				}
+
+				return app
+			},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
 				mapRecord, err := app.FindRecordById("maps", "testmapalpha01a")
 				if err != nil {
 					t.Fatalf("failed to find map record: %v", err)
 				}
-				if got := mapRecord.GetInt("progress"); got != 67 {
-					t.Errorf("expected progress 67 (2/3 rounded), got %d", got)
+				if got := mapRecord.GetInt("progress"); got != 77 {
+					t.Fatalf("expected progress to remain 77 when hook is suppressed, got %d", got)
+				}
+
+				var aggs map[string]interface{}
+				if err := json.Unmarshal([]byte(mapRecord.GetString("aggregates")), &aggs); err != nil {
+					t.Fatalf("failed to parse aggregates: %v", err)
+				}
+				for field, want := range map[string]int{"notDone": 9, "done": 8, "notHome": 7, "invalid": 6, "dnc": 5} {
+					if got := int(aggs[field].(float64)); got != want {
+						t.Fatalf("expected sentinel aggregates.%s=%d before explicit processing, got %d", field, want, got)
+					}
+				}
+
+				if err := handlers.ProcessMapAggregates("testmapalpha01a", app); err != nil {
+					t.Fatalf("explicit aggregate processing failed: %v", err)
+				}
+
+				mapRecord, err = app.FindRecordById("maps", "testmapalpha01a")
+				if err != nil {
+					t.Fatalf("failed to reload map record: %v", err)
+				}
+				if got := mapRecord.GetInt("progress"); got != 50 {
+					t.Errorf("expected progress 50 after explicit processing, got %d", got)
+				}
+				if err := json.Unmarshal([]byte(mapRecord.GetString("aggregates")), &aggs); err != nil {
+					t.Fatalf("failed to parse recalculated aggregates: %v", err)
+				}
+				if got := int(aggs["done"].(float64)); got != 1 {
+					t.Errorf("expected aggregates.done 1 after explicit processing, got %d", got)
+				}
+				if got := int(aggs["notHome"].(float64)); got != 1 {
+					t.Errorf("expected aggregates.notHome 1 after explicit processing, got %d", got)
 				}
 			},
 		},

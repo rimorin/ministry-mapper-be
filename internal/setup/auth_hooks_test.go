@@ -1910,8 +1910,8 @@ func TestAuthHook_AddressesCreateRequest(t *testing.T) {
 				"Content-Type":  "application/json",
 				"Authorization": conductorToken,
 			},
-			TestAppFactory: setupTestApp,
-			ExpectedStatus: 201,
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  201,
 			ExpectedContent: []string{`"id":"clientgenid0001"`},
 		},
 	}
@@ -1957,6 +1957,9 @@ func TestAuthHook_AddressesUpdateRequest(t *testing.T) {
 			},
 			TestAppFactory: setupTestApp,
 			ExpectedStatus: 204,
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				waitForAsyncAggregateSettle()
+			},
 		},
 		{
 			Name:   "conductor from different congregation is rejected with 403",
@@ -1982,6 +1985,9 @@ func TestAuthHook_AddressesUpdateRequest(t *testing.T) {
 			},
 			TestAppFactory: setupTestApp,
 			ExpectedStatus: 204,
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				waitForAsyncAggregateSettle()
+			},
 		},
 	}
 
@@ -2393,4 +2399,3 @@ func TestAuthHook_MessagesDeleteRequest(t *testing.T) {
 		scenario.Test(t)
 	}
 }
-

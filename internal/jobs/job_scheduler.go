@@ -93,17 +93,7 @@ func ConfigureScheduler(app core.App) {
 		return assignmentsCleanup(app)
 	})
 
-	// Every 10 min — offset by 4 min.
-	// Recalculates map and territory aggregates for any maps/territories with
-	// address status changes in the past 11 minutes (11 > 10 to absorb
-	// sub-second scheduler jitter without missing log entries). Uses
-	// addresses_log as the change-detection source.
-	// SGT examples: :04, :14, :24, :34, :44, :54 (all day)
-	addTask("updateTerritoryAggregates", "4,14,24,34,44,54 * * * *", "enable-territory-aggregations", func() error {
-		return updateTerritoryAggregates(app, 11)
-	})
-
-	// Every 30 min — at :08 and :38, 10 min after updateTerritoryAggregates.
+	// Every 30 min — at :08 and :38.
 	// Must run during peak: publishers receive messages while actively working.
 	// SGT examples: :08, :38 (all day)
 	addTask("processMessages", "8,38 * * * *", "enable-message-processing", func() error {

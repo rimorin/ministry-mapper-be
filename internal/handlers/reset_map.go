@@ -47,6 +47,7 @@ func HandleResetMap(e *core.RequestEvent, app core.App) error {
 			record.Set("status", "not_done")
 			record.Set("not_home_tries", 0)
 			record.Set("updated_by", userName)
+			record.Set("source", "bulk_reset")
 			if err := txApp.SaveNoValidate(record); err != nil {
 				return err
 			}
@@ -117,6 +118,7 @@ func HandleResetTerritory(c *core.RequestEvent, app core.App) error {
 			record.Set("status", "not_done")
 			record.Set("not_home_tries", 0)
 			record.Set("updated_by", userName)
+			record.Set("source", "bulk_reset")
 			if err := txApp.SaveNoValidate(record); err != nil {
 				return err
 			}

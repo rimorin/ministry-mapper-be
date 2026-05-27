@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -97,6 +98,44 @@ func TestHandleResetMap(t *testing.T) {
 				}
 				if len(records) != 0 {
 					t.Errorf("expected 0 residual not_home/done records, got %d", len(records))
+				}
+
+				for _, addressID := range []string{"testalpha01a003", "testalpha01a004", "testalpha01a005"} {
+					addr, err := app.FindRecordById("addresses", addressID)
+					if err != nil {
+						t.Fatalf("failed to fetch %s: %v", addressID, err)
+					}
+					if got := addr.GetString("status"); got != "not_done" {
+						t.Errorf("%s status: want not_done, got %q", addressID, got)
+					}
+					if got := addr.GetString("source"); got != "bulk_reset" {
+						t.Errorf("%s source: want bulk_reset, got %q", addressID, got)
+					}
+				}
+
+				mapRecord, err := app.FindRecordById("maps", "testmapalpha01a")
+				if err != nil {
+					t.Fatalf("failed to fetch map: %v", err)
+				}
+				if got := mapRecord.GetInt("progress"); got != 0 {
+					t.Errorf("expected map progress 0 after reset, got %d", got)
+				}
+				var aggs map[string]interface{}
+				if err := json.Unmarshal([]byte(mapRecord.GetString("aggregates")), &aggs); err != nil {
+					t.Fatalf("failed to parse map aggregates: %v", err)
+				}
+				for field, want := range map[string]int{"notDone": 2, "done": 0, "notHome": 0, "invalid": 0, "dnc": 0} {
+					if got := int(aggs[field].(float64)); got != want {
+						t.Errorf("map aggregates.%s: want %d, got %d", field, want, got)
+					}
+				}
+
+				territory, err := app.FindRecordById("territories", "testterralpha01")
+				if err != nil {
+					t.Fatalf("failed to fetch territory: %v", err)
+				}
+				if got := territory.GetInt("progress"); got != 0 {
+					t.Errorf("expected territory progress 0 after map reset, got %d", got)
 				}
 			},
 		},

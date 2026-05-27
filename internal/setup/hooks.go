@@ -30,6 +30,11 @@ func RegisterDomainHooks(app core.App) {
 		return e.Next()
 	})
 
+	app.OnRecordAfterUpdateSuccess("addresses").BindFunc(func(e *core.RecordEvent) error {
+		handlers.HandleAddressAggregateUpdate(e)
+		return e.Next()
+	})
+
 	// Track last login and reset inactive warnings
 	app.OnRecordAuthRequest("users").BindFunc(func(e *core.RecordAuthRequestEvent) error {
 		e.Record.Set("last_login", time.Now())

@@ -199,10 +199,11 @@ All jobs are gated by **LaunchDarkly feature flags** and can be toggled without 
 Schedules are staggered so no two jobs fire at the same minute, avoiding CPU pile-ups at top-of-hour.
 Heavy non-urgent jobs (reports, user lifecycle) run at **02:00–02:30 SGT (18:00–18:30 UTC)** — well clear of the peak field-service window (08:00–12:00 SGT).
 
+Map and territory aggregates (progress %, status counts) are recalculated in real time via an `OnRecordAfterUpdateSuccess` hook on the `addresses` collection. The hook fires asynchronously using `FireAndForget` on every status or `not_home_tries` change, keeping map and territory progress up to date without polling.
+
 | Job | Schedule (UTC) | SGT | Flag | Description |
 |-----|---------------|-----|------|-------------|
 | `cleanUpAssignments` | Every 5 min at :01 | :09 | `enable-assignments-cleanup` | Remove expired map assignments |
-| `updateTerritoryAggregates` | Every 10 min at :04 | :12 | `enable-territory-aggregations` | Recalculate territory progress stats |
 | `processMessages` | Every 30 min at :08, :38 | :16, :46 | `enable-message-processing` | Process pending message queue |
 | `processInstructions` | Every 30 min at :18, :48 | :26, :56 | `enable-instruction-processing` | Process territory assignment instructions |
 | `processNotes` | Every hour at :28 | :36 | `enable-note-processing` | Process updated congregation notes |
