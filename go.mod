@@ -5,10 +5,10 @@ go 1.26.2
 require (
 	github.com/getsentry/sentry-go v0.46.2
 	github.com/launchdarkly/go-sdk-common/v3 v3.5.0
-	github.com/launchdarkly/go-server-sdk/v7 v7.14.7
+	github.com/launchdarkly/go-server-sdk/v7 v7.15.0
 	github.com/mailersend/mailersend-go v1.6.4
 	github.com/openai/openai-go/v3 v3.37.0
-	github.com/pocketbase/pocketbase v0.38.2
+	github.com/pocketbase/pocketbase v0.39.0
 	github.com/xuri/excelize/v2 v2.10.1
 )
 
@@ -68,5 +68,5 @@ require (
 	golang.org/x/text v0.37.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
-	modernc.org/sqlite v1.50.1 // indirect
+	modernc.org/sqlite v1.51.0 // indirect
 )
