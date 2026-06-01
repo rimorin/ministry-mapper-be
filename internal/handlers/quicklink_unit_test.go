@@ -128,6 +128,44 @@ func TestFindBestMap_SameAssignmentsSameDistanceLowerProgressWins(t *testing.T) 
 	}
 }
 
+// TestFindBestMap_OrderIndependent exercises a three-map chain where
+// |A-B| ≤ 50m, |B-C| ≤ 50m, but |A-C| > 50m.  The correct winner is B
+// (lowest progress within the 50m band around the closest map C), but the
+// old single-pass algorithm returned different maps depending on iteration
+// order (C for A→B→C, A for C→B→A).
+func TestFindBestMap_OrderIndependent(t *testing.T) {
+	// All maps due north of the user at increasing distances (~215m, ~260m, ~300m).
+	// Distances chosen so |B-C|=45m ≤ 50, |A-B|=40m ≤ 50, |A-C|=85m > 50.
+	const (
+		userLat = 1.3521
+		userLng = 103.8198
+	)
+	mapA := MapWithDistance{ID: "A", Progress: 10, AssignCount: 0, Coordinates: `{"lat":1.354803,"lng":103.8198}`} // ~300m
+	mapB := MapWithDistance{ID: "B", Progress: 30, AssignCount: 0, Coordinates: `{"lat":1.354442,"lng":103.8198}`} // ~260m
+	mapC := MapWithDistance{ID: "C", Progress: 50, AssignCount: 0, Coordinates: `{"lat":1.354037,"lng":103.8198}`} // ~215m
+
+	orderings := [][]MapWithDistance{
+		{mapA, mapB, mapC},
+		{mapA, mapC, mapB},
+		{mapB, mapA, mapC},
+		{mapB, mapC, mapA},
+		{mapC, mapA, mapB},
+		{mapC, mapB, mapA},
+	}
+
+	for _, maps := range orderings {
+		result := findBestMap(maps, userLat, userLng)
+		if result == nil {
+			t.Fatal("expected non-nil result")
+		}
+		// C is closest; B and C are within 50m of each other; B has lower progress → B wins.
+		if result.ID != "B" {
+			t.Errorf("order [%s %s %s]: expected B, got %s",
+				maps[0].ID, maps[1].ID, maps[2].ID, result.ID)
+		}
+	}
+}
+
 func TestFindBestMap_InvalidCoordinatesSkipped(t *testing.T) {
 	maps := []MapWithDistance{
 		{ID: "bad", Progress: 10, AssignCount: 0, Coordinates: `not-json`},
@@ -139,5 +177,71 @@ func TestFindBestMap_InvalidCoordinatesSkipped(t *testing.T) {
 	}
 	if result.ID != "good" {
 		t.Errorf("expected 'good' (invalid coords skipped), got %s", result.ID)
+	}
+}
+
+// TestFindBestMap_AllInvalidCoordinates checks the nil guard when every map
+// has unparseable coordinates.
+func TestFindBestMap_AllInvalidCoordinates(t *testing.T) {
+	maps := []MapWithDistance{
+		{ID: "bad1", Progress: 10, AssignCount: 0, Coordinates: `not-json`},
+		{ID: "bad2", Progress: 20, AssignCount: 0, Coordinates: `{invalid}`},
+	}
+	result := findBestMap(maps, 1.3521, 103.8198)
+	if result != nil {
+		t.Errorf("expected nil when all coordinates are invalid, got %+v", result)
+	}
+}
+
+// TestFindBestMap_ProximityBandIncludes verifies that a map within 50m of the
+// closest map enters the progress comparison and wins when it has lower progress.
+// Map A is at the user's position (0m); Map B is ~30m away with lower progress.
+// Both are within the 50m band → B should win.
+func TestFindBestMap_ProximityBandIncludes(t *testing.T) {
+	maps := []MapWithDistance{
+		{ID: "closest", Progress: 80, AssignCount: 0, Coordinates: `{"lat":1.3521,"lng":103.8198}`},   // 0m
+		{ID: "in_band", Progress: 20, AssignCount: 0, Coordinates: `{"lat":1.35237,"lng":103.8198}`}, // ~30m
+	}
+	result := findBestMap(maps, 1.3521, 103.8198)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result.ID != "in_band" {
+		t.Errorf("expected 'in_band' (within 50m, lower progress wins), got %s", result.ID)
+	}
+}
+
+// TestFindBestMap_ProximityBandExcludes verifies that a map beyond 50m of the
+// closest map is excluded from the progress comparison.
+// Map A is at the user's position (0m, high progress); Map B is ~100m away (low progress).
+// B is outside the 50m band → A wins despite higher progress.
+func TestFindBestMap_ProximityBandExcludes(t *testing.T) {
+	maps := []MapWithDistance{
+		{ID: "closest",   Progress: 80, AssignCount: 0, Coordinates: `{"lat":1.3521,"lng":103.8198}`},  // 0m
+		{ID: "out_band",  Progress: 20, AssignCount: 0, Coordinates: `{"lat":1.35300,"lng":103.8198}`}, // ~100m
+	}
+	result := findBestMap(maps, 1.3521, 103.8198)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result.ID != "closest" {
+		t.Errorf("expected 'closest' (out-of-band map excluded), got %s", result.ID)
+	}
+}
+
+// TestFindBestMap_InvalidCoordsInLowerCountCohort ensures a map with fewer
+// assignments but unparseable coordinates does not prevent a valid higher-count
+// map from being selected.
+func TestFindBestMap_InvalidCoordsInLowerCountCohort(t *testing.T) {
+	maps := []MapWithDistance{
+		{ID: "cheap_bad", Progress: 10, AssignCount: 0, Coordinates: `not-json`},
+		{ID: "valid",     Progress: 50, AssignCount: 1, Coordinates: `{"lat":1.3521,"lng":103.8198}`},
+	}
+	result := findBestMap(maps, 1.3521, 103.8198)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result.ID != "valid" {
+		t.Errorf("expected 'valid' (only parseable map), got %s", result.ID)
 	}
 }
