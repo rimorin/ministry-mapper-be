@@ -40,8 +40,8 @@ func ProcessMapAggregates(mapID string, app core.App, resetTerritoryAggregates .
         SELECT
 			COALESCE(SUM(CASE WHEN a.status = 'not_done' THEN 1 ELSE 0 END), 0) AS not_done,
 			COALESCE(SUM(CASE WHEN a.status = 'done' THEN 1 ELSE 0 END), 0) AS done,
-			COALESCE(SUM(CASE WHEN a.status = 'not_home' AND a.not_home_tries >= c.max_tries THEN 1 ELSE 0 END), 0) AS not_home_max_tries,
-			COALESCE(SUM(CASE WHEN a.status = 'not_home' AND a.not_home_tries < c.max_tries THEN 1 ELSE 0 END), 0) AS not_home_less_tries,
+			COALESCE(SUM(CASE WHEN a.status = 'not_home' AND c.max_tries > 0 AND a.not_home_tries >= c.max_tries THEN 1 ELSE 0 END), 0) AS not_home_max_tries,
+			COALESCE(SUM(CASE WHEN a.status = 'not_home' AND (c.max_tries <= 0 OR a.not_home_tries < c.max_tries) THEN 1 ELSE 0 END), 0) AS not_home_less_tries,
 			COALESCE(SUM(CASE WHEN a.status = 'do_not_call' THEN 1 ELSE 0 END), 0) AS dnc,
 			COALESCE(SUM(CASE WHEN a.status = 'invalid' THEN 1 ELSE 0 END), 0) AS invalid
         FROM addresses a
@@ -131,8 +131,8 @@ func ProcessTerritoryAggregates(territoryID string, app core.App) error {
 		SELECT
 			COALESCE(SUM(CASE WHEN a.status = 'not_done' THEN 1 ELSE 0 END), 0) AS not_done,
 			COALESCE(SUM(CASE WHEN a.status = 'done' THEN 1 ELSE 0 END), 0) AS done,
-			COALESCE(SUM(CASE WHEN a.status = 'not_home' AND a.not_home_tries >= c.max_tries THEN 1 ELSE 0 END), 0) AS not_home_max_tries,
-			COALESCE(SUM(CASE WHEN a.status = 'not_home' AND a.not_home_tries < c.max_tries THEN 1 ELSE 0 END), 0) AS not_home_less_tries,
+			COALESCE(SUM(CASE WHEN a.status = 'not_home' AND c.max_tries > 0 AND a.not_home_tries >= c.max_tries THEN 1 ELSE 0 END), 0) AS not_home_max_tries,
+			COALESCE(SUM(CASE WHEN a.status = 'not_home' AND (c.max_tries <= 0 OR a.not_home_tries < c.max_tries) THEN 1 ELSE 0 END), 0) AS not_home_less_tries,
 			COALESCE(SUM(CASE WHEN a.status = 'do_not_call' THEN 1 ELSE 0 END), 0) AS dnc,
 			COALESCE(SUM(CASE WHEN a.status = 'invalid' THEN 1 ELSE 0 END), 0) AS invalid
 		FROM addresses a

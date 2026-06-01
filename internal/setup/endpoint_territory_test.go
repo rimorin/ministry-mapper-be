@@ -97,9 +97,6 @@ func TestHandleResetTerritory(t *testing.T) {
 					if got := addr.GetString("status"); got != "not_done" {
 						t.Errorf("%s status: want not_done, got %q", addressID, got)
 					}
-					if got := addr.GetString("source"); got != "bulk_reset" {
-						t.Errorf("%s source: want bulk_reset, got %q", addressID, got)
-					}
 				}
 
 				mapRecord, err := app.FindRecordById("maps", "testmapalpha01a")

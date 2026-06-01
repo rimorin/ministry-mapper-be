@@ -42,12 +42,18 @@ func HandleResetMap(e *core.RequestEvent, app core.App) error {
 		return apis.NewNotFoundError("Error fetching addresses", nil)
 	}
 
+	// Suppress per-address aggregate hook fires during the batch. The flag is
+	// checked by HandleAddressAggregateUpdate; defer clears it after the explicit
+	// ProcessMapAggregates call below so field-worker updates resume normally.
+	flagKey := "bulk_reset:" + mapId
+	app.Store().Set(flagKey, true)
+	defer app.Store().Remove(flagKey)
+
 	err = app.RunInTransaction(func(txApp core.App) error {
 		for _, record := range records {
 			record.Set("status", "not_done")
 			record.Set("not_home_tries", 0)
 			record.Set("updated_by", userName)
-			record.Set("source", "bulk_reset")
 			if err := txApp.SaveNoValidate(record); err != nil {
 				return err
 			}
@@ -113,12 +119,28 @@ func HandleResetTerritory(c *core.RequestEvent, app core.App) error {
 		return apis.NewNotFoundError("Error fetching addresses", nil)
 	}
 
+	// Collect affected map IDs before the transaction so Store flags can be set
+	// for all of them upfront, suppressing per-address aggregate hook fires.
+	mapIDSet := make(map[string]bool)
+	for _, record := range records {
+		if mapID, ok := record.Get("map").(string); ok && mapID != "" {
+			mapIDSet[mapID] = true
+		}
+	}
+	for mapID := range mapIDSet {
+		app.Store().Set("bulk_reset:"+mapID, true)
+	}
+	defer func() {
+		for mapID := range mapIDSet {
+			app.Store().Remove("bulk_reset:" + mapID)
+		}
+	}()
+
 	err = app.RunInTransaction(func(txApp core.App) error {
 		for _, record := range records {
 			record.Set("status", "not_done")
 			record.Set("not_home_tries", 0)
 			record.Set("updated_by", userName)
-			record.Set("source", "bulk_reset")
 			if err := txApp.SaveNoValidate(record); err != nil {
 				return err
 			}
@@ -132,12 +154,6 @@ func HandleResetTerritory(c *core.RequestEvent, app core.App) error {
 
 	// Recalculate per-map aggregates for every affected map (skip cascading
 	// territory recalc per map; we do it once below).
-	mapIDSet := make(map[string]bool)
-	for _, record := range records {
-		if mapID, ok := record.Get("map").(string); ok && mapID != "" {
-			mapIDSet[mapID] = true
-		}
-	}
 	for mapID := range mapIDSet {
 		if err := ProcessMapAggregates(mapID, app, false); err != nil {
 			log.Printf("Error recalculating aggregates for map %s: %v", mapID, err)
