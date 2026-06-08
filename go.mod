@@ -8,7 +8,7 @@ require (
 	github.com/launchdarkly/go-server-sdk/v7 v7.15.2
 	github.com/mailersend/mailersend-go v1.6.4
 	github.com/openai/openai-go/v3 v3.39.0
-	github.com/pocketbase/pocketbase v0.39.1
+	github.com/pocketbase/pocketbase v0.39.2
 	github.com/xuri/excelize/v2 v2.10.1
 )
 
@@ -26,7 +26,7 @@ require (
 	github.com/launchdarkly/go-semver v1.0.4 // indirect
 	github.com/launchdarkly/go-server-sdk-evaluation/v4 v4.0.0 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
-	github.com/richardlehane/mscfb v1.0.6 // indirect
+	github.com/richardlehane/mscfb v1.0.7 // indirect
 	github.com/richardlehane/msoleps v1.0.6 // indirect
 	github.com/tidwall/gjson v1.19.0 // indirect
 	github.com/tidwall/match v1.2.0 // indirect
@@ -66,5 +66,5 @@ require (
 	golang.org/x/text v0.37.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
-	modernc.org/sqlite v1.51.0 // indirect
+	modernc.org/sqlite v1.52.0 // indirect
 )
