@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"regexp"
 	"strings"
@@ -81,30 +82,8 @@ var congIdPattern = regexp.MustCompile(`congregation\s*=\s*['"]([^'"]+)['"]`)
 var territoryIdPattern = regexp.MustCompile(`territory\s*=\s*['"]([^'"]+)['"]`)
 var userIdPattern = regexp.MustCompile(`user\s*=\s*['"]([^'"]+)['"]`)
 
-func extractAllMapIdsFromFilter(filter string) []string {
-	matches := mapIdPattern.FindAllStringSubmatch(filter, -1)
-	ids := make([]string, 0, len(matches))
-	for _, m := range matches {
-		if len(m) >= 2 {
-			ids = append(ids, m[1])
-		}
-	}
-	return ids
-}
-
-func extractAllCongIdsFromFilter(filter string) []string {
-	matches := congIdPattern.FindAllStringSubmatch(filter, -1)
-	ids := make([]string, 0, len(matches))
-	for _, m := range matches {
-		if len(m) >= 2 {
-			ids = append(ids, m[1])
-		}
-	}
-	return ids
-}
-
-func extractAllTerritoryIdsFromFilter(filter string) []string {
-	matches := territoryIdPattern.FindAllStringSubmatch(filter, -1)
+func extractIdsFromFilter(re *regexp.Regexp, filter string) []string {
+	matches := re.FindAllStringSubmatch(filter, -1)
 	ids := make([]string, 0, len(matches))
 	for _, m := range matches {
 		if len(m) >= 2 {
@@ -151,7 +130,7 @@ func getTerritoryCongregation(app core.App, territoryId string) string {
 // If link-id is present it takes precedence and must be valid; otherwise role check is used.
 // All map IDs present in the filter must be authorized.
 func authorizeMapSubscription(app core.App, auth *core.Record, linkId string, filter string) bool {
-	mapIds := uniqueStrings(extractAllMapIdsFromFilter(filter))
+	mapIds := uniqueStrings(extractIdsFromFilter(mapIdPattern, filter))
 	if len(mapIds) == 0 {
 		return false
 	}
@@ -162,26 +141,38 @@ func authorizeMapSubscription(app core.App, auth *core.Record, linkId string, fi
 	return auth != nil && authorizeUserForMaps(app, auth.Id, mapIds)
 }
 
-// isAdminAnywhere checks if the user is an administrator in any congregation.
-func isAdminAnywhere(app core.App, userId string) bool {
-	var v struct{ V int `db:"v"` }
+// hasRoleAnywhere checks if the user holds one of the given roles in any congregation.
+func hasRoleAnywhere(app core.App, userId string, roles ...string) bool {
+	var v struct {
+		V int `db:"v"`
+	}
+	params := dbx.Params{"userId": userId}
+	placeholders := make([]string, len(roles))
+	for i, role := range roles {
+		key := fmt.Sprintf("role%d", i)
+		params[key] = role
+		placeholders[i] = "{:" + key + "}"
+	}
 	err := app.DB().NewQuery(`
 		SELECT 1 as v FROM roles
-		WHERE user = {:userId} AND role = 'administrator'
+		WHERE user = {:userId} AND role IN (` + strings.Join(placeholders, ", ") + `)
 		LIMIT 1
-	`).Bind(dbx.Params{"userId": userId}).One(&v)
+	`).Bind(params).One(&v)
 	return err == nil
 }
 
-// isAdminOrConductorAnywhere checks if the user is an administrator or conductor in any congregation.
-func isAdminOrConductorAnywhere(app core.App, userId string) bool {
-	var v struct{ V int `db:"v"` }
-	err := app.DB().NewQuery(`
-		SELECT 1 as v FROM roles
-		WHERE user = {:userId} AND role IN ('administrator', 'conductor')
-		LIMIT 1
-	`).Bind(dbx.Params{"userId": userId}).One(&v)
-	return err == nil
+// authorizedForAllCongregations checks that the user has a role in every congregation listed.
+// Returns false for an empty list.
+func authorizedForAllCongregations(app core.App, userId string, congIds []string) bool {
+	if len(congIds) == 0 {
+		return false
+	}
+	for _, congId := range congIds {
+		if !AuthorizeByRole(app, userId, congId) {
+			return false
+		}
+	}
+	return true
 }
 
 var protectedCollections = map[string]bool{
@@ -190,49 +181,45 @@ var protectedCollections = map[string]bool{
 	"address_options": true,
 }
 
-// authorizeList validates access for a LIST request.
-// If link-id is present it takes precedence and must be valid; otherwise role check is used.
-func authorizeList(e *core.RecordsListRequestEvent, authCheck func() bool, linkCheck func(linkId string) bool) error {
-	if e.HasSuperuserAuth() {
-		return e.Next()
+// authorized validates link-id (takes precedence when present) or role access.
+// Returns "" when access is granted, otherwise the forbidden error message.
+func authorized(hasSuperuser bool, linkId string, auth *core.Record, authCheck func() bool, linkCheck func(linkId string) bool, authErrMsg string) string {
+	if hasSuperuser {
+		return ""
 	}
-	linkId := e.Request.Header.Get("link-id")
 	if linkId != "" {
 		if linkCheck(linkId) {
-			return e.Next()
+			return ""
 		}
-		return apis.NewForbiddenError("Unauthorized", nil)
+		return "Unauthorized"
 	}
-	if e.Auth != nil && authCheck() {
-		return e.Next()
+	if auth != nil && authCheck() {
+		return ""
 	}
-	return apis.NewForbiddenError("Unauthorized", nil)
+	return authErrMsg
+}
+
+// authorizeList validates access for a LIST request.
+func authorizeList(e *core.RecordsListRequestEvent, authCheck func() bool, linkCheck func(linkId string) bool) error {
+	if msg := authorized(e.HasSuperuserAuth(), e.Request.Header.Get("link-id"), e.Auth, authCheck, linkCheck, "Unauthorized"); msg != "" {
+		return apis.NewForbiddenError(msg, nil)
+	}
+	return e.Next()
 }
 
 // authorizeView validates access for a VIEW request.
-// If link-id is present it takes precedence and must be valid; otherwise role check is used.
 func authorizeView(e *core.RecordRequestEvent, authCheck func() bool, linkCheck func(linkId string) bool) error {
-	if e.HasSuperuserAuth() {
-		return e.Next()
+	if msg := authorized(e.HasSuperuserAuth(), e.Request.Header.Get("link-id"), e.Auth, authCheck, linkCheck, "Auth required"); msg != "" {
+		return apis.NewForbiddenError(msg, nil)
 	}
-	linkId := e.Request.Header.Get("link-id")
-	if linkId != "" {
-		if linkCheck(linkId) {
-			return e.Next()
-		}
-		return apis.NewForbiddenError("Unauthorized", nil)
-	}
-	if e.Auth != nil && authCheck() {
-		return e.Next()
-	}
-	return apis.NewForbiddenError("Auth required", nil)
+	return e.Next()
 }
 
 // linkMapListAuth validates map access for LIST requests.
 // If link-id is present it takes precedence and must be valid; otherwise role check is used.
 // All map IDs present in the filter must be authorized.
 func linkMapListAuth(e *core.RecordsListRequestEvent, app core.App) error {
-	mapIds := uniqueStrings(extractAllMapIdsFromFilter(e.Request.URL.Query().Get("filter")))
+	mapIds := uniqueStrings(extractIdsFromFilter(mapIdPattern, e.Request.URL.Query().Get("filter")))
 	return authorizeList(e,
 		func() bool { return len(mapIds) > 0 && authorizeUserForMaps(app, e.Auth.Id, mapIds) },
 		// A link-id is scoped to exactly one map; reject multi-map filters.
@@ -320,8 +307,8 @@ func RegisterAuthHooks(app core.App) {
 			return apis.NewForbiddenError("Auth required", nil)
 		}
 		filter := e.Request.URL.Query().Get("filter")
-		congIds := uniqueStrings(extractAllCongIdsFromFilter(filter))
-		for _, territoryId := range uniqueStrings(extractAllTerritoryIdsFromFilter(filter)) {
+		congIds := uniqueStrings(extractIdsFromFilter(congIdPattern, filter))
+		for _, territoryId := range uniqueStrings(extractIdsFromFilter(territoryIdPattern, filter)) {
 			if cid := getTerritoryCongregation(app, territoryId); cid != "" {
 				congIds = append(congIds, cid)
 			}
@@ -330,10 +317,8 @@ func RegisterAuthHooks(app core.App) {
 		if len(congIds) == 0 {
 			return apis.NewForbiddenError("Missing congregation or territory filter", nil)
 		}
-		for _, congId := range congIds {
-			if !AuthorizeByRole(app, e.Auth.Id, congId) {
-				return apis.NewForbiddenError("Unauthorized", nil)
-			}
+		if !authorizedForAllCongregations(app, e.Auth.Id, congIds) {
+			return apis.NewForbiddenError("Unauthorized", nil)
 		}
 		return e.Next()
 	})
@@ -347,14 +332,12 @@ func RegisterAuthHooks(app core.App) {
 			return apis.NewForbiddenError("Auth required", nil)
 		}
 		filter := e.Request.URL.Query().Get("filter")
-		congIds := uniqueStrings(extractAllCongIdsFromFilter(filter))
+		congIds := uniqueStrings(extractIdsFromFilter(congIdPattern, filter))
 		if len(congIds) == 0 {
 			return apis.NewForbiddenError("Missing congregation filter", nil)
 		}
-		for _, congId := range congIds {
-			if !AuthorizeByRole(app, e.Auth.Id, congId) {
-				return apis.NewForbiddenError("Unauthorized", nil)
-			}
+		if !authorizedForAllCongregations(app, e.Auth.Id, congIds) {
+			return apis.NewForbiddenError("Unauthorized", nil)
 		}
 		return e.Next()
 	})
@@ -393,7 +376,7 @@ func RegisterAuthHooks(app core.App) {
 		if e.Auth == nil {
 			return apis.NewForbiddenError("Auth required", nil)
 		}
-		if !isAdminAnywhere(app, e.Auth.Id) {
+		if !hasRoleAnywhere(app, e.Auth.Id, "administrator") {
 			return apis.NewForbiddenError("Administrator access required", nil)
 		}
 		return e.Next()
@@ -415,18 +398,10 @@ func RegisterAuthHooks(app core.App) {
 	// or link-id belongs to the single congregation queried.
 	app.OnRecordsListRequest("options").BindFunc(func(e *core.RecordsListRequestEvent) error {
 		filter := e.Request.URL.Query().Get("filter")
-		congIds := uniqueStrings(extractAllCongIdsFromFilter(filter))
+		congIds := uniqueStrings(extractIdsFromFilter(congIdPattern, filter))
 		return authorizeList(e,
 			func() bool {
-				if len(congIds) == 0 {
-					return false
-				}
-				for _, congId := range congIds {
-					if !AuthorizeByRole(app, e.Auth.Id, congId) {
-						return false
-					}
-				}
-				return true
+				return authorizedForAllCongregations(app, e.Auth.Id, congIds)
 			},
 			// A link-id is congregation-scoped; reject multi-congregation filters.
 			func(linkId string) bool {
@@ -457,12 +432,10 @@ func RegisterAuthHooks(app core.App) {
 			return apis.NewForbiddenError("Auth required", nil)
 		}
 		filter := e.Request.URL.Query().Get("filter")
-		congIds := uniqueStrings(extractAllCongIdsFromFilter(filter))
+		congIds := uniqueStrings(extractIdsFromFilter(congIdPattern, filter))
 		if len(congIds) > 0 {
-			for _, congId := range congIds {
-				if !AuthorizeByRole(app, e.Auth.Id, congId) {
-					return apis.NewForbiddenError("Unauthorized", nil)
-				}
+			if !authorizedForAllCongregations(app, e.Auth.Id, congIds) {
+				return apis.NewForbiddenError("Unauthorized", nil)
 			}
 			return e.Next()
 		}
@@ -485,7 +458,7 @@ func RegisterAuthHooks(app core.App) {
 		if e.Auth.Id == e.Record.Id {
 			return e.Next()
 		}
-		if !isAdminAnywhere(app, e.Auth.Id) {
+		if !hasRoleAnywhere(app, e.Auth.Id, "administrator") {
 			return apis.NewForbiddenError("Administrator access required", nil)
 		}
 		return e.Next()
@@ -500,7 +473,7 @@ func RegisterAuthHooks(app core.App) {
 			return apis.NewForbiddenError("Auth required", nil)
 		}
 		filter := e.Request.URL.Query().Get("filter")
-		mapIds := extractAllMapIdsFromFilter(filter)
+		mapIds := extractIdsFromFilter(mapIdPattern, filter)
 		if len(mapIds) > 0 {
 			if !authorizeUserForMaps(app, e.Auth.Id, mapIds) {
 				return apis.NewForbiddenError("Unauthorized", nil)
@@ -512,7 +485,7 @@ func RegisterAuthHooks(app core.App) {
 		if userId == e.Auth.Id {
 			return e.Next()
 		}
-		if !isAdminOrConductorAnywhere(app, e.Auth.Id) {
+		if !hasRoleAnywhere(app, e.Auth.Id, "administrator", "conductor") {
 			return apis.NewForbiddenError("Unauthorized", nil)
 		}
 		return e.Next()

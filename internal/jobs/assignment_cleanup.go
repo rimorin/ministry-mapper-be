@@ -9,25 +9,15 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// assignmentsCleanup removes expired assignments from the database.
-// It fetches all assignments that have an expiry date earlier than the current date,
-// and deletes them within a transaction. If no expired assignments are found, it logs
-// a message and returns without making any changes.
-//
-// Parameters:
-//   - app: A pointer to the PocketBase application instance.
-//
-// Returns:
-//   - error: An error if the cleanup process fails, otherwise nil.
-// RunAssignmentsCleanup is the exported entry point used by tests and the scheduler.
+// RunAssignmentsCleanup is the exported entry point used by tests.
 func RunAssignmentsCleanup(app core.App) error {
 	return assignmentsCleanup(app)
 }
 
+// assignmentsCleanup deletes all expired assignments within a transaction.
 func assignmentsCleanup(app core.App) error {
 	log.Println("Starting assignments cleanup")
 
-	// Fetch full records in one query — avoids a second FindRecordById per record inside the loop.
 	assignments, err := app.FindRecordsByFilter(
 		"assignments",
 		"expiry_date < {:current_date}",
@@ -44,8 +34,7 @@ func assignmentsCleanup(app core.App) error {
 		return nil
 	}
 
-	// Delete each record. Running inside a transaction keeps the deletions atomic
-	// and each txApp.Delete call fires PocketBase hooks/realtime events as expected.
+	// txApp.Delete (rather than raw SQL) so hooks/realtime events fire per record.
 	err = app.RunInTransaction(func(txApp core.App) error {
 		for _, assignment := range assignments {
 			handlers.LogAssignmentExpired(txApp, assignment)

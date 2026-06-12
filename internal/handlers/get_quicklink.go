@@ -43,23 +43,19 @@ type MapAggregates struct {
 // HandleTerritoryQuicklink automatically assigns the best available map to a user
 // based on workload balance, proximity, and completion progress.
 func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
-	// === INPUT VALIDATION ===
 	requestInfo, _ := c.RequestInfo()
 	data := requestInfo.Body
 
-	// Validate territory ID
 	territoryId, ok := data["territory"].(string)
 	if !ok || territoryId == "" {
 		return apis.NewBadRequestError("Territory ID is required", nil)
 	}
 
-	// Validate coordinates
 	coordinates, ok := data["coordinates"].(map[string]interface{})
 	if !ok || coordinates == nil {
 		return apis.NewBadRequestError("Coordinates are required", nil)
 	}
 
-	// Extract lat/lng values
 	latValue, latExists := coordinates["lat"]
 	longValue, longExists := coordinates["lng"]
 
@@ -67,7 +63,6 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 		return apis.NewBadRequestError("Both lat and long coordinates are required", nil)
 	}
 
-	// Validate coordinate types
 	currentLat, ok := latValue.(float64)
 	if !ok {
 		return apis.NewBadRequestError("Invalid latitude value", nil)
@@ -78,7 +73,6 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 		return apis.NewBadRequestError("Invalid longitude value", nil)
 	}
 
-	// Validate publisher
 	publisher, ok := data["publisher"].(string)
 	if !ok || publisher == "" {
 		return apis.NewBadRequestError("Publisher is required", nil)
@@ -86,8 +80,6 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 
 	userId := c.Auth.Id
 
-	// === MAP SELECTION ===
-	// Get all maps with assignment counts
 	maps, err := getMapsWithAssignmentCount(app, territoryId)
 	if err != nil {
 		return apis.NewNotFoundError("Error fetching maps", nil)
@@ -97,13 +89,11 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 		return apis.NewNotFoundError("No maps found for territory", nil)
 	}
 
-	// Find the best map using intelligent selection
 	bestMap := findBestMap(maps, currentLat, currentLong)
 	if bestMap == nil {
 		return apis.NewNotFoundError("No suitable map found", nil)
 	}
 
-	// === ASSIGNMENT CREATION ===
 	congregationId := bestMap.Congregation
 
 	expiryHours, err := getCongregationExpiryHours(app, congregationId)
@@ -111,28 +101,22 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 		return apis.NewNotFoundError("Error fetching expiry hours", nil)
 	}
 
-	// Create assignment record
 	assignmentId, err := createAssignment(app, bestMap.ID, userId, publisher, congregationId, expiryHours)
 	if err != nil {
 		return apis.NewBadRequestError("Error creating assignment", nil)
 	}
 
-	// Get other assignees for coordination
 	assignees, err := getMapAssignees(app, bestMap.ID, assignmentId)
 	if err != nil {
 		return apis.NewNotFoundError("Error fetching assignees", nil)
 	}
 
-	// === RESPONSE PREPARATION ===
-	// Parse map aggregates
 	var aggregates MapAggregates
 	if bestMap.Aggregates != "" {
 		if err := json.Unmarshal([]byte(bestMap.Aggregates), &aggregates); err != nil {
 			log.Printf("Error parsing aggregates for map %s: %v", bestMap.ID, err)
-			aggregates = MapAggregates{NotDone: 0, NotHome: 0}
+			aggregates = MapAggregates{}
 		}
-	} else {
-		aggregates = MapAggregates{NotDone: 0, NotHome: 0}
 	}
 
 	// Coordinates were already parsed in findBestMap — reuse the cached result.
@@ -141,7 +125,6 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 		coords = *bestMap.ParsedCoords
 	}
 
-	// Return assignment details and map information
 	return c.JSON(200, map[string]interface{}{
 		"linkId":      assignmentId,
 		"mapName":     bestMap.Description,
@@ -185,11 +168,9 @@ func getMapsWithAssignmentCount(app core.App, territoryId string) ([]MapWithDist
 func haversineDistance(lat1, lon1, lat2, lon2 float64) float64 {
 	const R = 6371000 // Earth radius in meters
 
-	// Convert to radians
 	dLat := (lat2 - lat1) * math.Pi / 180
 	dLon := (lon2 - lon1) * math.Pi / 180
 
-	// Apply Haversine formula
 	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
 		math.Cos(lat1*math.Pi/180)*math.Cos(lat2*math.Pi/180)*
 			math.Sin(dLon/2)*math.Sin(dLon/2)
@@ -202,7 +183,7 @@ func haversineDistance(lat1, lon1, lat2, lon2 float64) float64 {
 // findBestMap selects the optimal map based on assignment count, distance, and progress.
 // Priority: fewest assignments > proximity (50m threshold) > lowest progress.
 //
-// Uses three passes to avoid order-dependent results that a single greedy pass
+// Uses separate passes to avoid order-dependent results that a single greedy pass
 // produces when the 50m proximity window straddles multiple maps at different distances.
 func findBestMap(maps []MapWithDistance, currentLat, currentLong float64) *MapWithDistance {
 	if len(maps) == 0 {

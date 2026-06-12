@@ -85,8 +85,6 @@ func registerSentryLogForwarding(app core.App) {
 			entry = sentry.NewLogger(e.Context).Error()
 		case -3:
 			entry = sentry.NewLogger(e.Context).Warn()
-		case -2:
-			entry = sentry.NewLogger(e.Context).Info()
 		case -1:
 			entry = sentry.NewLogger(e.Context).Debug()
 		default:

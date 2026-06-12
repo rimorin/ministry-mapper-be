@@ -29,21 +29,7 @@ func countUniqueAddressCodes(app core.App, mapId string) (int, error) {
 	return result.Count, err
 }
 
-// HandleMapUpdateSequence handles the update of sequence numbers for multiple address codes within a map.
-// It retrieves the request information, extracts the list of codes with their new sequences and map ID from the request body,
-// and updates the sequence numbers using raw SQL for all address records with the specified codes and map ID.
-//
-// Parameters:
-//   - e: A pointer to the core.RequestEvent containing the request information.
-//   - app: A pointer to the pocketbase.PocketBase application instance.
-//
-// Returns:
-//   - error: An error if the update operation fails, otherwise nil.
-//
-// The function performs the following steps:
-//  1. Retrieves and validates the request body containing map ID and list of code/sequence pairs.
-//  2. Updates the sequence numbers for each code within a transaction.
-//  3. Returns an appropriate response based on the success or failure of the update operation.
+// HandleMapUpdateSequence updates sequence numbers for multiple address codes within a map.
 func HandleMapUpdateSequence(e *core.RequestEvent, app core.App) error {
 	data := UpdateMapSequenceRequest{}
 	if err := e.BindBody(&data); err != nil {
@@ -69,10 +55,8 @@ func HandleMapUpdateSequence(e *core.RequestEvent, app core.App) error {
 
 	log.Println("Updating sequences for", len(data.Codes), "codes in map", data.MapId)
 
-	// Update all addresses with the code/sequence pairs within a transaction
 	err = app.RunInTransaction(func(txApp core.App) error {
 		for _, codeSeq := range data.Codes {
-			// Find all address records with matching code and map
 			records, err := txApp.FindRecordsByFilter(
 				"addresses",
 				"code = {:code} && map = {:map}",
@@ -88,7 +72,6 @@ func HandleMapUpdateSequence(e *core.RequestEvent, app core.App) error {
 				return err
 			}
 
-			// Update sequence for each matching record
 			for _, record := range records {
 				record.Set("sequence", codeSeq.Sequence)
 				if err := txApp.Save(record); err != nil {
@@ -106,17 +89,8 @@ func HandleMapUpdateSequence(e *core.RequestEvent, app core.App) error {
 	return e.String(http.StatusOK, "Address sequences updated successfully")
 }
 
-// HandleMapDelete handles the deletion of addresses associated with a specific code and map ID.
-// It ensures that there is more than one address code before allowing the deletion.
-// It fetches the existing address records by code and map ID, and deletes them within a transaction.
-// After successful deletion, it processes map aggregates.
-//
-// Parameters:
-//   - c: The request event containing the request information.
-//   - app: The PocketBase application instance.
-//
-// Returns:
-//   - error: An error if the deletion process fails, otherwise nil.
+// HandleMapDelete deletes all addresses for a given code and map, refusing to
+// remove the last remaining code. Map aggregates are recalculated afterwards.
 func HandleMapDelete(c *core.RequestEvent, app core.App) error {
 	requestInfo, _ := c.RequestInfo()
 	data := requestInfo.Body
@@ -134,7 +108,6 @@ func HandleMapDelete(c *core.RequestEvent, app core.App) error {
 
 	log.Println("Deleting addresses for code", code, "in map", mapId)
 
-	// count address codes and ensure that there is more than one code
 	codeCount, err := countUniqueAddressCodes(app, mapId)
 	if err != nil {
 		return apis.NewNotFoundError("Error counting address codes", nil)
@@ -144,13 +117,11 @@ func HandleMapDelete(c *core.RequestEvent, app core.App) error {
 		return apis.NewBadRequestError("Cannot delete the last address code", nil)
 	}
 
-	// Fetch the existing address record by code and map ID
 	addressRecords, err := fetchAddressesByCode(app, code, mapId)
 	if err != nil {
 		return apis.NewNotFoundError("Error fetching address", nil)
 	}
 
-	// delete all addresses with the same code and map ID as transaction
 	err = app.RunInTransaction(func(txApp core.App) error {
 		for _, addressRecord := range addressRecords {
 			if err := txApp.Delete(addressRecord); err != nil {

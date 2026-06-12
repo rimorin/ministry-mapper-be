@@ -9,18 +9,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// HandleResetMap handles the reset of a map by updating the status of addresses associated with the map.
-// It fetches the addresses with a specific map ID and status of 'not_home' or 'done', and resets their status to 'not_done' and 'not_home_tries' to 0.
-// The function runs within a transaction to ensure atomicity.
-// If any error occurs during the process, it returns an appropriate error message.
-// Map and territory aggregates are recalculated synchronously after the transaction.
-//
-// Parameters:
-// - e: A pointer to core.RequestEvent containing the request information.
-// - app: A pointer to pocketbase.PocketBase instance for database operations.
-//
-// Returns:
-// - error: An error object if any error occurs during the process, otherwise nil.
+// HandleResetMap resets a map's 'not_home' and 'done' addresses back to 'not_done'
+// and recalculates aggregates afterwards.
 func HandleResetMap(e *core.RequestEvent, app core.App) error {
 	requestInfo, _ := e.RequestInfo()
 	userName := e.Auth.Get("name").(string)
@@ -82,22 +72,8 @@ func ResetMapTerritory(mapId string, app core.App) error {
 	return nil
 }
 
-// HandleResetTerritory handles the reset of a territory by updating the status of addresses
-// and processing the related map and territory aggregates synchronously.
-//
-// Parameters:
-//   - c: A pointer to core.RequestEvent containing the request context.
-//   - app: A pointer to pocketbase.PocketBase instance.
-//
-// Returns:
-//   - error: An error object if an error occurs, otherwise nil.
-//
-// The function performs the following steps:
-//  1. Retrieves the territory ID from the request body.
-//  2. Fetches addresses associated with the territory that have a status of 'not_home' or 'done'.
-//  3. Runs a transaction to update the status of these addresses to 'not_done' and resets the 'not_home_tries' count.
-//  4. Recalculates map aggregates for each affected map, then territory aggregates.
-//  5. Returns a JSON response indicating the success of the operation.
+// HandleResetTerritory resets a territory's 'not_home' and 'done' addresses back
+// to 'not_done', then recalculates aggregates for each affected map and the territory.
 func HandleResetTerritory(c *core.RequestEvent, app core.App) error {
 	requestInfo, _ := c.RequestInfo()
 	userName := c.Auth.Get("name").(string)

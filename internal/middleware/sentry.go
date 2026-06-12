@@ -72,28 +72,6 @@ func enrichScopeWithRequest(scope *sentry.Scope, c *core.RequestEvent) {
 	scope.SetTag("http_path", req.URL.Path)
 }
 
-func AddBreadcrumb(category, message string, level sentry.Level, data map[string]interface{}) {
-	sentry.CurrentHub().AddBreadcrumb(&sentry.Breadcrumb{
-		Category:  category,
-		Message:   message,
-		Level:     level,
-		Data:      data,
-		Timestamp: time.Now(),
-	}, nil)
-}
-
-func AddTag(key, value string) {
-	sentry.CurrentHub().ConfigureScope(func(scope *sentry.Scope) {
-		scope.SetTag(key, value)
-	})
-}
-
-func AddContext(key string, data map[string]interface{}) {
-	sentry.CurrentHub().ConfigureScope(func(scope *sentry.Scope) {
-		scope.SetContext(key, data)
-	})
-}
-
 // WithJobRecovery wraps background job functions with panic recovery and error capture.
 func WithJobRecovery(jobName string, fn func() error) {
 	hub := sentry.CurrentHub().Clone()

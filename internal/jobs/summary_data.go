@@ -3,6 +3,7 @@ package jobs
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -334,17 +335,12 @@ func queryMonthlyActivityByTerritory(app core.App, congregationId string, period
 		}
 	}
 
-	// Collect into sorted slice (consistent ordering for prompt)
+	// Collect into a slice sorted by territory code (consistent ordering for prompt)
 	result := make([]TerritoryMonthlyActivity, 0, len(byTerritory))
 	for _, v := range byTerritory {
 		result = append(result, *v)
 	}
-	// Sort by territory code
-	for i := 1; i < len(result); i++ {
-		for j := i; j > 0 && result[j].TerritoryCode < result[j-1].TerritoryCode; j-- {
-			result[j], result[j-1] = result[j-1], result[j]
-		}
-	}
+	sort.Slice(result, func(i, j int) bool { return result[i].TerritoryCode < result[j].TerritoryCode })
 	return result, nil
 }
 
@@ -418,8 +414,9 @@ func queryMapHealth(app core.App, congregationId string) (stalled, completed, hi
 		return nil, nil, nil, fmt.Errorf("query map health: %w", err)
 	}
 
-	for _, r := range rows {
-		item := MapHealthItem{
+	items := make([]MapHealthItem, len(rows))
+	for i, r := range rows {
+		items[i] = MapHealthItem{
 			TerritoryCode:  r.TerritoryCode,
 			MapCode:        r.MapCode,
 			MapDescription: r.MapDescription,
@@ -428,30 +425,16 @@ func queryMapHealth(app core.App, congregationId string) (stalled, completed, hi
 			NotDone:        r.NotDone,
 		}
 		if r.Progress == 0 && r.NotDone > 0 {
-			stalled = append(stalled, item)
+			stalled = append(stalled, items[i])
 		}
 		if r.Progress >= 100 {
-			completed = append(completed, item)
+			completed = append(completed, items[i])
 		}
 	}
 
 	// Top 3 maps by DNC count (minimum 1 DNC to be relevant)
-	byDNC := make([]MapHealthItem, len(rows))
-	for i, r := range rows {
-		byDNC[i] = MapHealthItem{
-			TerritoryCode:  r.TerritoryCode,
-			MapCode:        r.MapCode,
-			MapDescription: r.MapDescription,
-			Progress:       r.Progress,
-			DNC:            r.DNC,
-			NotDone:        r.NotDone,
-		}
-	}
-	for i := 1; i < len(byDNC); i++ {
-		for j := i; j > 0 && byDNC[j].DNC > byDNC[j-1].DNC; j-- {
-			byDNC[j], byDNC[j-1] = byDNC[j-1], byDNC[j]
-		}
-	}
+	byDNC := append([]MapHealthItem(nil), items...)
+	sort.SliceStable(byDNC, func(i, j int) bool { return byDNC[i].DNC > byDNC[j].DNC })
 	for i, m := range byDNC {
 		if i >= 3 || m.DNC == 0 {
 			break
@@ -777,18 +760,8 @@ func truncate(s string, n int) string {
 }
 
 func statusLabel(status string) string {
-	switch status {
-	case "done":
-		return "done"
-	case "not_done":
+	if status == "not_done" {
 		return "not_done (resets)"
-	case "not_home":
-		return "not_home"
-	case "do_not_call":
-		return "do_not_call"
-	case "invalid":
-		return "invalid"
-	default:
-		return status
 	}
+	return status
 }

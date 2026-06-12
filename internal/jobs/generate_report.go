@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"sync"
@@ -59,11 +60,6 @@ type ReportTemplateData struct {
 	RecipientName    string
 	IsOnDemand       bool
 	Summary          SummaryData
-}
-
-type ReportRecipient struct {
-	Name  string `db:"name"`
-	Email string `db:"email"`
 }
 
 func GenerateMonthlyReport(app core.App, aiEnabled bool) {
@@ -300,6 +296,34 @@ func getPercentageCellStyle(f *excelize.File, alternate bool) (int, error) {
 	})
 }
 
+func getDetailLabelStyle(f *excelize.File) (int, error) {
+	return f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Bold: true, Size: 11, Color: "1F4E79", Family: "Calibri"},
+		Fill:      excelize.Fill{Type: "pattern", Color: []string{"E8F3FF"}, Pattern: 1},
+		Alignment: &excelize.Alignment{Horizontal: "left", Vertical: "center", Indent: 1},
+		Border: []excelize.Border{
+			{Type: "left", Color: "4A90B8", Style: 2},
+			{Type: "top", Color: "4A90B8", Style: 2},
+			{Type: "bottom", Color: "4A90B8", Style: 2},
+			{Type: "right", Color: "4A90B8", Style: 2},
+		},
+	})
+}
+
+func getDetailValueStyle(f *excelize.File) (int, error) {
+	return f.NewStyle(&excelize.Style{
+		Font:      &excelize.Font{Size: 11, Color: "333333", Family: "Calibri"},
+		Fill:      excelize.Fill{Type: "pattern", Color: []string{"FFFFFF"}, Pattern: 1},
+		Alignment: &excelize.Alignment{Horizontal: "left", Vertical: "center", Indent: 1},
+		Border: []excelize.Border{
+			{Type: "left", Color: "8EAADB", Style: 1},
+			{Type: "top", Color: "8EAADB", Style: 1},
+			{Type: "bottom", Color: "8EAADB", Style: 1},
+			{Type: "right", Color: "8EAADB", Style: 1},
+		},
+	})
+}
+
 func parseProgressValue(value interface{}) (float64, bool) {
 	if value == nil {
 		return 0, false
@@ -342,30 +366,8 @@ func createDetailsSheet(app core.App, f *excelize.File, congregation *core.Recor
 
 	mainHeaderStyle, _ := getMainHeaderStyle(f)
 	sectionHeaderStyle, _ := getSectionHeaderStyle(f)
-
-	detailLabelStyle, _ := f.NewStyle(&excelize.Style{
-		Font:      &excelize.Font{Bold: true, Size: 11, Color: "1F4E79", Family: "Calibri"},
-		Fill:      excelize.Fill{Type: "pattern", Color: []string{"E8F3FF"}, Pattern: 1},
-		Alignment: &excelize.Alignment{Horizontal: "left", Vertical: "center", Indent: 1},
-		Border: []excelize.Border{
-			{Type: "left", Color: "4A90B8", Style: 2},
-			{Type: "top", Color: "4A90B8", Style: 2},
-			{Type: "bottom", Color: "4A90B8", Style: 2},
-			{Type: "right", Color: "4A90B8", Style: 2},
-		},
-	})
-
-	detailValueStyle, _ := f.NewStyle(&excelize.Style{
-		Font:      &excelize.Font{Size: 11, Color: "333333", Family: "Calibri"},
-		Fill:      excelize.Fill{Type: "pattern", Color: []string{"FFFFFF"}, Pattern: 1},
-		Alignment: &excelize.Alignment{Horizontal: "left", Vertical: "center", Indent: 1},
-		Border: []excelize.Border{
-			{Type: "left", Color: "8EAADB", Style: 1},
-			{Type: "top", Color: "8EAADB", Style: 1},
-			{Type: "bottom", Color: "8EAADB", Style: 1},
-			{Type: "right", Color: "8EAADB", Style: 1},
-		},
-	})
+	detailLabelStyle, _ := getDetailLabelStyle(f)
+	detailValueStyle, _ := getDetailValueStyle(f)
 
 	f.SetCellStyle(sheet, "A1", "B1", mainHeaderStyle)
 	f.SetCellStyle(sheet, "A8", "B8", sectionHeaderStyle)
@@ -547,18 +549,18 @@ func createAddressSheet(app core.App, f *excelize.File, congregation *core.Recor
 	tableHeaderStyle, _ := getTableHeaderStyle(f)
 
 	addresses := []struct {
-		MapDescription      string `db:"map_description"`
-		MapType             string `db:"map_type"`
-		Floor               int    `db:"floor"`
-		Code                string `db:"code"`
-		Status              string `db:"status"`
-		TypeCodes           string `db:"type_codes"`
-		Notes               string `db:"notes"`
-		LastNotesUpdated    string `db:"last_notes_updated"`
-		LastNotesUpdatedBy  string `db:"last_notes_updated_by"`
-		Updated             string `db:"updated"`
-		UpdatedBy           string `db:"updated_by"`
-		DncTime             string `db:"dnc_time"`
+		MapDescription     string `db:"map_description"`
+		MapType            string `db:"map_type"`
+		Floor              int    `db:"floor"`
+		Code               string `db:"code"`
+		Status             string `db:"status"`
+		TypeCodes          string `db:"type_codes"`
+		Notes              string `db:"notes"`
+		LastNotesUpdated   string `db:"last_notes_updated"`
+		LastNotesUpdatedBy string `db:"last_notes_updated_by"`
+		Updated            string `db:"updated"`
+		UpdatedBy          string `db:"updated_by"`
+		DncTime            string `db:"dnc_time"`
 	}{}
 
 	err = app.DB().
@@ -617,14 +619,14 @@ func createAddressSheet(app core.App, f *excelize.File, congregation *core.Recor
 
 	for i, addr := range addresses {
 		mapDesc := defaultIfEmpty(addr.MapDescription, "N/A")
-		
+
 		address := formatAddress(addr.MapType, addr.Code, addr.Floor)
 		status := defaultIfEmpty(addr.Status, "N/A")
 		typeDesc := defaultIfEmpty(addr.TypeCodes, "N/A")
 		notes := defaultIfEmpty(addr.Notes, "N/A")
 		noteUpdated := formatDate(addr.LastNotesUpdated)
 		lastUpdated := formatDate(addr.Updated)
-		
+
 		dncDate, dncDuration := "", ""
 		if addr.Status == "do_not_call" {
 			timeStr := defaultIfEmpty(addr.DncTime, addr.Updated)
@@ -695,7 +697,7 @@ func createTerritorySheet(app core.App, f *excelize.File, territory *core.Record
 	existingSheets := f.GetSheetList()
 	originalSheetName := sheetName
 	counter := 1
-	for contains(existingSheets, sheetName) {
+	for slices.Contains(existingSheets, sheetName) {
 		// If duplicate, try using territory ID to make it unique
 		if counter == 1 {
 			territoryIdShort := territory.Id[:8]
@@ -728,97 +730,20 @@ func createTerritorySheet(app core.App, f *excelize.File, territory *core.Record
 	f.SetCellValue(sheetName, "A3", "Description")
 	f.SetCellValue(sheetName, "B3", territory.Get("description"))
 	f.SetCellValue(sheetName, "A4", "Progress")
-	if progressValue := territory.Get("progress"); progressValue != nil {
-		// Convert progress to percentage string for territory details display
-		// Note: Using string formatting instead of Excel percentage formatting for better reliability
-		var progressStr string
-		switch v := progressValue.(type) {
-		case float64:
-			progressStr = fmt.Sprintf("%.0f%%", v)
-		case int:
-			progressStr = fmt.Sprintf("%d%%", v)
-		case string:
-			if num, err := strconv.ParseFloat(v, 64); err == nil {
-				progressStr = fmt.Sprintf("%.0f%%", num)
-			} else {
-				progressStr = "N/A"
-			}
-		default:
-			progressStr = "N/A"
-		}
-		f.SetCellValue(sheetName, "B4", progressStr)
-		detailValueStyle, _ := f.NewStyle(&excelize.Style{
-			Font: &excelize.Font{Size: 11, Color: "333333", Family: "Calibri"},
-			Fill: excelize.Fill{Type: "pattern", Color: []string{"FFFFFF"}, Pattern: 1},
-			Alignment: &excelize.Alignment{
-				Horizontal: "left",
-				Vertical:   "center",
-				Indent:     1,
-			},
-			Border: []excelize.Border{
-				{Type: "left", Color: "8EAADB", Style: 1},
-				{Type: "top", Color: "8EAADB", Style: 1},
-				{Type: "bottom", Color: "8EAADB", Style: 1},
-				{Type: "right", Color: "8EAADB", Style: 1},
-			},
-		})
-		f.SetCellStyle(sheetName, "B4", "B4", detailValueStyle)
+	if num, ok := parseProgressValue(territory.Get("progress")); ok {
+		f.SetCellValue(sheetName, "B4", fmt.Sprintf("%.0f%%", num*100))
 	} else {
 		f.SetCellValue(sheetName, "B4", "N/A")
 	}
 	f.SetCellValue(sheetName, "A5", "Territory ID")
 	f.SetCellValue(sheetName, "B5", territory.Id)
 
-	territoryHeaderStyle, _ := f.NewStyle(&excelize.Style{
-		Font: &excelize.Font{Bold: true, Size: 16, Color: "FFFFFF", Family: "Calibri"},
-		Fill: excelize.Fill{Type: "pattern", Color: []string{"1F4E79"}, Pattern: 1}, // Consistent with main header
-		Alignment: &excelize.Alignment{
-			Horizontal: "left",
-			Vertical:   "center",
-			Indent:     1,
-		},
-		Border: []excelize.Border{
-			{Type: "left", Color: "1F4E79", Style: 2},
-			{Type: "top", Color: "1F4E79", Style: 2},
-			{Type: "bottom", Color: "1F4E79", Style: 2},
-			{Type: "right", Color: "1F4E79", Style: 2},
-		},
-	})
+	territoryHeaderStyle, _ := getMainHeaderStyle(f)
+	detailLabelStyle, _ := getDetailLabelStyle(f)
+	detailValueStyle, _ := getDetailValueStyle(f)
 
-	detailLabelStyle, _ := f.NewStyle(&excelize.Style{
-		Font: &excelize.Font{Bold: true, Size: 11, Color: "1F4E79", Family: "Calibri"},
-		Fill: excelize.Fill{Type: "pattern", Color: []string{"E8F3FF"}, Pattern: 1}, // Consistent light blue
-		Alignment: &excelize.Alignment{
-			Horizontal: "left",
-			Vertical:   "center",
-			Indent:     1,
-		},
-		Border: []excelize.Border{
-			{Type: "left", Color: "4A90B8", Style: 2},   // Strong border for territory labels
-			{Type: "top", Color: "4A90B8", Style: 2},    // Strong border for territory labels
-			{Type: "bottom", Color: "4A90B8", Style: 2}, // Strong border for territory labels
-			{Type: "right", Color: "4A90B8", Style: 2},  // Strong border for territory labels
-		},
-	})
-
-	f.SetCellStyle(sheetName, "A1", "F1", territoryHeaderStyle) // Apply style to merged header
+	f.SetCellStyle(sheetName, "A1", "F1", territoryHeaderStyle)
 	f.SetCellStyle(sheetName, "A2", "A5", detailLabelStyle)
-
-	detailValueStyle, _ := f.NewStyle(&excelize.Style{
-		Font: &excelize.Font{Size: 11, Color: "333333", Family: "Calibri"},
-		Fill: excelize.Fill{Type: "pattern", Color: []string{"FFFFFF"}, Pattern: 1},
-		Alignment: &excelize.Alignment{
-			Horizontal: "left",
-			Vertical:   "center",
-			Indent:     1,
-		},
-		Border: []excelize.Border{
-			{Type: "left", Color: "8EAADB", Style: 1},   // Visible border for territory values
-			{Type: "top", Color: "8EAADB", Style: 1},    // Visible border for territory values
-			{Type: "bottom", Color: "8EAADB", Style: 1}, // Visible border for territory values
-			{Type: "right", Color: "8EAADB", Style: 1},  // Visible border for territory values
-		},
-	})
 	f.SetCellStyle(sheetName, "B2", "B5", detailValueStyle)
 
 	f.SetColWidth(sheetName, "A", "A", 20)
@@ -844,21 +769,7 @@ func createTerritorySheet(app core.App, f *excelize.File, territory *core.Record
 	f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), "Maps Overview")
 	f.MergeCell(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row))
 
-	mapsOverviewHeaderStyle, _ := f.NewStyle(&excelize.Style{
-		Font: &excelize.Font{Bold: true, Size: 14, Color: "FFFFFF", Family: "Calibri"},
-		Fill: excelize.Fill{Type: "pattern", Color: []string{"4A90B8"}, Pattern: 1}, // Consistent with section headers
-		Alignment: &excelize.Alignment{
-			Horizontal: "left",
-			Vertical:   "center",
-			Indent:     1,
-		},
-		Border: []excelize.Border{
-			{Type: "left", Color: "4A90B8", Style: 1},
-			{Type: "top", Color: "4A90B8", Style: 1},
-			{Type: "bottom", Color: "4A90B8", Style: 1},
-			{Type: "right", Color: "4A90B8", Style: 1},
-		},
-	})
+	mapsOverviewHeaderStyle, _ := getSectionHeaderStyle(f)
 	f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row), mapsOverviewHeaderStyle)
 	f.SetRowHeight(sheetName, row, 30)
 	row++
@@ -872,20 +783,7 @@ func createTerritorySheet(app core.App, f *excelize.File, territory *core.Record
 		f.SetCellValue(sheetName, fmt.Sprintf("B%d", row), "Type")
 		f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), "Progress")
 
-		overviewHeaderStyle, _ := f.NewStyle(&excelize.Style{
-			Font: &excelize.Font{Bold: true, Size: 12, Color: "FFFFFF", Family: "Calibri"},
-			Fill: excelize.Fill{Type: "pattern", Color: []string{"2E75B6"}, Pattern: 1}, // Consistent blue
-			Alignment: &excelize.Alignment{
-				Horizontal: "center",
-				Vertical:   "center",
-			},
-			Border: []excelize.Border{
-				{Type: "left", Color: "1F4E79", Style: 2},   // Strong dark border
-				{Type: "top", Color: "1F4E79", Style: 2},    // Strong dark border
-				{Type: "bottom", Color: "1F4E79", Style: 2}, // Strong dark border
-				{Type: "right", Color: "1F4E79", Style: 2},  // Strong dark border
-			},
-		})
+		overviewHeaderStyle, _ := getTableHeaderStyle(f)
 		f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row), overviewHeaderStyle)
 		f.SetRowHeight(sheetName, row, 28)
 		row++
@@ -895,75 +793,30 @@ func createTerritorySheet(app core.App, f *excelize.File, territory *core.Record
 			f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), mapRecord.Get("description"))
 			f.SetCellValue(sheetName, fmt.Sprintf("B%d", row), mapRecord.Get("type"))
 
-			// Handle map progress and format as percentage
-			mapProgressValue := mapRecord.Get("progress")
-			if mapProgressValue != nil {
-				var mapProgressNum float64
-				var isNumeric bool
-
-				switch v := mapProgressValue.(type) {
-				case float64:
-					mapProgressNum = v
-					isNumeric = true
-				case int:
-					mapProgressNum = float64(v)
-					isNumeric = true
-				case string:
-					if num, err := strconv.ParseFloat(v, 64); err == nil {
-						mapProgressNum = num
-						isNumeric = true
-					}
-				}
-
-				if isNumeric {
-					f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), mapProgressNum/100)
-				} else {
-					if progressStr := fmt.Sprintf("%v", mapProgressValue); progressStr != "" && progressStr != "<nil>" {
-						if num, err := strconv.ParseFloat(progressStr, 64); err == nil {
-							f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), num/100)
-						} else {
-							f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), progressStr)
-						}
-					} else {
-						f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), "N/A")
-					}
-				}
+			if num, ok := parseProgressValue(mapRecord.Get("progress")); ok {
+				f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), num)
 			} else {
 				f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), "N/A")
 			}
 
-			var overviewRowStyle int
+			rowColor := "FFFFFF"
 			if i%2 == 0 {
-				overviewRowStyle, _ = f.NewStyle(&excelize.Style{
-					Font: &excelize.Font{Size: 10, Color: "000000"},
-					Fill: excelize.Fill{Type: "pattern", Color: []string{"F8F9FA"}, Pattern: 1},
-					Alignment: &excelize.Alignment{
-						Horizontal: "left",
-						Vertical:   "center",
-					},
-					Border: []excelize.Border{
-						{Type: "left", Color: "8EAADB", Style: 1},   // Visible border
-						{Type: "top", Color: "8EAADB", Style: 1},    // Visible border
-						{Type: "bottom", Color: "8EAADB", Style: 1}, // Visible border
-						{Type: "right", Color: "8EAADB", Style: 1},  // Visible border
-					},
-				})
-			} else {
-				overviewRowStyle, _ = f.NewStyle(&excelize.Style{
-					Font: &excelize.Font{Size: 10, Color: "000000"},
-					Fill: excelize.Fill{Type: "pattern", Color: []string{"FFFFFF"}, Pattern: 1},
-					Alignment: &excelize.Alignment{
-						Horizontal: "left",
-						Vertical:   "center",
-					},
-					Border: []excelize.Border{
-						{Type: "left", Color: "8EAADB", Style: 1},   // Visible border
-						{Type: "top", Color: "8EAADB", Style: 1},    // Visible border
-						{Type: "bottom", Color: "8EAADB", Style: 1}, // Visible border
-						{Type: "right", Color: "8EAADB", Style: 1},  // Visible border
-					},
-				})
+				rowColor = "F8F9FA"
 			}
+			overviewRowStyle, _ := f.NewStyle(&excelize.Style{
+				Font: &excelize.Font{Size: 10, Color: "000000"},
+				Fill: excelize.Fill{Type: "pattern", Color: []string{rowColor}, Pattern: 1},
+				Alignment: &excelize.Alignment{
+					Horizontal: "left",
+					Vertical:   "center",
+				},
+				Border: []excelize.Border{
+					{Type: "left", Color: "8EAADB", Style: 1},
+					{Type: "top", Color: "8EAADB", Style: 1},
+					{Type: "bottom", Color: "8EAADB", Style: 1},
+					{Type: "right", Color: "8EAADB", Style: 1},
+				},
+			})
 			f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("B%d", row), overviewRowStyle)
 
 			progressStyle, _ := getPercentageCellStyle(f, i%2 == 0)
@@ -1045,16 +898,13 @@ func createTerritorySheet(app core.App, f *excelize.File, territory *core.Record
 		f.SetRowHeight(sheetName, row, 30)
 		row++
 
-		if err := createAddressTable(app, f, sheetName, mapRecord, options, &row); err != nil {
+		if err := createAddressTable(app, f, sheetName, mapRecord, options, addresses, &row); err != nil {
 			log.Printf("Failed to create address table for map %s: %v", mapRecord.Get("description"), err)
 		}
 
 		if len(maps) > 1 {
 			row += 3
 		}
-
-		// Apply border styling to the table (no need for borders as cells already have them)
-		// The individual cells already have proper styling applied in createAddressTable
 	}
 
 	f.SetColWidth(sheetName, "A", "A", 25)
@@ -1066,20 +916,7 @@ func createTerritorySheet(app core.App, f *excelize.File, territory *core.Record
 	return nil
 }
 
-func createAddressTable(app core.App, f *excelize.File, sheetName string, mapRecord *core.Record, options []*core.Record, startRow *int) error {
-	// Get addresses for this map
-	addresses, err := app.FindRecordsByFilter(
-		"addresses",
-		"map = {:map}",
-		"sequence, floor",
-		0,
-		0,
-		dbx.Params{"map": mapRecord.Id},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to fetch addresses: %v", err)
-	}
-
+func createAddressTable(app core.App, f *excelize.File, sheetName string, mapRecord *core.Record, options []*core.Record, addresses []*core.Record, startRow *int) error {
 	if len(addresses) == 0 {
 		f.SetCellValue(sheetName, fmt.Sprintf("A%d", *startRow), "No addresses found")
 		*startRow++
@@ -1207,16 +1044,16 @@ func createAddressTable(app core.App, f *excelize.File, sheetName string, mapRec
 
 	headerStyleID, _ := f.NewStyle(&excelize.Style{
 		Font: &excelize.Font{Bold: true, Size: 11, Color: "FFFFFF", Family: "Calibri"},
-		Fill: excelize.Fill{Type: "pattern", Color: []string{"2E75B6"}, Pattern: 1}, // Consistent professional blue
+		Fill: excelize.Fill{Type: "pattern", Color: []string{"2E75B6"}, Pattern: 1},
 		Alignment: &excelize.Alignment{
 			Horizontal: "center",
 			Vertical:   "center",
 		},
 		Border: []excelize.Border{
-			{Type: "left", Color: "1F4E79", Style: 2},   // Thick dark blue border
-			{Type: "top", Color: "1F4E79", Style: 2},    // Thick dark blue border
-			{Type: "bottom", Color: "1F4E79", Style: 2}, // Thick dark blue border
-			{Type: "right", Color: "1F4E79", Style: 2},  // Thick dark blue border
+			{Type: "left", Color: "1F4E79", Style: 2},
+			{Type: "top", Color: "1F4E79", Style: 2},
+			{Type: "bottom", Color: "1F4E79", Style: 2},
+			{Type: "right", Color: "1F4E79", Style: 2},
 		},
 	})
 
@@ -1230,20 +1067,7 @@ func createAddressTable(app core.App, f *excelize.File, sheetName string, mapRec
 
 	*startRow++
 
-	floorHeaderStyleID, _ := f.NewStyle(&excelize.Style{
-		Font: &excelize.Font{Bold: true, Size: 11, Color: "FFFFFF", Family: "Calibri"},
-		Fill: excelize.Fill{Type: "pattern", Color: []string{"2E75B6"}, Pattern: 1}, // Consistent with table headers
-		Alignment: &excelize.Alignment{
-			Horizontal: "center",
-			Vertical:   "center",
-		},
-		Border: []excelize.Border{
-			{Type: "left", Color: "1F4E79", Style: 2},   // Thick dark blue border
-			{Type: "top", Color: "1F4E79", Style: 2},    // Thick dark blue border
-			{Type: "bottom", Color: "1F4E79", Style: 2}, // Thick dark blue border
-			{Type: "right", Color: "1F4E79", Style: 2},  // Thick dark blue border
-		},
-	})
+	floorHeaderStyleID := headerStyleID
 
 	dataCellStyleID, _ := f.NewStyle(&excelize.Style{
 		Font: &excelize.Font{Size: 10, Color: "333333", Family: "Calibri"},
@@ -1253,25 +1077,25 @@ func createAddressTable(app core.App, f *excelize.File, sheetName string, mapRec
 			Vertical:   "center",
 		},
 		Border: []excelize.Border{
-			{Type: "left", Color: "8EAADB", Style: 1},   // Medium blue border for visibility
-			{Type: "top", Color: "8EAADB", Style: 1},    // Medium blue border for visibility
-			{Type: "bottom", Color: "8EAADB", Style: 1}, // Medium blue border for visibility
-			{Type: "right", Color: "8EAADB", Style: 1},  // Medium blue border for visibility
+			{Type: "left", Color: "8EAADB", Style: 1},
+			{Type: "top", Color: "8EAADB", Style: 1},
+			{Type: "bottom", Color: "8EAADB", Style: 1},
+			{Type: "right", Color: "8EAADB", Style: 1},
 		},
 	})
 
 	dataCellAltStyleID, _ := f.NewStyle(&excelize.Style{
 		Font: &excelize.Font{Size: 10, Color: "333333", Family: "Calibri"},
-		Fill: excelize.Fill{Type: "pattern", Color: []string{"F8FBFF"}, Pattern: 1}, // Very light blue
+		Fill: excelize.Fill{Type: "pattern", Color: []string{"F8FBFF"}, Pattern: 1},
 		Alignment: &excelize.Alignment{
 			Horizontal: "center",
 			Vertical:   "center",
 		},
 		Border: []excelize.Border{
-			{Type: "left", Color: "8EAADB", Style: 1},   // Medium blue border for visibility
-			{Type: "top", Color: "8EAADB", Style: 1},    // Medium blue border for visibility
-			{Type: "bottom", Color: "8EAADB", Style: 1}, // Medium blue border for visibility
-			{Type: "right", Color: "8EAADB", Style: 1},  // Medium blue border for visibility
+			{Type: "left", Color: "8EAADB", Style: 1},
+			{Type: "top", Color: "8EAADB", Style: 1},
+			{Type: "bottom", Color: "8EAADB", Style: 1},
+			{Type: "right", Color: "8EAADB", Style: 1},
 		},
 	})
 
@@ -1291,21 +1115,7 @@ func createAddressTable(app core.App, f *excelize.File, sheetName string, mapRec
 			}
 
 			if targetAddr != nil {
-				typeCode := typesByAddr[targetAddr.Id]
-
-				status := fmt.Sprintf("%v", targetAddr.Get("status"))
-				statusSymbol := getStatusSymbol(status)
-				var cellValue string
-
-				if typeCode != "" && statusSymbol != "" {
-					cellValue = fmt.Sprintf("%s %s", typeCode, statusSymbol)
-				} else if typeCode != "" {
-					cellValue = typeCode
-				} else if statusSymbol != "" {
-					cellValue = statusSymbol
-				} else {
-					cellValue = ""
-				}
+				cellValue := addressCellValue(typesByAddr[targetAddr.Id], getStatusSymbol(fmt.Sprintf("%v", targetAddr.Get("status"))))
 				f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col, row), cellValue)
 			}
 		}
@@ -1328,21 +1138,7 @@ func createAddressTable(app core.App, f *excelize.File, sheetName string, mapRec
 				f.SetCellStyle(sheetName, fmt.Sprintf("%s%d", col, row), fmt.Sprintf("%s%d", col, row), currentDataStyleID)
 
 				if addr, exists := addressGrid[seq][floor]; exists {
-					typeCode := typesByAddr[addr.Id]
-
-					status := fmt.Sprintf("%v", addr.Get("status"))
-					statusSymbol := getStatusSymbol(status)
-					var cellValue string
-
-					if typeCode != "" && statusSymbol != "" {
-						cellValue = fmt.Sprintf("%s %s", typeCode, statusSymbol)
-					} else if typeCode != "" {
-						cellValue = typeCode
-					} else if statusSymbol != "" {
-						cellValue = statusSymbol
-					} else {
-						cellValue = ""
-					}
+					cellValue := addressCellValue(typesByAddr[addr.Id], getStatusSymbol(fmt.Sprintf("%v", addr.Get("status"))))
 					f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col, row), cellValue)
 				}
 			}
@@ -1394,13 +1190,16 @@ func getExcelColumnName(col int) string {
 	return result
 }
 
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
+// addressCellValue combines an address's type code and status symbol for display.
+func addressCellValue(typeCode, statusSymbol string) string {
+	switch {
+	case typeCode != "" && statusSymbol != "":
+		return typeCode + " " + statusSymbol
+	case typeCode != "":
+		return typeCode
+	default:
+		return statusSymbol
 	}
-	return false
 }
 
 func getStatusSymbol(status string) string {
@@ -1432,9 +1231,7 @@ func sendReportEmailFromBuffer(app core.App, congregation *core.Record, filename
 		return fmt.Errorf("MAILERSEND_FROM_EMAIL is not configured")
 	}
 
-	// Get recipients (administrators) for the congregation
-	recipients := []ReportRecipient{}
-	err := app.DB().Select("users.*").From("users").InnerJoin("roles", dbx.NewExp("roles.user = users.id and roles.role = 'administrator'")).Where(dbx.NewExp("roles.congregation = {:congregation}", dbx.Params{"congregation": congregation.Id})).All(&recipients)
+	recipients, err := fetchCongregationRecipients(app, congregation.Id, true)
 	if err != nil {
 		log.Println("Error fetching recipients:", err)
 		return err
@@ -1588,7 +1385,7 @@ func formatDate(dateStr string) string {
 	if dateStr == "" {
 		return ""
 	}
-	
+
 	if parsed, err := time.Parse("2006-01-02 15:04:05.999Z", dateStr); err == nil {
 		return parsed.Format("02-01-2006")
 	}
@@ -1605,12 +1402,12 @@ func formatDNCInfo(timeStr string) (dateStr, duration string) {
 
 	var parsed time.Time
 	var err error
-	
+
 	parsed, err = time.Parse("2006-01-02 15:04:05.999Z", timeStr)
 	if err != nil {
 		parsed, err = time.Parse(time.RFC3339, timeStr)
 	}
-	
+
 	if err != nil {
 		return "N/A", "N/A"
 	}

@@ -43,8 +43,7 @@ func HandleNewMap(c *core.RequestEvent, app core.App) error {
 		return apis.NewNotFoundError("Error fetching default congregation option", nil)
 	}
 
-	sequenceArray := splitSequence(sequence)
-	// Get max sequence for this territory
+	sequenceArray := strings.Split(sequence, ",")
 	maxSeq, err := fetchTerritoryMaxSequence(app, territory)
 	if err != nil {
 		log.Println("Error fetching max sequence:", err)
@@ -117,10 +116,6 @@ func createNewAddressRecord(txApp core.App, code, territory string, floor, seque
 	address.Set("source", "map_init")
 	address.Set("created_by", createdBy)
 	return address
-}
-
-func splitSequence(sequence string) []string {
-	return strings.Split(sequence, ",")
 }
 
 func isValidSequence(sequence string) bool {

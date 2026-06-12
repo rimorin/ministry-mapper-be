@@ -2,17 +2,14 @@ package jobs
 
 import (
 	"bytes"
-	"context"
 	"html/template"
 	"log"
-	"os"
 	"strings"
 	"time"
 
-	"github.com/mailersend/mailersend-go"
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/apis"
+	"github.com/pocketbase/pocketbase/core"
 )
 
 // BuildInstructionsPrompt constructs the system and user messages for the instructions AI overview.
@@ -65,7 +62,6 @@ func processInstruction(mapID string, app core.App) error {
 		return apis.NewBadRequestError("Map ID is required", nil)
 	}
 
-	// Get map record
 	mapRecord, err := app.FindRecordById("maps", mapID)
 	if err != nil {
 		log.Println("Error finding map:", err)
@@ -89,7 +85,6 @@ func processInstruction(mapID string, app core.App) error {
 
 	territoryCode := territoryRecord.Get("code").(string)
 
-	// Get instructions
 	messages, err := app.FindRecordsByFilter("messages", "map = {:map} && pinned = true && type = 'administrator'", "created", 0, 0, dbx.Params{"map": mapID})
 	if err != nil {
 		log.Println("Error finding messages by filter:", err)
@@ -100,10 +95,8 @@ func processInstruction(mapID string, app core.App) error {
 		log.Println("No instructions found")
 		return nil
 	}
-	recipients := []Recipient{}
 
-	err = app.DB().Select("users.*").From("users").InnerJoin("roles", dbx.NewExp("roles.user = users.id and roles.role != 'administrator'")).Where(dbx.NewExp("roles.congregation = {:congregation}", dbx.Params{"congregation": congregation})).All(&recipients)
-
+	recipients, err := fetchCongregationRecipients(app, congregation, false)
 	if err != nil {
 		log.Println("Error fetching recipients:", err)
 		return err
@@ -114,79 +107,40 @@ func processInstruction(mapID string, app core.App) error {
 		return nil
 	}
 	log.Printf("Processing %d recipients\n", len(recipients))
-	// Load template
+
 	tmpl, err := template.ParseFiles("templates/instructions.html")
 	if err != nil {
 		log.Println("Error parsing template:", err)
 		return err
 	}
 
-	// Prepare email data
 	emailData := EmailTemplateData{
 		Messages: make([]messagesData, 0),
 		MapName:  territoryCode + " - " + mapRecord.Get("description").(string),
 	}
 
-	congregationTz := congRecord.Get("timezone").(string)
+	location := loadCongregationLocation(congRecord)
 
-	location, err := time.LoadLocation(congregationTz)
-	if err != nil {
-		location = time.UTC // fallback
-	}
-
-	// Process instructions
-	for _, messages := range messages {
-		messagesData := messagesData{
-			Publisher: messages.Get("created_by").(string),
-			Message:   messages.Get("message").(string),
-			Date:      messages.GetDateTime("created").Time().In(location).Format("03:04 PM, 02 Jan 2006"),
-		}
-		emailData.Messages = append(emailData.Messages, messagesData)
+	for _, message := range messages {
+		emailData.Messages = append(emailData.Messages, messagesData{
+			Publisher: message.Get("created_by").(string),
+			Message:   message.Get("message").(string),
+			Date:      message.GetDateTime("created").Time().In(location).Format("03:04 PM, 02 Jan 2006"),
+		})
 	}
 
 	if IsAISummaryEnabled() {
 		emailData.Summary = generateInstructionsAISummary(emailData.Messages, emailData.MapName)
 	}
 
-	// Execute template
 	var body bytes.Buffer
 	if err := tmpl.Execute(&body, emailData); err != nil {
 		log.Println("Error executing template:", err)
 		return err
 	}
 
-	// Initialize MailerSend
-	ms := mailersend.NewMailersend(os.Getenv("MAILERSEND_API_KEY"))
-
-	ctx := context.Background()
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	// Create email message
-	message := ms.Email.NewMessage()
-
-	message.SetFrom(mailersend.From{
-		Email: os.Getenv("MAILERSEND_FROM_EMAIL"),
-		Name:  "Ministry Mapper",
-	})
-
-	// Set recipients
-	emailRecipents := []mailersend.Recipient{}
-	for _, r := range recipients {
-		emailRecipents = append(emailRecipents, mailersend.Recipient{
-			Email: r.Email,
-			Name:  r.Name,
-		})
-	}
-
-	message.SetRecipients(emailRecipents)
-
-	message.SetSubject("New instructions received for " + mapRecord.Get("description").(string))
-	message.SetHTML(body.String())
-
-	// Send email
-	_, err = ms.Email.Send(ctx, message)
-	if err != nil {
+	subject := "New instructions received for " + mapRecord.Get("description").(string)
+	if err := sendHTMLEmail(recipients, subject, body.String()); err != nil {
 		log.Println("Error sending email:", err)
 		return err
 	}
@@ -194,15 +148,15 @@ func processInstruction(mapID string, app core.App) error {
 	return nil
 }
 
+// processInstructions emails publishers the pinned administrator instructions
+// created within the last timeIntervalMinutes, grouped per map.
 func processInstructions(app core.App, timeIntervalMinutes int) error {
 	log.Println("Starting instructions processing")
 
 	maps := []MapData{}
 
-	// Calculate the time using the time interval
 	timeBuffer := time.Duration(-timeIntervalMinutes) * time.Minute
 
-	// Fetch all instructions that have not been processed
 	err := app.DB().Select("maps.id").Distinct(true).From("maps").InnerJoin("messages", dbx.NewExp("messages.map = maps.id and messages.pinned = true and messages.type = 'administrator'")).Where(dbx.NewExp("messages.created > {:created}", dbx.Params{"created": time.Now().UTC().Add(timeBuffer)})).All(&maps)
 
 	if err != nil {
@@ -210,7 +164,6 @@ func processInstructions(app core.App, timeIntervalMinutes int) error {
 		return err
 	}
 
-	// if no maps found, return
 	if len(maps) == 0 {
 		log.Println("Completed: No maps found in the time interval")
 		return nil

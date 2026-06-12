@@ -65,9 +65,9 @@ func TestExtractAllMapIdsFromFilter(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := extractAllMapIdsFromFilter(tc.filter)
+			got := extractIdsFromFilter(mapIdPattern, tc.filter)
 			if len(got) != len(tc.want) {
-				t.Errorf("extractAllMapIdsFromFilter(%q) = %v; want %v", tc.filter, got, tc.want)
+				t.Errorf("extractIdsFromFilter(mapIdPattern, %q) = %v; want %v", tc.filter, got, tc.want)
 				return
 			}
 			wantSet := make(map[string]bool, len(tc.want))
@@ -128,9 +128,9 @@ func TestExtractAllCongIdsFromFilter(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := extractAllCongIdsFromFilter(tc.filter)
+			got := extractIdsFromFilter(congIdPattern, tc.filter)
 			if len(got) != len(tc.want) {
-				t.Errorf("extractAllCongIdsFromFilter(%q) = %v; want %v", tc.filter, got, tc.want)
+				t.Errorf("extractIdsFromFilter(congIdPattern, %q) = %v; want %v", tc.filter, got, tc.want)
 				return
 			}
 			wantSet := make(map[string]bool, len(tc.want))
@@ -186,9 +186,9 @@ func TestExtractAllTerritoryIdsFromFilter(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := extractAllTerritoryIdsFromFilter(tc.filter)
+			got := extractIdsFromFilter(territoryIdPattern, tc.filter)
 			if len(got) != len(tc.want) {
-				t.Errorf("extractAllTerritoryIdsFromFilter(%q) = %v; want %v", tc.filter, got, tc.want)
+				t.Errorf("extractIdsFromFilter(territoryIdPattern, %q) = %v; want %v", tc.filter, got, tc.want)
 				return
 			}
 			wantSet := make(map[string]bool, len(tc.want))

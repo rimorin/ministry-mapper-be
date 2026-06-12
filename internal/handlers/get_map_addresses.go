@@ -67,7 +67,6 @@ func HandleGetMapAddresses(c *core.RequestEvent, app core.App) error {
 
 	params := dbx.Params{"map": data.MapId}
 
-	// Query 1: addresses (~14ms on heaviest map, index-covered by idx_7CBdHug)
 	var addresses []addressRow
 	err := app.DB().NewQuery(`
 		SELECT id, code, floor, sequence, status, notes, not_home_tries, dnc_time,
@@ -79,7 +78,6 @@ func HandleGetMapAddresses(c *core.RequestEvent, app core.App) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch addresses"})
 	}
 
-	// Query 2: address_options (~6ms, index-covered by idx_SDhkFBbBup)
 	var options []addressOption
 	err = app.DB().NewQuery(`
 		SELECT id, address, option
@@ -102,7 +100,6 @@ func HandleGetMapAddresses(c *core.RequestEvent, app core.App) error {
 			opts = []addressOption{}
 		}
 
-		// Parse coordinates JSON; empty/null sent as null.
 		var coords any
 		if addr.Coordinates != "" {
 			coords = json.RawMessage(addr.Coordinates)

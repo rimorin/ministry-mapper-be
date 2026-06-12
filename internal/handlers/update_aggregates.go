@@ -18,18 +18,9 @@ type Aggregates struct {
 	Invalid          int `db:"invalid"`
 }
 
-// ProcessMapAggregates updates the aggregate data for a given map in the PocketBase application.
-// It calculates various status counts for addresses associated with the map and updates the map record
-// with these aggregates and the progress percentage.
-//
-// Parameters:
-//   - mapID: The ID of the map to process aggregates for. Must not be empty.
-//   - app: The PocketBase application instance.
-//   - resetTerritoryAggregates: Optional boolean parameter to determine whether to reset territory aggregates.
-//     Defaults to true if not provided.
-//
-// Returns:
-//   - error: An error if any issues occur during processing, otherwise nil.
+// ProcessMapAggregates recalculates a map's status counts and progress percentage.
+// resetTerritoryAggregates (default true) controls whether the map's territory
+// aggregates are also recalculated.
 func ProcessMapAggregates(mapID string, app core.App, resetTerritoryAggregates ...bool) error {
 	if mapID == "" {
 		return apis.NewBadRequestError("Map ID is required", nil)
@@ -91,15 +82,12 @@ func ProcessMapAggregates(mapID string, app core.App, resetTerritoryAggregates .
 		return err
 	}
 
-	// Set default value for resetTerritory
 	reset := true
 	if len(resetTerritoryAggregates) > 0 {
 		reset = resetTerritoryAggregates[0]
 	}
 
 	if reset {
-		// mapRecord is already loaded above — extract territory directly to avoid
-		// a redundant FindRecordById("maps") call inside ResetMapTerritory.
 		if territoryID, ok := mapRecord.Get("territory").(string); ok && territoryID != "" {
 			ProcessTerritoryAggregates(territoryID, app)
 		}
@@ -108,23 +96,7 @@ func ProcessMapAggregates(mapID string, app core.App, resetTerritoryAggregates .
 	return nil
 }
 
-// ProcessTerritoryAggregates processes the aggregate data for a given territory and updates the progress percentage.
-//
-// Parameters:
-//   - territoryID: The ID of the territory to process aggregates for.
-//   - app: The PocketBase application instance.
-//
-// Returns:
-//   - error: An error if any occurs during the processing of aggregates or updating the territory record.
-//
-// The function performs the following steps:
-//  1. Logs the start of the processing for the given territoryID.
-//  2. Executes a SQL query to calculate various aggregate counts (not_done, done, not_home_max_tries, not_home_less_tries, dnc, invalid) for the given territory.
-//  3. Calculates the total count of relevant statuses and computes the done percentage.
-//  4. Retrieves the territory record by its ID.
-//  5. Updates the territory record with the calculated progress percentage.
-//  6. Saves the updated territory record.
-//  7. Logs the completion of the update with the progress percentage.
+// ProcessTerritoryAggregates recalculates a territory's progress percentage.
 func ProcessTerritoryAggregates(territoryID string, app core.App) error {
 	aggregates := Aggregates{}
 	err := app.DB().NewQuery(`

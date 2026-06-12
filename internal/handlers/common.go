@@ -43,17 +43,22 @@ func fetchMapFloors(app core.App, mapId string) ([]int, error) {
 	return result, nil
 }
 
+// fetchMapScalar runs an aggregate query selecting a single int column `v`
+// for the given map, defaulting to 1 when the result is 0/NULL.
+func fetchMapScalar(app core.App, sql string, mapId string) (int, error) {
+	result := struct {
+		V int `db:"v"`
+	}{}
+	err := app.DB().NewQuery(sql).Bind(dbx.Params{"map": mapId}).One(&result)
+	if result.V == 0 {
+		result.V = 1
+	}
+	return result.V, err
+}
+
 // fetchMapMaxSequence returns the maximum address sequence for a map, defaulting to 1.
 func fetchMapMaxSequence(app core.App, mapId string) (int, error) {
-	sequence := struct {
-		Number int `db:"sequence"`
-	}{}
-	query := app.DB().NewQuery("SELECT MAX(sequence) as sequence FROM addresses WHERE map = {:map}")
-	err := query.Bind(dbx.Params{"map": mapId}).One(&sequence)
-	if sequence.Number == 0 {
-		sequence.Number = 1
-	}
-	return sequence.Number, err
+	return fetchMapScalar(app, "SELECT MAX(sequence) as v FROM addresses WHERE map = {:map}", mapId)
 }
 
 func fetchMapData(app core.App, mapId string) (*core.Record, error) {
@@ -62,7 +67,6 @@ func fetchMapData(app core.App, mapId string) (*core.Record, error) {
 
 // AuthorizeByRole checks if userId has one of the specified roles in the given congregation.
 // If no allowedRoles are provided, any role grants access.
-// Uses LIMIT 1 for early exit instead of COUNT(*).
 func AuthorizeByRole(app core.App, userId string, congregationId string, allowedRoles ...string) bool {
 	var v struct {
 		V int `db:"v"`
@@ -135,8 +139,7 @@ func AuthorizeMapAccess(c *core.RequestEvent, app core.App, mapId string) bool {
 	return c.Auth != nil && authorizeUserForMap(app, c.Auth.Id, mapId)
 }
 
-// authorizeUserForMap checks if userId has any role in the map's congregation
-// using a single joined query instead of two separate lookups.
+// authorizeUserForMap checks if userId has any role in the map's congregation.
 func authorizeUserForMap(app core.App, userId string, mapId string) bool {
 	var v struct {
 		V int `db:"v"`
@@ -190,26 +193,10 @@ func fetchMapAddressCodes(app core.App, mapId string, floor int) ([]*core.Record
 
 // fetchMapMaxFloor returns the highest floor number for a map, defaulting to 1.
 func fetchMapMaxFloor(app core.App, mapId string) (int, error) {
-	maxFloor := struct {
-		MaxFloor int `db:"max_floor"`
-	}{}
-	query := app.DB().NewQuery("SELECT MAX(floor) as max_floor FROM addresses WHERE map = {:map}")
-	err := query.Bind(dbx.Params{"map": mapId}).One(&maxFloor)
-	if maxFloor.MaxFloor == 0 {
-		maxFloor.MaxFloor = 1
-	}
-	return maxFloor.MaxFloor, err
+	return fetchMapScalar(app, "SELECT MAX(floor) as v FROM addresses WHERE map = {:map}", mapId)
 }
 
 // fetchMapLowestFloor returns the lowest floor number for a map, defaulting to 1.
 func fetchMapLowestFloor(app core.App, mapId string) (int, error) {
-	lowestFloor := struct {
-		MinFloor int `db:"min_floor"`
-	}{}
-	query := app.DB().NewQuery("SELECT MIN(floor) as min_floor FROM addresses WHERE map = {:map}")
-	err := query.Bind(dbx.Params{"map": mapId}).One(&lowestFloor)
-	if lowestFloor.MinFloor == 0 {
-		lowestFloor.MinFloor = 1
-	}
-	return lowestFloor.MinFloor, err
+	return fetchMapScalar(app, "SELECT MIN(floor) as v FROM addresses WHERE map = {:map}", mapId)
 }

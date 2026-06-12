@@ -8,24 +8,8 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// HandleMapFloor handles the addition of a new floor to a map in the PocketBase application.
-// It fetches the necessary map data, determines the new floor number, and updates the addresses
-// associated with the map to reflect the new floor.
-//
-// Parameters:
-//   - e: A pointer to the core.RequestEvent containing the request information.
-//   - app: A pointer to the pocketbase.PocketBase application instance.
-//
-// Returns:
-//   - error: An error if any issues occur during the process, otherwise nil.
-//
-// The function performs the following steps:
-//  1. Retrieves the request information and extracts the request body data.
-//  2. Fetches the map data and default congregation option based on the map ID.
-//  3. Determines the new floor number based on the add_higher flag.
-//  4. Fetches the address codes associated with the map and the current floor.
-//  5. Runs a transaction to update the addresses with the new floor number and other details.
-//  6. Processes the map aggregates and returns a success message.
+// HandleMapFloor adds a new floor to a map by copying the address codes of the
+// current highest (or lowest, per add_higher) floor onto the new floor.
 func HandleMapFloor(e *core.RequestEvent, app core.App) error {
 	requestInfo, _ := e.RequestInfo()
 	data := requestInfo.Body

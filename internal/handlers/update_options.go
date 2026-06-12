@@ -124,10 +124,6 @@ func verifyOptionOwnership(txApp core.App, optionId, congregation string) error 
 	return nil
 }
 
-func validateCodeUniqueness(txApp core.App, code, optionId, congregation string) error {
-	return validateCodeUniquenessWithBatch(txApp, code, optionId, congregation, nil)
-}
-
 // Allows swapping codes between options in the same batch
 func validateCodeUniquenessWithBatch(txApp core.App, code, optionId, congregation string, batchOptionIds map[string]bool) error {
 	code = strings.TrimSpace(code)
@@ -149,10 +145,6 @@ func validateCodeUniquenessWithBatch(txApp core.App, code, optionId, congregatio
 	}
 
 	return nil
-}
-
-func validateSequenceUniqueness(txApp core.App, sequence int, optionId, congregation string) error {
-	return validateSequenceUniquenessWithBatch(txApp, sequence, optionId, congregation, nil)
 }
 
 // Allows swapping sequences between options in the same batch

@@ -2,15 +2,12 @@ package jobs
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"html/template"
 	"log"
-	"os"
 	"strings"
 	"time"
 
-	"github.com/mailersend/mailersend-go"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 )
@@ -139,11 +136,7 @@ func ProcessNewAddress(congID string, app core.App, since time.Time, tmpl *templ
 		}
 	}
 
-	congregationTz, _ := congRecord.Get("timezone").(string)
-	location, err := time.LoadLocation(congregationTz)
-	if err != nil {
-		location = time.UTC
-	}
+	location := loadCongregationLocation(congRecord)
 
 	// Group addresses by map, preserving insertion order
 	groupOrder := []string{}
@@ -221,11 +214,7 @@ func ProcessNewAddress(congID string, app core.App, since time.Time, tmpl *templ
 		emailData.Maps = append(emailData.Maps, *groups[id])
 	}
 
-	recipients := []Recipient{}
-	err = app.DB().Select("users.*").From("users").
-		InnerJoin("roles", dbx.NewExp("roles.user = users.id and roles.role = 'administrator'")).
-		Where(dbx.NewExp("roles.congregation = {:congregation}", dbx.Params{"congregation": congID})).
-		All(&recipients)
+	recipients, err := fetchCongregationRecipients(app, congID, true)
 	if err != nil {
 		log.Printf("Error fetching recipients for congregation %s: %v", congID, err)
 		return err
@@ -242,31 +231,9 @@ func ProcessNewAddress(congID string, app core.App, since time.Time, tmpl *templ
 		return err
 	}
 
-	ms := mailersend.NewMailersend(os.Getenv("MAILERSEND_API_KEY"))
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	message := ms.Email.NewMessage()
-	message.SetFrom(mailersend.From{
-		Email: os.Getenv("MAILERSEND_FROM_EMAIL"),
-		Name:  "Ministry Mapper",
-	})
-
-	emailRecipients := make([]mailersend.Recipient, 0, len(recipients))
-	for _, r := range recipients {
-		emailRecipients = append(emailRecipients, mailersend.Recipient{
-			Email: r.Email,
-			Name:  r.Name,
-		})
-	}
-	message.SetRecipients(emailRecipients)
-
 	congName, _ := congRecord.Get("name").(string)
-	message.SetSubject(fmt.Sprintf("New Addresses Added - %s - %s", congName, since.In(location).Format("02 Jan 2006")))
-	message.SetHTML(body.String())
-
-	if _, err = ms.Email.Send(ctx, message); err != nil {
+	subject := fmt.Sprintf("New Addresses Added - %s - %s", congName, since.In(location).Format("02 Jan 2006"))
+	if err := sendHTMLEmail(recipients, subject, body.String()); err != nil {
 		log.Printf("Error sending new addresses email for congregation %s: %v", congID, err)
 		return err
 	}

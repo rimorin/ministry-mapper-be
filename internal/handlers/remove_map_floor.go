@@ -18,17 +18,8 @@ func countFloorsInMap(app core.App, mapId string) (int, error) {
 	return floors.Count, err
 }
 
-// HandleRemoveMapFloor handles the removal of a floor from a map.
-// It ensures that there is more than one floor before allowing the deletion.
-// If the floor count is greater than one, it fetches the addresses associated with the floor
-// and deletes them within a transaction. After successful deletion, it processes map aggregates.
-//
-// Parameters:
-//   - e: A pointer to the core.RequestEvent containing the request information.
-//   - app: A pointer to the pocketbase.PocketBase instance.
-//
-// Returns:
-//   - error: An error if the operation fails, otherwise nil.
+// HandleRemoveMapFloor deletes all addresses on a floor, refusing to remove the
+// last remaining floor. Map aggregates are recalculated afterwards.
 func HandleRemoveMapFloor(e *core.RequestEvent, app core.App) error {
 	requestInfo, _ := e.RequestInfo()
 	data := requestInfo.Body
@@ -44,7 +35,6 @@ func HandleRemoveMapFloor(e *core.RequestEvent, app core.App) error {
 		return apis.NewForbiddenError("Administrator access required", nil)
 	}
 
-	// count floors and ensure that there is more than one floor
 	floorCount, err := countFloorsInMap(app, mapId)
 	if err != nil {
 		return apis.NewNotFoundError("Error counting floors", nil)

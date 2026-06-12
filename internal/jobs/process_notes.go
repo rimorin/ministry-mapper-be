@@ -2,18 +2,15 @@ package jobs
 
 import (
 	"bytes"
-	"context"
 	"fmt"
-	"log"
-	"os"
-	"strings"
 	"html/template"
+	"log"
+	"strings"
 	"time"
 
-	"github.com/mailersend/mailersend-go"
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/apis"
+	"github.com/pocketbase/pocketbase/core"
 )
 
 type notesData struct {
@@ -85,6 +82,7 @@ func ProcessNote(congID string, app core.App, timeBuffer time.Duration) error {
 	congRecord, err := app.FindRecordById("congregations", congID)
 	if err != nil {
 		log.Println("Error finding congregation:", err)
+		return err
 	}
 
 	notes, err := app.FindRecordsByFilter("addresses", "congregation = {:congregation} && last_notes_updated > {:created} && notes != NULL && notes != ''", "last_notes_updated", 0, 0, dbx.Params{"congregation": congID, "created": time.Now().UTC().Add(timeBuffer)})
@@ -99,10 +97,8 @@ func ProcessNote(congID string, app core.App, timeBuffer time.Duration) error {
 		log.Println("No notes found")
 		return nil
 	}
-	recipients := []Recipient{}
 
-	err = app.DB().Select("users.*").From("users").InnerJoin("roles", dbx.NewExp("roles.user = users.id and roles.role = 'administrator'")).Where(dbx.NewExp("roles.congregation = {:congregation}", dbx.Params{"congregation": congID})).All(&recipients)
-
+	recipients, err := fetchCongregationRecipients(app, congID, true)
 	if err != nil {
 		log.Println("Error fetching recipients:", err)
 		return err
@@ -113,26 +109,19 @@ func ProcessNote(congID string, app core.App, timeBuffer time.Duration) error {
 		return nil
 	}
 	log.Printf("Processing %d recipients\n", len(recipients))
-	// Load template
+
 	tmpl, err := template.ParseFiles("templates/notes.html")
 	if err != nil {
 		log.Println("Error parsing template:", err)
 		return err
 	}
 
-	// Prepare email data
 	emailData := NotesTemplateData{
 		Notes: make([]notesData, 0),
 	}
 
-	congregationTz := congRecord.Get("timezone").(string)
+	location := loadCongregationLocation(congRecord)
 
-	location, err := time.LoadLocation(congregationTz)
-	if err != nil {
-		location = time.UTC // fallback
-	}
-
-	// Process notes
 	for _, note := range notes {
 		noteText := note.Get("notes").(string)
 		if len(noteText) == 0 || strings.TrimSpace(noteText) == "" {
@@ -160,44 +149,14 @@ func ProcessNote(congID string, app core.App, timeBuffer time.Duration) error {
 		emailData.Summary = generateNotesAISummary(emailData.Notes, congregationName)
 	}
 
-	// Execute template
 	var body bytes.Buffer
 	if err := tmpl.Execute(&body, emailData); err != nil {
 		log.Println("Error executing template:", err)
 		return err
 	}
 
-	// Initialize MailerSend
-	ms := mailersend.NewMailersend(os.Getenv("MAILERSEND_API_KEY"))
-
-	ctx := context.Background()
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	// Create email message
-	message := ms.Email.NewMessage()
-
-	message.SetFrom(mailersend.From{
-		Email: os.Getenv("MAILERSEND_FROM_EMAIL"),
-		Name:  "Ministry Mapper",
-	})
-
-	// Set recipients
-	emailRecipents := []mailersend.Recipient{}
-	for _, r := range recipients {
-		emailRecipents = append(emailRecipents, mailersend.Recipient{
-			Email: r.Email,
-			Name:  r.Name,
-		})
-	}
-	message.SetRecipients(emailRecipents)
-
-	message.SetSubject("Notes updated for " + congRecord.Get("name").(string) + " - " + time.Now().Format("02 Jan 2006"))
-	message.SetHTML(body.String())
-
-	// Send email
-	_, err = ms.Email.Send(ctx, message)
-	if err != nil {
+	subject := "Notes updated for " + congRecord.Get("name").(string) + " - " + time.Now().Format("02 Jan 2006")
+	if err := sendHTMLEmail(recipients, subject, body.String()); err != nil {
 		log.Println("Error sending email:", err)
 		return err
 	}
@@ -205,15 +164,8 @@ func ProcessNote(congID string, app core.App, timeBuffer time.Duration) error {
 	return nil
 }
 
-// ProcessNotes processes notes for congregations that have been updated within a specified time interval.
-// It fetches all congregations with recent notes updates and processes each one individually.
-//
-// Parameters:
-// - app: A pointer to the PocketBase application instance.
-// - timeIntervalMinutes: The time interval in minutes to look back for recent notes updates.
-//
-// Returns:
-// - error: An error if there is an issue fetching or processing the notes, otherwise nil.
+// ProcessNotes emails administrators a digest of notes updated within the last
+// timeIntervalMinutes, grouped per congregation.
 func ProcessNotes(app core.App, timeIntervalMinutes int) error {
 	log.Println("Starting notes processing")
 
@@ -221,15 +173,12 @@ func ProcessNotes(app core.App, timeIntervalMinutes int) error {
 
 	timeBuffer := time.Duration(-timeIntervalMinutes) * time.Minute
 
-	// Fetch all notes that have not been processed
 	err := app.DB().NewQuery("SELECT DISTINCT congregation FROM addresses WHERE last_notes_updated > {:created} and notes IS NOT NULL and notes != ''").Bind(dbx.Params{"created": time.Now().UTC().Add(timeBuffer)}).All(&congregations)
-	log.Printf("congregations: %v\n", congregations)
 	if err != nil {
-		log.Println("Error fetching maps:", err)
+		log.Println("Error fetching congregations:", err)
 		return err
 	}
 
-	// if no messages found, return
 	if len(congregations) == 0 {
 		log.Println("Completed: No congregations with recent notes found")
 		return nil
@@ -238,7 +187,6 @@ func ProcessNotes(app core.App, timeIntervalMinutes int) error {
 	log.Printf("Processing %d congregation\n", len(congregations))
 
 	for _, m := range congregations {
-		log.Printf("Processing congregation ID %s\n", m)
 		err := ProcessNote(m.ID, app, timeBuffer)
 		if err != nil {
 			log.Printf("Error processing congregation ID %s: %v\n", m.ID, err)

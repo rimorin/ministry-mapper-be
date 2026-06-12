@@ -2,7 +2,6 @@ package jobs
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"html/template"
 	"log"
@@ -10,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mailersend/mailersend-go"
 	"github.com/pocketbase/pocketbase/core"
 )
 
@@ -275,27 +273,10 @@ func updateUserField(app core.App, userID, field, value string) error {
 	return app.SaveNoValidate(record)
 }
 
-// sendPlainEmail sends a single HTML email via MailerSend.
+// sendPlainEmail sends a single HTML email to one recipient.
 // Shared by all user management job emails.
 func sendPlainEmail(toEmail, toName, subject, htmlBody string) error {
-	apiKey := os.Getenv("MAILERSEND_API_KEY")
-	fromEmail := os.Getenv("MAILERSEND_FROM_EMAIL")
-	if apiKey == "" || fromEmail == "" {
-		return fmt.Errorf("sendPlainEmail: MAILERSEND_API_KEY or MAILERSEND_FROM_EMAIL not configured")
-	}
-
-	ms := mailersend.NewMailersend(apiKey)
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	message := ms.Email.NewMessage()
-	message.SetFrom(mailersend.From{Email: fromEmail, Name: "Ministry Mapper"})
-	message.SetRecipients([]mailersend.Recipient{{Email: toEmail, Name: toName}})
-	message.SetSubject(subject)
-	message.SetHTML(htmlBody)
-
-	_, err := ms.Email.Send(ctx, message)
-	return err
+	return sendHTMLEmail([]Recipient{{Email: toEmail, Name: toName}}, subject, htmlBody)
 }
 
 // accountAgeDays calculates how many full days have elapsed since the account was created.
