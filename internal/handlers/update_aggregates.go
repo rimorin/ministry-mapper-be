@@ -61,11 +61,13 @@ func ProcessMapAggregates(mapID string, app core.App, resetTerritoryAggregates .
 	}
 
 	amap := map[string]interface{}{
-		"notDone": aggregates.NotDone,
-		"done":    aggregates.Done,
-		"notHome": aggregates.NotHomeLessTries,
-		"invalid": aggregates.Invalid,
-		"dnc":     aggregates.Dnc,
+		"notDone":   aggregates.NotDone,
+		"done":      aggregates.Done,
+		"notHome":   aggregates.NotHomeLessTries,
+		"invalid":   aggregates.Invalid,
+		"dnc":       aggregates.Dnc,
+		"completed": aggregates.Done + aggregates.NotHomeMaxTries,
+		"total":     total,
 	}
 
 	mapRecord, err := app.FindRecordById("maps", mapID)
@@ -96,40 +98,28 @@ func ProcessMapAggregates(mapID string, app core.App, resetTerritoryAggregates .
 	return nil
 }
 
-// ProcessTerritoryAggregates recalculates a territory's progress percentage.
+// ProcessTerritoryAggregates recalculates a territory's progress percentage
+// by summing the completed/total values stored in each map's aggregates.
 func ProcessTerritoryAggregates(territoryID string, app core.App) error {
-	aggregates := Aggregates{}
+	progress := struct {
+		Completed int `db:"completed"`
+		Total     int `db:"total"`
+	}{}
 	err := app.DB().NewQuery(`
 		SELECT
-			COALESCE(SUM(CASE WHEN a.status = 'not_done' THEN 1 ELSE 0 END), 0) AS not_done,
-			COALESCE(SUM(CASE WHEN a.status = 'done' THEN 1 ELSE 0 END), 0) AS done,
-			COALESCE(SUM(CASE WHEN a.status = 'not_home' AND c.max_tries > 0 AND a.not_home_tries >= c.max_tries THEN 1 ELSE 0 END), 0) AS not_home_max_tries,
-			COALESCE(SUM(CASE WHEN a.status = 'not_home' AND (c.max_tries <= 0 OR a.not_home_tries < c.max_tries) THEN 1 ELSE 0 END), 0) AS not_home_less_tries,
-			COALESCE(SUM(CASE WHEN a.status = 'do_not_call' THEN 1 ELSE 0 END), 0) AS dnc,
-			COALESCE(SUM(CASE WHEN a.status = 'invalid' THEN 1 ELSE 0 END), 0) AS invalid
-		FROM addresses a
-		LEFT JOIN congregations c ON a.congregation = c.id
-		WHERE EXISTS (
-			SELECT 1
-			FROM address_options ao
-			JOIN options o ON ao.option = o.id
-			WHERE ao.address = a.id
-			AND ao.map = a.map
-			AND o.is_countable = TRUE
-		)
-		AND a.status IN ('done', 'not_done', 'do_not_call', 'invalid', 'not_home')
-		AND a.territory = {:territory}
-	`).Bind(dbx.Params{"territory": territoryID}).One(&aggregates)
+			COALESCE(SUM(json_extract(COALESCE(NULLIF(aggregates, ''), '{}'), '$.completed')), 0) AS completed,
+			COALESCE(SUM(json_extract(COALESCE(NULLIF(aggregates, ''), '{}'), '$.total')), 0) AS total
+		FROM maps
+		WHERE territory = {:territory}
+	`).Bind(dbx.Params{"territory": territoryID}).One(&progress)
 	if err != nil {
 		log.Printf("Error finding records by filter for territoryID %s: %v", territoryID, err)
 		return err
 	}
 
-	total := aggregates.Done + aggregates.NotDone + aggregates.NotHomeMaxTries + aggregates.NotHomeLessTries
-
 	donePercentage := 0
-	if total > 0 {
-		donePercentage = int(math.Round(float64(aggregates.Done+aggregates.NotHomeMaxTries) / float64(total) * 100))
+	if progress.Total > 0 {
+		donePercentage = int(math.Round(float64(progress.Completed) / float64(progress.Total) * 100))
 	}
 
 	territoryRecord, err := app.FindRecordById("territories", territoryID)

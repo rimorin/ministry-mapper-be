@@ -391,7 +391,7 @@ func TestHandleTerritoryQuicklink(t *testing.T) {
 			ExpectedContent: []string{`"status":404`},
 		},
 		{
-			// testterralpha02 has testmapalphrich1 which has real coordinates, progress=40
+			// testterralpha02 has testmapalphrich1 which has real coordinates, progress=100
 			// and aggregates. Calling with user at the same location ensures it wins,
 			// and the response must contain all documented fields.
 			Name:   "response contains all required fields",

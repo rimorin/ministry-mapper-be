@@ -210,9 +210,11 @@ func init() {
 			rec.Set("description", `{"en":"Rich Map","zh":"富地图"}`)
 			rec.Set("type", "multi")
 			rec.Set("sequence", 12)
-			rec.Set("progress", 40)
+			// progress/aggregates stay consistent with this map's addresses:
+			// testalpharich01 is not_home at max_tries (countable), so completed=1/total=1.
+			rec.Set("progress", 100)
 			rec.Set("coordinates", map[string]float64{"lat": 1.234, "lng": 103.456})
-			rec.Set("aggregates", map[string]any{"notDone": 3, "notHome": 1, "done": 2, "dnc": 0, "invalid": 0})
+			rec.Set("aggregates", map[string]any{"notDone": 0, "notHome": 0, "done": 0, "dnc": 0, "invalid": 0, "completed": 1, "total": 1})
 			rec.Set("created", now)
 			rec.Set("updated", now)
 			if err := app.SaveNoValidate(rec); err != nil {
@@ -327,7 +329,7 @@ func init() {
 			rec.Set("status", "not_home")
 			rec.Set("floor", 1)
 			rec.Set("sequence", 1)
-			rec.Set("not_home_tries", 2)
+			rec.Set("not_home_tries", 3)
 			rec.Set("notes", "Speaks Mandarin")
 			rec.Set("coordinates", map[string]float64{"lat": 1.111, "lng": 103.111})
 			rec.Set("dnc_time", "")

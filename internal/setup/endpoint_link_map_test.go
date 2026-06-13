@@ -236,7 +236,7 @@ func TestHandleGetLinkMap(t *testing.T) {
 			ExpectedStatus: 200,
 			ExpectedContent: []string{
 				`"publisher":"Test Publisher Rich"`,
-				`"progress":40`,
+				`"progress":100`,
 				`"type":"multi"`,
 				`"has_pinned_messages":false`,
 				`"notes":"Speaks Mandarin"`,
@@ -275,8 +275,8 @@ func TestHandleGetLinkMap(t *testing.T) {
 				if body.Map.Type != "multi" {
 					t.Errorf("expected map.type = multi, got %s", body.Map.Type)
 				}
-				if body.Map.Progress != 40 {
-					t.Errorf("expected map.progress = 40, got %d", body.Map.Progress)
+				if body.Map.Progress != 100 {
+					t.Errorf("expected map.progress = 100, got %d", body.Map.Progress)
 				}
 
 				// description must be a JSON object with en/zh keys
@@ -324,8 +324,8 @@ func TestHandleGetLinkMap(t *testing.T) {
 						if a.Notes != "Speaks Mandarin" {
 							t.Errorf("testalpharich01.notes: want Speaks Mandarin, got %s", a.Notes)
 						}
-						if a.NotHomeTries != 2 {
-							t.Errorf("testalpharich01.not_home_tries: want 2, got %d", a.NotHomeTries)
+						if a.NotHomeTries != 3 {
+							t.Errorf("testalpharich01.not_home_tries: want 3, got %d", a.NotHomeTries)
 						}
 						var addrCoords map[string]float64
 						if err := json.Unmarshal(a.Coordinates, &addrCoords); err != nil {
