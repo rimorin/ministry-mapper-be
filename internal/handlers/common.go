@@ -139,6 +139,24 @@ func AuthorizeMapAccess(c *core.RequestEvent, app core.App, mapId string) bool {
 	return c.Auth != nil && authorizeUserForMap(app, c.Auth.Id, mapId)
 }
 
+// resolveActor returns the identity to attribute an address change to, derived
+// server-side rather than trusted from the request body: the authenticated
+// user's name, or the linked assignment's publisher name for link-id access.
+func resolveActor(c *core.RequestEvent, app core.App) string {
+	if c.Auth != nil {
+		return c.Auth.GetString("name")
+	}
+	linkId := c.Request.Header.Get("link-id")
+	if linkId == "" {
+		return ""
+	}
+	assignment, err := app.FindRecordById("assignments", linkId)
+	if err != nil {
+		return ""
+	}
+	return assignment.GetString("publisher")
+}
+
 // authorizeUserForMap checks if userId has any role in the map's congregation.
 func authorizeUserForMap(app core.App, userId string, mapId string) bool {
 	var v struct {

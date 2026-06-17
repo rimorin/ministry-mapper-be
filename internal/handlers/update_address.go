@@ -18,7 +18,6 @@ type UpdateAddressRequest struct {
 	NotHomeTries int             `json:"not_home_tries"`
 	DncTime      string          `json:"dnc_time"`
 	Coordinates  json.RawMessage `json:"coordinates"` // null | {"lat": ..., "lng": ...}
-	UpdatedBy    string          `json:"updated_by"`
 	DeleteAoIds  []string        `json:"delete_ao_ids"`
 	AddOptionIds []string        `json:"add_option_ids"`
 }
@@ -36,6 +35,8 @@ func HandleUpdateAddress(c *core.RequestEvent, app core.App) error {
 	if !AuthorizeMapAccess(c, app, req.MapId) {
 		return apis.NewForbiddenError("Unauthorized", nil)
 	}
+
+	actor := resolveActor(c, app)
 
 	err := app.RunInTransaction(func(txApp core.App) error {
 		address, err := txApp.FindRecordById("addresses", req.AddressId)
@@ -91,7 +92,7 @@ func HandleUpdateAddress(c *core.RequestEvent, app core.App) error {
 		} else {
 			address.Set("coordinates", req.Coordinates)
 		}
-		address.Set("updated_by", req.UpdatedBy)
+		address.Set("updated_by", actor)
 
 		return txApp.SaveNoValidate(address)
 	})

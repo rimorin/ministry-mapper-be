@@ -13,9 +13,9 @@ import (
 func RegisterDomainHooks(app core.App) {
 	// Track notes changes on address updates
 	app.OnRecordUpdate("addresses").BindFunc(func(e *core.RecordEvent) error {
-		originalNotes := e.Record.Original().Get("notes").(string)
-		newNotes := e.Record.Get("notes").(string)
-		updatedBy := e.Record.Get("updated_by").(string)
+		originalNotes := e.Record.Original().GetString("notes")
+		newNotes := e.Record.GetString("notes")
+		updatedBy := e.Record.GetString("updated_by")
 
 		if originalNotes != newNotes {
 			e.Record.Set("last_notes_updated", time.Now())
@@ -48,7 +48,7 @@ func RegisterDomainHooks(app core.App) {
 
 	// Normalize email on user creation
 	app.OnRecordCreate("users").BindFunc(func(e *core.RecordEvent) error {
-		email := e.Record.Get("email").(string)
+		email := e.Record.GetString("email")
 		e.Record.Set("email", strings.ToLower(strings.TrimSpace(email)))
 		e.Record.SetEmailVisibility(true)
 		return e.Next()

@@ -21,7 +21,6 @@ type CreateAddressRequest struct {
 	NotHomeTries int             `json:"not_home_tries"`
 	DncTime      string          `json:"dnc_time"`
 	Coordinates  json.RawMessage `json:"coordinates"`
-	UpdatedBy    string          `json:"updated_by"`
 	AddOptionIds []string        `json:"add_option_ids"`
 }
 
@@ -42,6 +41,8 @@ func HandleCreateAddress(c *core.RequestEvent, app core.App) error {
 	if !AuthorizeMapAccess(c, app, req.MapId) {
 		return apis.NewForbiddenError("Unauthorized", nil)
 	}
+
+	actor := resolveActor(c, app)
 
 	status := req.Status
 	if status == "" {
@@ -95,8 +96,8 @@ func HandleCreateAddress(c *core.RequestEvent, app core.App) error {
 		if len(req.Coordinates) > 0 && string(req.Coordinates) != "null" {
 			record.Set("coordinates", req.Coordinates)
 		}
-		record.Set("updated_by", req.UpdatedBy)
-		record.Set("created_by", req.UpdatedBy)
+		record.Set("updated_by", actor)
+		record.Set("created_by", actor)
 		record.Set("sequence", sequence+1)
 		record.Set("source", "app")
 

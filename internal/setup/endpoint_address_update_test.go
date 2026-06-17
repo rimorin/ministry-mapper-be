@@ -190,8 +190,7 @@ func TestHandleUpdateAddress(t *testing.T) {
 				"map_id":        "testmapalpha01a",
 				"notes":         "Knock loudly",
 				"status":        "not_home",
-				"not_home_tries": 2,
-				"updated_by":    "test-user"
+				"not_home_tries": 2
 			}`),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
@@ -213,8 +212,8 @@ func TestHandleUpdateAddress(t *testing.T) {
 				if addr.GetInt("not_home_tries") != 2 {
 					t.Errorf("expected not_home_tries=2, got %d", addr.GetInt("not_home_tries"))
 				}
-				if addr.GetString("updated_by") != "test-user" {
-					t.Errorf("expected updated_by='test-user', got %q", addr.GetString("updated_by"))
+				if addr.GetString("updated_by") != "Alpha Admin" {
+					t.Errorf("expected updated_by='Alpha Admin' (derived from session), got %q", addr.GetString("updated_by"))
 				}
 			},
 		},
@@ -225,8 +224,7 @@ func TestHandleUpdateAddress(t *testing.T) {
 			Body: strings.NewReader(`{
 				"address_id": "testalpha01a002",
 				"map_id":     "testmapalpha01a",
-				"status":     "done",
-				"updated_by": "conductor-user"
+				"status":     "done"
 			}`),
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
@@ -242,6 +240,9 @@ func TestHandleUpdateAddress(t *testing.T) {
 				if addr.GetString("status") != "done" {
 					t.Errorf("expected status='done', got %q", addr.GetString("status"))
 				}
+				if addr.GetString("updated_by") != "Alpha Conductor" {
+					t.Errorf("expected updated_by='Alpha Conductor' (derived from session), got %q", addr.GetString("updated_by"))
+				}
 			},
 		},
 		{
@@ -251,8 +252,7 @@ func TestHandleUpdateAddress(t *testing.T) {
 			Body: strings.NewReader(`{
 				"address_id": "testalpha01a001",
 				"map_id":     "testmapalpha01a",
-				"status":     "not_home",
-				"updated_by": "link-publisher"
+				"status":     "not_home"
 			}`),
 			Headers: map[string]string{
 				"Content-Type": "application/json",
@@ -268,6 +268,9 @@ func TestHandleUpdateAddress(t *testing.T) {
 				}
 				if addr.GetString("status") != "not_home" {
 					t.Errorf("expected status='not_home', got %q", addr.GetString("status"))
+				}
+				if addr.GetString("updated_by") != "Test Publisher Alpha" {
+					t.Errorf("expected updated_by='Test Publisher Alpha' (derived from assignment), got %q", addr.GetString("updated_by"))
 				}
 			},
 		},
@@ -489,31 +492,31 @@ func TestHandleUpdateAddress_StatusTransitions(t *testing.T) {
 		{
 			name:   "status not_done is stored",
 			seedID: "testalpha01a003", // starts as not_home
-			body:   `{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_done","not_home_tries":0,"updated_by":"u"}`,
+			body:   `{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_done","not_home_tries":0}`,
 			want:   "not_done",
 		},
 		{
 			name:   "status not_home is stored",
 			seedID: "testalpha01a001",
-			body:   `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"not_home","not_home_tries":1,"updated_by":"u"}`,
+			body:   `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"not_home","not_home_tries":1}`,
 			want:   "not_home",
 		},
 		{
 			name:   "status done is stored",
 			seedID: "testalpha01a001",
-			body:   `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"done","updated_by":"u"}`,
+			body:   `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"done"}`,
 			want:   "done",
 		},
 		{
 			name:   "status do_not_call is stored",
 			seedID: "testalpha01a001",
-			body:   `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"do_not_call","dnc_time":"2026-01-01T00:00:00.000Z","updated_by":"u"}`,
+			body:   `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"do_not_call","dnc_time":"2026-01-01T00:00:00.000Z"}`,
 			want:   "do_not_call",
 		},
 		{
 			name:   "status invalid is stored",
 			seedID: "testalpha01a001",
-			body:   `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"invalid","updated_by":"u"}`,
+			body:   `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"invalid"}`,
 			want:   "invalid",
 		},
 	}
@@ -560,76 +563,81 @@ func TestHandleUpdateAddress_StatusTransitions(t *testing.T) {
 		wantLogBy string // expected changed_by in log
 	}
 
+	// All scenarios below authenticate as adminToken (admin@alpha.test, name
+	// "Alpha Admin"), so changed_by/updated_by is always derived as "Alpha Admin"
+	// regardless of what the request body claims — see resolveActor in common.go.
+	const wantActor = "Alpha Admin"
+
 	transitions := []transitionCase{
 		// ── Transitions that MUST produce a log entry ────────────────────────────
 		{
 			name:    "not_done → not_home produces log",
 			addrID:  "testalpha01a001",
-			body:    `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"not_home","not_home_tries":1,"updated_by":"pub1"}`,
-			wantLog: true, wantOld: "not_done", wantNew: "not_home", wantLogBy: "pub1",
+			body:    `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"not_home","not_home_tries":1}`,
+			wantLog: true, wantOld: "not_done", wantNew: "not_home", wantLogBy: wantActor,
 		},
 		{
 			name:    "not_done → done produces log",
 			addrID:  "testalpha01a001",
-			body:    `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"done","updated_by":"pub2"}`,
-			wantLog: true, wantOld: "not_done", wantNew: "done", wantLogBy: "pub2",
+			body:    `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"done"}`,
+			wantLog: true, wantOld: "not_done", wantNew: "done", wantLogBy: wantActor,
 		},
 		{
 			name:    "not_done → do_not_call produces log",
 			addrID:  "testalpha01a001",
-			body:    `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"do_not_call","dnc_time":"2026-05-01T00:00:00.000Z","updated_by":"pub3"}`,
-			wantLog: true, wantOld: "not_done", wantNew: "do_not_call", wantLogBy: "pub3",
+			body:    `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"do_not_call","dnc_time":"2026-05-01T00:00:00.000Z"}`,
+			wantLog: true, wantOld: "not_done", wantNew: "do_not_call", wantLogBy: wantActor,
 		},
 		{
 			name:    "not_done → invalid produces log",
 			addrID:  "testalpha01a001",
-			body:    `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"invalid","updated_by":"pub4"}`,
-			wantLog: true, wantOld: "not_done", wantNew: "invalid", wantLogBy: "pub4",
+			body:    `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"invalid"}`,
+			wantLog: true, wantOld: "not_done", wantNew: "invalid", wantLogBy: wantActor,
 		},
 		{
 			// testalpha01a005 is seeded as done; reset to not_done.
 			name:    "done → not_done produces log",
 			addrID:  "testalpha01a005",
-			body:    `{"address_id":"testalpha01a005","map_id":"testmapalpha01a","status":"not_done","not_home_tries":0,"updated_by":"admin1"}`,
-			wantLog: true, wantOld: "done", wantNew: "not_done", wantLogBy: "admin1",
+			body:    `{"address_id":"testalpha01a005","map_id":"testmapalpha01a","status":"not_done","not_home_tries":0}`,
+			wantLog: true, wantOld: "done", wantNew: "not_done", wantLogBy: wantActor,
 		},
 		{
 			// testalpha01a003 is seeded as not_home; transition to done.
 			name:    "not_home → done produces log",
 			addrID:  "testalpha01a003",
-			body:    `{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"done","not_home_tries":0,"updated_by":"admin2"}`,
-			wantLog: true, wantOld: "not_home", wantNew: "done", wantLogBy: "admin2",
+			body:    `{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"done","not_home_tries":0}`,
+			wantLog: true, wantOld: "not_home", wantNew: "done", wantLogBy: wantActor,
 		},
 		{
 			// testalpha01a003 is seeded as not_home; reset to not_done.
 			name:    "not_home → not_done produces log",
 			addrID:  "testalpha01a003",
-			body:    `{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_done","not_home_tries":0,"updated_by":"admin3"}`,
-			wantLog: true, wantOld: "not_home", wantNew: "not_done", wantLogBy: "admin3",
+			body:    `{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_done","not_home_tries":0}`,
+			wantLog: true, wantOld: "not_home", wantNew: "not_done", wantLogBy: wantActor,
 		},
 		{
 			// Pre-set address to do_not_call; reset to not_done.
 			name:    "do_not_call → not_done produces log",
 			factory: preSet("testalpha01a001", map[string]any{"status": "do_not_call"}),
 			addrID:  "testalpha01a001",
-			body:    `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"not_done","updated_by":"admin4"}`,
-			wantLog: true, wantOld: "do_not_call", wantNew: "not_done", wantLogBy: "admin4",
+			body:    `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"not_done"}`,
+			wantLog: true, wantOld: "do_not_call", wantNew: "not_done", wantLogBy: wantActor,
 		},
 		{
 			// Pre-set address to invalid; reset to not_done.
 			name:    "invalid → not_done produces log",
 			factory: preSet("testalpha01a001", map[string]any{"status": "invalid"}),
 			addrID:  "testalpha01a001",
-			body:    `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"not_done","updated_by":"admin5"}`,
-			wantLog: true, wantOld: "invalid", wantNew: "not_done", wantLogBy: "admin5",
+			body:    `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"not_done"}`,
+			wantLog: true, wantOld: "invalid", wantNew: "not_done", wantLogBy: wantActor,
 		},
 		{
 			// not_home + tries increment without status change → log entry required
 			// because the aggregate bucket shifts.
 			name:    "not_home + tries increment (0→2) produces log even though status unchanged",
 			addrID:  "testalpha01a003",
-			body:    `{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_home","not_home_tries":2,"updated_by":"pub5"}`,
-			wantLog: true, wantOld: "not_home", wantNew: "not_home", wantLogBy: "pub5",
+			body:    `{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_home","not_home_tries":2}`,
+			wantLog: true, wantOld: "not_home", wantNew: "not_home", wantLogBy: wantActor,
 		},
 
 		// ── Transitions that must NOT produce a log entry ────────────────────────
@@ -637,21 +645,21 @@ func TestHandleUpdateAddress_StatusTransitions(t *testing.T) {
 			// Same status, same tries → no log.
 			name:    "not_done → not_done (no change) produces no log",
 			addrID:  "testalpha01a001",
-			body:    `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"not_done","not_home_tries":0,"updated_by":"pub6"}`,
+			body:    `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"not_done","not_home_tries":0}`,
 			wantLog: false,
 		},
 		{
 			// not_home same status, same tries value → no log.
 			name:    "not_home + same tries (0→0) produces no log",
 			addrID:  "testalpha01a003",
-			body:    `{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_home","not_home_tries":0,"updated_by":"pub7"}`,
+			body:    `{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_home","not_home_tries":0}`,
 			wantLog: false,
 		},
 		{
 			// done → done (no status change) → no log.
 			name:    "done → done (no change) produces no log",
 			addrID:  "testalpha01a005",
-			body:    `{"address_id":"testalpha01a005","map_id":"testmapalpha01a","status":"done","updated_by":"pub8"}`,
+			body:    `{"address_id":"testalpha01a005","map_id":"testmapalpha01a","status":"done"}`,
 			wantLog: false,
 		},
 	}
@@ -720,8 +728,7 @@ func TestHandleUpdateAddress_StatusTransitions(t *testing.T) {
 				"address_id":     "testalpha01a001",
 				"map_id":         "testmapalpha01a",
 				"status":         "not_home",
-				"not_home_tries": 3,
-				"updated_by":     "u"
+				"not_home_tries": 3
 			}`),
 			Headers:        map[string]string{"Content-Type": "application/json", "Authorization": adminToken},
 			TestAppFactory: setupTestApp,
@@ -740,8 +747,7 @@ func TestHandleUpdateAddress_StatusTransitions(t *testing.T) {
 				"address_id":     "testalpha01a003",
 				"map_id":         "testmapalpha01a",
 				"status":         "not_home",
-				"not_home_tries": 0,
-				"updated_by":     "u"
+				"not_home_tries": 0
 			}`),
 			Headers: map[string]string{"Content-Type": "application/json", "Authorization": adminToken},
 			TestAppFactory: preSet("testalpha01a003", map[string]any{"not_home_tries": 2}),
@@ -760,8 +766,7 @@ func TestHandleUpdateAddress_StatusTransitions(t *testing.T) {
 				"address_id": "testalpha01a001",
 				"map_id":     "testmapalpha01a",
 				"status":     "do_not_call",
-				"dnc_time":   "2026-05-01T12:00:00.000Z",
-				"updated_by": "u"
+				"dnc_time":   "2026-05-01T12:00:00.000Z"
 			}`),
 			Headers:        map[string]string{"Content-Type": "application/json", "Authorization": adminToken},
 			TestAppFactory: setupTestApp,
@@ -773,21 +778,48 @@ func TestHandleUpdateAddress_StatusTransitions(t *testing.T) {
 			},
 		},
 		{
-			Name:   "updated_by is persisted",
+			// updated_by is derived server-side from the authenticated session, not
+			// the request body — a client-supplied value must be ignored.
+			Name:   "updated_by is derived from the authenticated user, ignoring client-supplied value",
 			Method: http.MethodPost,
 			URL:    "/address/update",
 			Body: strings.NewReader(`{
 				"address_id": "testalpha01a001",
 				"map_id":     "testmapalpha01a",
 				"status":     "not_done",
-				"updated_by": "specific-publisher-id"
+				"updated_by": "spoofed-identity"
 			}`),
 			Headers:        map[string]string{"Content-Type": "application/json", "Authorization": adminToken},
 			TestAppFactory: setupTestApp,
 			ExpectedStatus: http.StatusNoContent,
 			AfterTestFunc: func(tb testing.TB, app *tests.TestApp, res *http.Response) {
-				if got := postAddr(tb, app, "testalpha01a001").GetString("updated_by"); got != "specific-publisher-id" {
-					tb.Errorf("updated_by: want %q, got %q", "specific-publisher-id", got)
+				if got := postAddr(tb, app, "testalpha01a001").GetString("updated_by"); got != "Alpha Admin" {
+					tb.Errorf("updated_by: want %q (derived from session), got %q", "Alpha Admin", got)
+				}
+			},
+		},
+		{
+			// For link-id (no-account) access, updated_by is derived from the
+			// assignment's publisher field, not the request body.
+			Name:   "updated_by is derived from the assignment publisher for link-id access, ignoring client-supplied value",
+			Method: http.MethodPost,
+			URL:    "/address/update",
+			Body: strings.NewReader(`{
+				"address_id": "testalpha01a001",
+				"map_id":     "testmapalpha01a",
+				"status":     "not_done",
+				"updated_by": "spoofed-identity"
+			}`),
+			Headers: map[string]string{
+				"Content-Type": "application/json",
+				// testassignalpha01 -> publisher "Test Publisher Alpha"
+				"link-id": "testassignalpha01",
+			},
+			TestAppFactory: setupTestApp,
+			ExpectedStatus: http.StatusNoContent,
+			AfterTestFunc: func(tb testing.TB, app *tests.TestApp, res *http.Response) {
+				if got := postAddr(tb, app, "testalpha01a001").GetString("updated_by"); got != "Test Publisher Alpha" {
+					tb.Errorf("updated_by: want %q (derived from assignment), got %q", "Test Publisher Alpha", got)
 				}
 			},
 		},
@@ -808,8 +840,7 @@ func TestHandleUpdateAddress_StatusTransitions(t *testing.T) {
 				"address_id": "testalpha01a001",
 				"map_id":     "testmapalpha01a",
 				"status":     "not_done",
-				"notes":      "New delivery note",
-				"updated_by": "note-changer"
+				"notes":      "New delivery note"
 			}`),
 			Headers:        map[string]string{"Content-Type": "application/json", "Authorization": adminToken},
 			TestAppFactory: setupTestApp,
@@ -819,8 +850,8 @@ func TestHandleUpdateAddress_StatusTransitions(t *testing.T) {
 				if addr.GetString("last_notes_updated") == "" {
 					tb.Error("last_notes_updated: expected a timestamp after notes change, got empty")
 				}
-				if got := addr.GetString("last_notes_updated_by"); got != "note-changer" {
-					tb.Errorf("last_notes_updated_by: want %q, got %q", "note-changer", got)
+				if got := addr.GetString("last_notes_updated_by"); got != "Alpha Admin" {
+					tb.Errorf("last_notes_updated_by: want %q, got %q", "Alpha Admin", got)
 				}
 			},
 		},
@@ -834,8 +865,7 @@ func TestHandleUpdateAddress_StatusTransitions(t *testing.T) {
 				"address_id": "testalpha01a001",
 				"map_id":     "testmapalpha01a",
 				"status":     "not_done",
-				"notes":      "",
-				"updated_by": "anyone"
+				"notes":      ""
 			}`),
 			Headers:        map[string]string{"Content-Type": "application/json", "Authorization": adminToken},
 			TestAppFactory: setupTestApp,
@@ -851,7 +881,7 @@ func TestHandleUpdateAddress_StatusTransitions(t *testing.T) {
 			},
 		},
 		{
-			// Notes change with notes previously set: stamp must update to new updater.
+			// Notes change with notes previously set: stamp must update to the new updater.
 			Name:   "notes change on pre-existing note updates last_notes_updated_by to new updater",
 			Method: http.MethodPost,
 			URL:    "/address/update",
@@ -859,8 +889,7 @@ func TestHandleUpdateAddress_StatusTransitions(t *testing.T) {
 				"address_id": "testalpha01a001",
 				"map_id":     "testmapalpha01a",
 				"status":     "not_done",
-				"notes":      "Updated again",
-				"updated_by": "second-editor"
+				"notes":      "Updated again"
 			}`),
 			Headers: map[string]string{"Content-Type": "application/json", "Authorization": adminToken},
 			TestAppFactory: preSet("testalpha01a001", map[string]any{
@@ -870,8 +899,8 @@ func TestHandleUpdateAddress_StatusTransitions(t *testing.T) {
 			ExpectedStatus: http.StatusNoContent,
 			AfterTestFunc: func(tb testing.TB, app *tests.TestApp, res *http.Response) {
 				addr := postAddr(tb, app, "testalpha01a001")
-				if got := addr.GetString("last_notes_updated_by"); got != "second-editor" {
-					tb.Errorf("last_notes_updated_by: want %q, got %q", "second-editor", got)
+				if got := addr.GetString("last_notes_updated_by"); got != "Alpha Admin" {
+					tb.Errorf("last_notes_updated_by: want %q, got %q", "Alpha Admin", got)
 				}
 			},
 		},

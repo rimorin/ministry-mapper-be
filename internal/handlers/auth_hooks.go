@@ -13,16 +13,12 @@ import (
 )
 
 // authOrLink authorizes via link-id (if present) or role. Link-id takes precedence.
-// For updates/deletes, use Original() values to prevent field-mutation bypass.
-func authOrLink(e *core.RecordRequestEvent, app core.App, useOriginal bool) error {
+func authOrLink(e *core.RecordRequestEvent, app core.App) error {
 	if e.HasSuperuserAuth() {
 		return e.Next()
 	}
 
 	rec := e.Record
-	if useOriginal && rec.Original() != nil {
-		rec = rec.Original()
-	}
 	mapId := rec.GetString("map")
 
 	linkId := e.Request.Header.Get("link-id")
@@ -503,25 +499,12 @@ func RegisterAuthHooks(app core.App) {
 	// --- Create/Update/Delete hooks (pre-operation authorization) ---
 
 	// Pattern A: Any role OR link access
-	// addresses create/update
-	app.OnRecordCreateRequest("addresses").BindFunc(func(e *core.RecordRequestEvent) error {
-		return authOrLink(e, app, false)
-	})
-	app.OnRecordUpdateRequest("addresses").BindFunc(func(e *core.RecordRequestEvent) error {
-		return authOrLink(e, app, true)
-	})
-
-	// address_options create/delete
-	app.OnRecordCreateRequest("address_options").BindFunc(func(e *core.RecordRequestEvent) error {
-		return authOrLink(e, app, false)
-	})
-	app.OnRecordDeleteRequest("address_options").BindFunc(func(e *core.RecordRequestEvent) error {
-		return authOrLink(e, app, true)
-	})
-
 	// messages create
+	// (addresses/address_options create/update/delete go through the custom
+	// /address/* routes, not this generic API — their createRule/updateRule/
+	// deleteRule are superuser-only, so hooks registered here would never run.)
 	app.OnRecordCreateRequest("messages").BindFunc(func(e *core.RecordRequestEvent) error {
-		return authOrLink(e, app, false)
+		return authOrLink(e, app)
 	})
 
 	// Pattern B: Administrator only
