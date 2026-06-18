@@ -10,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"text/template"
 	"time"
@@ -98,14 +99,6 @@ func generateReportBuffer(app core.App, congregation *core.Record, period Report
 		return "", nil, fmt.Errorf("failed to fetch congregation options: %v", err)
 	}
 
-	if err := createDetailsSheet(app, f, congregation, congregationOptions); err != nil {
-		return "", nil, fmt.Errorf("failed to create details sheet: %v", err)
-	}
-
-	if err := createAddressSheet(app, f, congregation); err != nil {
-		return "", nil, fmt.Errorf("failed to create address sheet: %v", err)
-	}
-
 	territories, err := app.FindRecordsByFilter(
 		"territories",
 		"congregation = {:congregation}",
@@ -116,6 +109,14 @@ func generateReportBuffer(app core.App, congregation *core.Record, period Report
 	)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to fetch territories: %v", err)
+	}
+
+	if err := createDetailsSheet(app, f, congregation, congregationOptions, territories); err != nil {
+		return "", nil, fmt.Errorf("failed to create details sheet: %v", err)
+	}
+
+	if err := createAddressSheet(app, f, congregation); err != nil {
+		return "", nil, fmt.Errorf("failed to create address sheet: %v", err)
 	}
 
 	for _, territory := range territories {
@@ -342,7 +343,7 @@ func parseProgressValue(value interface{}) (float64, bool) {
 	return 0, false
 }
 
-func createDetailsSheet(app core.App, f *excelize.File, congregation *core.Record, options []*core.Record) error {
+func createDetailsSheet(app core.App, f *excelize.File, congregation *core.Record, options []*core.Record, territories []*core.Record) error {
 	f.SetSheetName("Sheet1", "Details")
 	sheet := "Details"
 
@@ -392,18 +393,6 @@ func createDetailsSheet(app core.App, f *excelize.File, congregation *core.Recor
 	f.SetCellStyle(sheet, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row), sectionHeaderStyle)
 	f.SetRowHeight(sheet, row, 30)
 	row++
-
-	territories, err := app.FindRecordsByFilter(
-		"territories",
-		"congregation = {:congregation}",
-		"code", // Sort by territory code
-		0,
-		0,
-		dbx.Params{"congregation": congregation.Id},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to fetch territories: %v", err)
-	}
 
 	if len(territories) == 0 {
 		f.SetCellValue(sheet, fmt.Sprintf("A%d", row), "No territories found")
@@ -486,31 +475,50 @@ func createDetailsSheet(app core.App, f *excelize.File, congregation *core.Recor
 		f.SetRowHeight(sheet, row, 28)
 		row++
 
+		type userInfo struct {
+			Id    string `db:"id"`
+			Name  string `db:"name"`
+			Email string `db:"email"`
+		}
+		userMap := make(map[string]userInfo, len(roles))
+		params := dbx.Params{}
+		placeholders := make([]string, 0, len(roles))
+		for i, role := range roles {
+			uid := fmt.Sprintf("%v", role.Get("user"))
+			if uid == "" || uid == "<nil>" {
+				continue
+			}
+			key := fmt.Sprintf("u%d", i)
+			params[key] = uid
+			placeholders = append(placeholders, "{:"+key+"}")
+		}
+		if len(placeholders) > 0 {
+			var users []userInfo
+			if err := app.DB().NewQuery(fmt.Sprintf(
+				"SELECT id, name, email FROM users WHERE id IN (%s)",
+				strings.Join(placeholders, ", "),
+			)).Bind(params).All(&users); err != nil {
+				log.Printf("warning: failed to batch fetch users for roles: %v", err)
+			}
+			for _, u := range users {
+				userMap[u.Id] = u
+			}
+		}
+
 		// Add each role with user information
 		for _, role := range roles {
-			userId := role.Get("user")
-			if userId == nil {
-				continue // Skip roles without users
+			uid := fmt.Sprintf("%v", role.Get("user"))
+			if uid == "" || uid == "<nil>" {
+				continue
 			}
-
-			// Get user information
-			user, err := app.FindRecordById("users", fmt.Sprintf("%v", userId))
-			if err != nil {
-				log.Printf("Failed to fetch user %v: %v", userId, err)
+			u, ok := userMap[uid]
+			if !ok {
+				log.Printf("User %s not found", uid)
 				continue
 			}
 
-			// Get user name (prefer name, fallback to username)
-			userName := fmt.Sprintf("%v", user.Get("name"))
-			if userName == "" || userName == "<nil>" {
-				userName = fmt.Sprintf("%v", user.Get("username"))
-			}
-
-			// Get user email
-			userEmail := fmt.Sprintf("%v", user.Get("email"))
-			if userEmail == "<nil>" {
-				userEmail = ""
-			}
+			userName := u.Name
+			userEmail := u.Email
 
 			roleValue := fmt.Sprintf("%v", role.Get("role"))
 
