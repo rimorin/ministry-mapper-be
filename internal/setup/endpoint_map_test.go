@@ -302,6 +302,19 @@ func TestHandleGetMapAddresses_WithAuth(t *testing.T) {
 			ExpectedStatus:  http.StatusUnauthorized,
 			ExpectedContent: []string{`"Unauthorized"`},
 		},
+		{
+			Name:   "non-existent map returns 404",
+			Method: http.MethodPost,
+			URL:    "/map/addresses",
+			Body:   strings.NewReader(`{"map_id":"doesnotexist01a"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  http.StatusNotFound,
+			ExpectedContent: []string{`"Map not found"`},
+		},
 	}
 
 	for _, scenario := range scenarios {

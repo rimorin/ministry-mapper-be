@@ -57,7 +57,11 @@ func HandleGetMapAddresses(c *core.RequestEvent, app core.App) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "map_id is required"})
 	}
 
-	if _, err := fetchMapData(app, data.MapId); err != nil {
+	var exists struct {
+		V int `db:"v"`
+	}
+	if err := app.DB().NewQuery(`SELECT 1 AS v FROM maps WHERE id = {:id} LIMIT 1`).
+		Bind(dbx.Params{"id": data.MapId}).One(&exists); err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Map not found"})
 	}
 
@@ -67,26 +71,51 @@ func HandleGetMapAddresses(c *core.RequestEvent, app core.App) error {
 
 	params := dbx.Params{"map": data.MapId}
 
-	var addresses []addressRow
-	err := app.DB().NewQuery(`
-		SELECT id, code, floor, sequence, status, notes, not_home_tries, dnc_time,
-		       COALESCE(coordinates, '') as coordinates, updated, updated_by
-		FROM addresses
-		WHERE map = {:map}
-	`).Bind(params).All(&addresses)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch addresses"})
+	type addrsResult struct {
+		v   []addressRow
+		err error
+	}
+	type optsResult struct {
+		v   []addressOption
+		err error
 	}
 
-	var options []addressOption
-	err = app.DB().NewQuery(`
-		SELECT id, address, option
-		FROM address_options
-		WHERE map = {:map}
-	`).Bind(params).All(&options)
-	if err != nil {
+	addrCh := make(chan addrsResult, 1)
+	optsCh := make(chan optsResult, 1)
+
+	go func() {
+		var v []addressRow
+		err := app.DB().NewQuery(`
+			SELECT id, code, floor, sequence, status, notes, not_home_tries, dnc_time,
+			       COALESCE(coordinates, '') as coordinates, updated, updated_by
+			FROM addresses
+			WHERE map = {:map}
+		`).Bind(params).All(&v)
+		addrCh <- addrsResult{v, err}
+	}()
+
+	go func() {
+		var v []addressOption
+		err := app.DB().NewQuery(`
+			SELECT id, address, option
+			FROM address_options
+			WHERE map = {:map}
+		`).Bind(params).All(&v)
+		optsCh <- optsResult{v, err}
+	}()
+
+	addrRes := <-addrCh
+	optsRes := <-optsCh
+
+	if addrRes.err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch addresses"})
+	}
+	if optsRes.err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch address options"})
 	}
+
+	addresses := addrRes.v
+	options := optsRes.v
 
 	optionMap := make(map[string][]addressOption, len(options))
 	for _, opt := range options {
