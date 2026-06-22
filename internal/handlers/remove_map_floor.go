@@ -59,7 +59,7 @@ func HandleRemoveMapFloor(e *core.RequestEvent, app core.App) error {
 	})
 
 	if err != nil {
-		return apis.NewNotFoundError("Transaction failed", nil)
+		return newServerError(err)
 	}
 	ProcessMapAggregates(mapId, app)
 

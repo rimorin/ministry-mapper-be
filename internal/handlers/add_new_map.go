@@ -96,7 +96,7 @@ func HandleNewMap(c *core.RequestEvent, app core.App) error {
 	})
 
 	if err != nil {
-		return apis.NewBadRequestError("Error creating map and addresses", nil)
+		return newServerError(err)
 	}
 
 	ResetMapTerritory(mapRecord.Id, app)

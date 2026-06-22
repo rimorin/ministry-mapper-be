@@ -52,7 +52,7 @@ func HandleResetMap(e *core.RequestEvent, app core.App) error {
 	})
 
 	if err != nil {
-		return apis.NewNotFoundError("Error resetting map", nil)
+		return newServerError(err)
 	}
 
 	if err := ProcessMapAggregates(mapId, app); err != nil {
@@ -125,7 +125,7 @@ func HandleResetTerritory(c *core.RequestEvent, app core.App) error {
 	})
 
 	if err != nil {
-		return apis.NewNotFoundError("Error resetting territory", nil)
+		return newServerError(err)
 	}
 
 	// Recalculate per-map aggregates for every affected map (skip cascading

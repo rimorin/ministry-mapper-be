@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/pocketbase/dbx"
@@ -48,8 +47,7 @@ func HandleDeleteTerritory(e *core.RequestEvent, app core.App) error {
 	})
 
 	if err != nil {
-		log.Printf("Error deleting territory %s: %v", territoryId, err)
-		return apis.NewBadRequestError("Error deleting territory", nil)
+		return newServerError(err)
 	}
 
 	return e.JSON(http.StatusOK, "Territory deleted successfully")

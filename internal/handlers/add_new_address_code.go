@@ -144,7 +144,7 @@ func HandleMapAdd(e *core.RequestEvent, app core.App) error {
 	})
 
 	if err != nil {
-		return apis.NewNotFoundError("Error inserting records", nil)
+		return newServerError(err)
 	}
 
 	ProcessMapAggregates(mapId, app)

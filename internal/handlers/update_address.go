@@ -98,7 +98,7 @@ func HandleUpdateAddress(c *core.RequestEvent, app core.App) error {
 	})
 
 	if err != nil {
-		return apis.ToApiError(err)
+		return wrapTransactionError(err)
 	}
 
 	return c.NoContent(http.StatusNoContent)

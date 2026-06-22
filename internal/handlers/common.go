@@ -1,12 +1,37 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/router"
 )
+
+// serverError wraps a raw infrastructure error so PocketBase responds with HTTP 500
+// and the Sentry middleware captures the real cause via the causer interface.
+type serverError struct{ cause error }
+
+func (e *serverError) Error() string { return e.cause.Error() }
+func (e *serverError) Cause() error  { return e.cause }
+func (e *serverError) Unwrap() error {
+	return router.NewInternalServerError("Something went wrong while processing your request.", nil)
+}
+
+func newServerError(cause error) error { return &serverError{cause: cause} }
+
+// wrapTransactionError passes through business-logic ApiErrors (400/403/404) unchanged
+// and wraps all other errors in a serverError so Sentry captures the real cause.
+// Use after RunInTransaction when the transaction body can return both types.
+func wrapTransactionError(err error) error {
+	var apiErr *router.ApiError
+	if errors.As(err, &apiErr) {
+		return err
+	}
+	return newServerError(err)
+}
 
 func authID(auth *core.Record) string {
 	if auth == nil {

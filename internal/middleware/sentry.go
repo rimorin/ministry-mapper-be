@@ -53,17 +53,25 @@ func WrapHandler(handler func(*core.RequestEvent) error) func(*core.RequestEvent
 		if err != nil {
 			hub.WithScope(func(scope *sentry.Scope) {
 				scope.SetLevel(sentry.LevelError)
+				captureErr := err
+				if c, ok := err.(causer); ok {
+					captureErr = c.Cause()
+				}
 				scope.SetContext("error_details", map[string]interface{}{
-					"message": err.Error(),
-					"type":    fmt.Sprintf("%T", err),
+					"message": captureErr.Error(),
+					"type":    fmt.Sprintf("%T", captureErr),
 				})
-				hub.CaptureException(err)
+				hub.CaptureException(captureErr)
 			})
 		}
 
 		return err
 	}
 }
+
+// causer is implemented by serverError in the handlers package to expose the
+// real underlying error through the generic HTTP wrapper.
+type causer interface{ Cause() error }
 
 func enrichScopeWithRequest(scope *sentry.Scope, c *core.RequestEvent) {
 	req := c.Request

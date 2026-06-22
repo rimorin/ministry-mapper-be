@@ -83,7 +83,7 @@ func HandleMapUpdateSequence(e *core.RequestEvent, app core.App) error {
 	})
 
 	if err != nil {
-		return apis.NewApiError(500, "Error updating address sequences", nil)
+		return newServerError(err)
 	}
 
 	return e.String(http.StatusOK, "Address sequences updated successfully")
@@ -132,7 +132,7 @@ func HandleMapDelete(c *core.RequestEvent, app core.App) error {
 	})
 
 	if err != nil {
-		return apis.NewApiError(500, "Error deleting address", nil)
+		return newServerError(err)
 	}
 	ProcessMapAggregates(mapId, app)
 

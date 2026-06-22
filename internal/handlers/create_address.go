@@ -130,7 +130,7 @@ func HandleCreateAddress(c *core.RequestEvent, app core.App) error {
 	})
 
 	if err != nil {
-		return apis.ToApiError(err)
+		return wrapTransactionError(err)
 	}
 
 	ProcessMapAggregates(req.MapId, app)

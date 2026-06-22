@@ -89,7 +89,7 @@ func HandleMapFloor(e *core.RequestEvent, app core.App) error {
 	})
 
 	if err != nil {
-		return apis.NewNotFoundError("Error updating map floor", nil)
+		return newServerError(err)
 	}
 	ProcessMapAggregates(mapId, app)
 

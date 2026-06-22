@@ -45,7 +45,7 @@ func HandleMapTerritoryUpdate(e *core.RequestEvent, app core.App) error {
 	})
 
 	if err != nil {
-		return apis.NewApiError(500, "Error updating map territory", nil)
+		return newServerError(err)
 	}
 
 	ProcessTerritoryAggregates(oldTerritory, app)
