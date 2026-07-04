@@ -77,9 +77,10 @@ fi
 echo "✅ Seed verified: ${CONGS} congregations, ${USERS} users, ${ADDRS} addresses"
 
 # Step 3: Run integration tests — tests.NewTestApp copies the DB to a temp
-# dir per test, so no live server is needed here.
+# dir per test, so no live server is needed here. Only internal/setup and
+# internal/jobs have //go:build testdata test files.
 echo "🧪 Running integration tests..."
-go test -tags testdata -v -timeout 120s ./internal/setup/
+go test -tags testdata -v -timeout 120s ./internal/setup/ ./internal/jobs/
 
 # Steps 4 & 5: cleanup trap stops the server and removes test_pb_data on EXIT
 echo "✅ All tests passed."

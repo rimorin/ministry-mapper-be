@@ -1,3 +1,5 @@
+//go:build testdata
+
 package setup
 
 import (
@@ -27,6 +29,7 @@ func TestAuthHook_MapsListRequest(t *testing.T) {
 	territoryFilteredURL := "/api/collections/maps/records?filter=" + url.QueryEscape(`territory="testterralpha01"`)
 	betaFilteredURL := "/api/collections/maps/records?filter=" + url.QueryEscape(`congregation="testcongbeta001"`)
 	injectionURL := "/api/collections/maps/records?filter=" + url.QueryEscape(`congregation="testcongalpha01" || congregation="testcongbeta001"`)
+	tautologyInjectionURL := "/api/collections/maps/records?fields=*&filter=" + url.QueryEscape(`congregation="testcongalpha01" || id!=""`)
 
 	scenarios := []tests.ApiScenario{
 		{
@@ -114,6 +117,18 @@ func TestAuthHook_MapsListRequest(t *testing.T) {
 			ExpectedStatus:  403,
 			ExpectedContent: []string{`"status":403`},
 		},
+		{
+			Name:   "tautology filter injection does not leak other congregations' maps",
+			Method: http.MethodGet,
+			URL:    tautologyInjectionURL,
+			Headers: map[string]string{
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     200,
+			ExpectedContent:    []string{`"testmapalpha01a"`},
+			NotExpectedContent: []string{`"testmapbeta001a"`},
+		},
 	}
 
 	for _, scenario := range scenarios {
@@ -133,6 +148,7 @@ func TestAuthHook_TerritoriesListRequest(t *testing.T) {
 
 	filteredURL := "/api/collections/territories/records?filter=" + url.QueryEscape(`congregation="testcongalpha01"`)
 	injectionURL := "/api/collections/territories/records?filter=" + url.QueryEscape(`congregation="testcongalpha01" || congregation="testcongbeta001"`)
+	tautologyInjectionURL := "/api/collections/territories/records?fields=*&filter=" + url.QueryEscape(`congregation="testcongalpha01" || id!=""`)
 
 	scenarios := []tests.ApiScenario{
 		{
@@ -186,6 +202,18 @@ func TestAuthHook_TerritoriesListRequest(t *testing.T) {
 			TestAppFactory:  setupTestApp,
 			ExpectedStatus:  403,
 			ExpectedContent: []string{`"status":403`},
+		},
+		{
+			Name:   "tautology filter injection does not leak other congregations' territories",
+			Method: http.MethodGet,
+			URL:    tautologyInjectionURL,
+			Headers: map[string]string{
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     200,
+			ExpectedContent:    []string{`"testterralpha01"`},
+			NotExpectedContent: []string{`"testterrbeta001"`},
 		},
 	}
 
@@ -432,6 +460,7 @@ func TestAuthHook_RolesListRequest(t *testing.T) {
 	selfUserFilterURL := "/api/collections/roles/records?filter=" + url.QueryEscape(`user="testuseralpha02"`)
 	otherUserFilterURL := "/api/collections/roles/records?filter=" + url.QueryEscape(`user="testuseralpha01"`)
 	injectionURL := "/api/collections/roles/records?filter=" + url.QueryEscape(`congregation="testcongalpha01" || congregation="testcongbeta001"`)
+	tautologyInjectionURL := "/api/collections/roles/records?fields=*&filter=" + url.QueryEscape(`congregation="testcongalpha01" || id!=""`)
 
 	scenarios := []tests.ApiScenario{
 		{
@@ -497,6 +526,18 @@ func TestAuthHook_RolesListRequest(t *testing.T) {
 			ExpectedStatus:  403,
 			ExpectedContent: []string{`"status":403`},
 		},
+		{
+			Name:   "tautology filter injection does not leak other congregations' roles",
+			Method: http.MethodGet,
+			URL:    tautologyInjectionURL,
+			Headers: map[string]string{
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     200,
+			ExpectedContent:    []string{`"testrolexcng01a"`},
+			NotExpectedContent: []string{`"testrolexcng02a"`},
+		},
 	}
 
 	for _, scenario := range scenarios {
@@ -524,6 +565,8 @@ func TestAuthHook_AssignmentsListRequest(t *testing.T) {
 	selfConductorFilterURL := "/api/collections/assignments/records?filter=" + url.QueryEscape(`user="testuseralpha02"`)
 	selfReadonlyFilterURL := "/api/collections/assignments/records?filter=" + url.QueryEscape(`user="testuseralpha03"`)
 	otherUserFilterURL := "/api/collections/assignments/records?filter=" + url.QueryEscape(`user="testuseralpha01"`)
+	mapTautologyInjectionURL := "/api/collections/assignments/records?fields=*&filter=" + url.QueryEscape(`map="testmapalpha01a" || id!=""`)
+	userTautologyInjectionURL := "/api/collections/assignments/records?fields=*&filter=" + url.QueryEscape(`user="testuseralpha01" || id!=""`)
 
 	scenarios := []tests.ApiScenario{
 		{
@@ -610,6 +653,29 @@ func TestAuthHook_AssignmentsListRequest(t *testing.T) {
 			TestAppFactory:  setupTestApp,
 			ExpectedStatus:  403,
 			ExpectedContent: []string{`"status":403`},
+		},
+		{
+			Name:   "map tautology filter injection does not leak other congregations' assignments",
+			Method: http.MethodGet,
+			URL:    mapTautologyInjectionURL,
+			Headers: map[string]string{
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     200,
+			ExpectedContent:    []string{`"testassignalpha01"`},
+			NotExpectedContent: []string{`"testassignbeta001"`},
+		},
+		{
+			Name:   "user tautology filter injection (admin/conductor lookup) does not leak other congregations' assignments",
+			Method: http.MethodGet,
+			URL:    userTautologyInjectionURL,
+			Headers: map[string]string{
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     200,
+			NotExpectedContent: []string{`"testassignbeta001"`},
 		},
 	}
 
@@ -835,6 +901,7 @@ func TestAuthHook_OptionsListRequest(t *testing.T) {
 	filteredURL := "/api/collections/options/records?filter=" + url.QueryEscape(`congregation="testcongalpha01"`)
 	betaFilteredURL := "/api/collections/options/records?filter=" + url.QueryEscape(`congregation="testcongbeta001"`)
 	injectionURL := "/api/collections/options/records?filter=" + url.QueryEscape(`congregation="testcongalpha01" || congregation="testcongbeta001"`)
+	tautologyInjectionURL := "/api/collections/options/records?fields=*&filter=" + url.QueryEscape(`congregation="testcongalpha01" || id!=""`)
 
 	scenarios := []tests.ApiScenario{
 		{
@@ -921,6 +988,30 @@ func TestAuthHook_OptionsListRequest(t *testing.T) {
 			TestAppFactory:  setupTestApp,
 			ExpectedStatus:  403,
 			ExpectedContent: []string{`"status":403`},
+		},
+		{
+			Name:   "tautology filter injection does not leak other congregations' options",
+			Method: http.MethodGet,
+			URL:    tautologyInjectionURL,
+			Headers: map[string]string{
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     200,
+			ExpectedContent:    []string{`"testoptialpha01"`},
+			NotExpectedContent: []string{`"testoptibeta001"`},
+		},
+		{
+			Name:   "link-id tautology filter injection does not leak other congregations' options",
+			Method: http.MethodGet,
+			URL:    tautologyInjectionURL,
+			Headers: map[string]string{
+				"link-id": "testassignalpha01",
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     200,
+			ExpectedContent:    []string{`"testoptialpha01"`},
+			NotExpectedContent: []string{`"testoptibeta001"`},
 		},
 	}
 
@@ -1072,6 +1163,7 @@ func TestAuthHook_AddressesListRequest(t *testing.T) {
 	mapFilterURL := "/api/collections/addresses/records?filter=" + url.QueryEscape(`map="testmapalpha01a"`)
 	betaMapFilterURL := "/api/collections/addresses/records?filter=" + url.QueryEscape(`map="testmapbeta001a"`)
 	injectionURL := "/api/collections/addresses/records?filter=" + url.QueryEscape(`map="testmapalpha01a" || map="testmapbeta001a"`)
+	tautologyInjectionURL := "/api/collections/addresses/records?fields=*&filter=" + url.QueryEscape(`map="testmapalpha01a" || id!=""`)
 
 	scenarios := []tests.ApiScenario{
 		{
@@ -1159,6 +1251,30 @@ func TestAuthHook_AddressesListRequest(t *testing.T) {
 			ExpectedStatus:  403,
 			ExpectedContent: []string{`"status":403`},
 		},
+		{
+			Name:   "tautology filter injection does not leak other congregations' addresses",
+			Method: http.MethodGet,
+			URL:    tautologyInjectionURL,
+			Headers: map[string]string{
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     200,
+			ExpectedContent:    []string{`"testalpha01a001"`},
+			NotExpectedContent: []string{`"testbeta001a001"`},
+		},
+		{
+			Name:   "link-id tautology filter injection does not leak addresses from other maps",
+			Method: http.MethodGet,
+			URL:    tautologyInjectionURL,
+			Headers: map[string]string{
+				"link-id": "testassignalpha01",
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     200,
+			ExpectedContent:    []string{`"testalpha01a001"`},
+			NotExpectedContent: []string{`"testbeta001a001"`, `"testalpha02a001"`},
+		},
 	}
 
 	_ = betaConductorToken
@@ -1179,6 +1295,7 @@ func TestAuthHook_AddressOptionsListRequest(t *testing.T) {
 
 	mapFilterURL := "/api/collections/address_options/records?filter=" + url.QueryEscape(`map="testmapalpha01a"`)
 	injectionURL := "/api/collections/address_options/records?filter=" + url.QueryEscape(`map="testmapalpha01a" || map="testmapbeta001a"`)
+	tautologyInjectionURL := "/api/collections/address_options/records?fields=*&filter=" + url.QueryEscape(`map="testmapalpha01a" || id!=""`)
 
 	scenarios := []tests.ApiScenario{
 		{
@@ -1255,6 +1372,29 @@ func TestAuthHook_AddressOptionsListRequest(t *testing.T) {
 			ExpectedStatus:  403,
 			ExpectedContent: []string{`"status":403`},
 		},
+		{
+			Name:   "conductor tautology filter injection does not leak address_options from other congregations",
+			Method: http.MethodGet,
+			URL:    tautologyInjectionURL,
+			Headers: map[string]string{
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"testaoalph01001"`},
+		},
+		{
+			Name:   "link-id tautology filter injection does not leak address_options from other maps",
+			Method: http.MethodGet,
+			URL:    tautologyInjectionURL,
+			Headers: map[string]string{
+				"link-id": "testassignalpha01",
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     200,
+			ExpectedContent:    []string{`"testaoalph01001"`},
+			NotExpectedContent: []string{`"testaoalph02001"`},
+		},
 	}
 
 	for _, scenario := range scenarios {
@@ -1274,6 +1414,7 @@ func TestAuthHook_MessagesListRequest(t *testing.T) {
 
 	mapFilterURL := "/api/collections/messages/records?filter=" + url.QueryEscape(`map="testmapalpha01a"`)
 	injectionURL := "/api/collections/messages/records?filter=" + url.QueryEscape(`map="testmapalpha01a" || map="testmapbeta001a"`)
+	tautologyInjectionURL := "/api/collections/messages/records?fields=*&filter=" + url.QueryEscape(`map="testmapalpha01a" || id!=""`)
 
 	scenarios := []tests.ApiScenario{
 		{
@@ -1349,6 +1490,29 @@ func TestAuthHook_MessagesListRequest(t *testing.T) {
 			TestAppFactory:  setupTestApp,
 			ExpectedStatus:  403,
 			ExpectedContent: []string{`"status":403`},
+		},
+		{
+			Name:   "conductor tautology filter injection gets scoped message list",
+			Method: http.MethodGet,
+			URL:    tautologyInjectionURL,
+			Headers: map[string]string{
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"testmsgalpha01a"`},
+		},
+		{
+			Name:   "link-id tautology filter injection does not leak messages from other maps",
+			Method: http.MethodGet,
+			URL:    tautologyInjectionURL,
+			Headers: map[string]string{
+				"link-id": "testassignalpha01",
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     200,
+			ExpectedContent:    []string{`"testmsgalpha01a"`},
+			NotExpectedContent: []string{`"testmsgalphunp1"`},
 		},
 	}
 

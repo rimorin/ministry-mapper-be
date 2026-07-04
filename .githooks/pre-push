@@ -4,7 +4,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 echo "🧪 Running unit tests..."
-UNIT_OUTPUT=$(go test -v -count=1 $(go list ./... | grep -v ministry-mapper/internal/setup) 2>&1)
+UNIT_OUTPUT=$(go test -v -count=1 ./... 2>&1)
 UNIT_EXIT=$?
 PASS_COUNT=$(echo "$UNIT_OUTPUT" | grep -c "^--- PASS")
 FAIL_COUNT=$(echo "$UNIT_OUTPUT" | grep -c "^--- FAIL")

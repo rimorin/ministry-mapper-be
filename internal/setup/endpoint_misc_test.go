@@ -1,3 +1,5 @@
+//go:build testdata
+
 package setup
 
 import (

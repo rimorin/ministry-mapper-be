@@ -137,6 +137,64 @@ func authorizeMapSubscription(app core.App, auth *core.Record, linkId string, fi
 	return auth != nil && authorizeUserForMaps(app, auth.Id, mapIds)
 }
 
+// scopeSubscription validates a realtime subscription for a map-scoped
+// collection and rewrites its embedded filter to the requester's real map
+// scope. Returns ok=false to drop the subscription.
+func scopeSubscription(app core.App, auth *core.Record, sub string) (string, bool) {
+	u, err := url.Parse(sub)
+	if err != nil {
+		return "", false
+	}
+
+	type subOpts struct {
+		Query   map[string]any `json:"query"`
+		Headers map[string]any `json:"headers"`
+	}
+	var opts subOpts
+	if raw := u.Query().Get("options"); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &opts); err != nil {
+			return "", false
+		}
+	}
+	if opts.Query == nil {
+		opts.Query = map[string]any{}
+	}
+
+	clientFilter, _ := opts.Query["filter"].(string)
+	var linkId string
+	if h, ok := opts.Headers["link-id"]; ok {
+		linkId, _ = h.(string)
+	}
+	if linkId == "" {
+		if h, ok := opts.Headers["link_id"]; ok {
+			linkId, _ = h.(string)
+		}
+	}
+
+	if !authorizeMapSubscription(app, auth, linkId, clientFilter) {
+		return "", false
+	}
+
+	scope, err := buildMapScopeFilter(app, auth, linkId)
+	if err != nil {
+		return "", false
+	}
+	if clientFilter != "" {
+		opts.Query["filter"] = "(" + scope + ") && (" + clientFilter + ")"
+	} else {
+		opts.Query["filter"] = scope
+	}
+
+	encoded, err := json.Marshal(opts)
+	if err != nil {
+		return "", false
+	}
+	q := u.Query()
+	q.Set("options", string(encoded))
+	u.RawQuery = q.Encode()
+	return u.String(), true
+}
+
 // hasRoleAnywhere checks if the user holds one of the given roles in any congregation.
 func hasRoleAnywhere(app core.App, userId string, roles ...string) bool {
 	var v struct {
@@ -195,12 +253,13 @@ func authorized(hasSuperuser bool, linkId string, auth *core.Record, authCheck f
 	return authErrMsg
 }
 
-// authorizeList validates access for a LIST request.
+// authorizeList validates access for a LIST request without advancing the
+// hook chain — callers must call filterListResults before calling e.Next().
 func authorizeList(e *core.RecordsListRequestEvent, authCheck func() bool, linkCheck func(linkId string) bool) error {
 	if msg := authorized(e.HasSuperuserAuth(), e.Request.Header.Get("link-id"), e.Auth, authCheck, linkCheck, "Unauthorized"); msg != "" {
 		return apis.NewForbiddenError(msg, nil)
 	}
-	return e.Next()
+	return nil
 }
 
 // authorizeView validates access for a VIEW request.
@@ -216,11 +275,23 @@ func authorizeView(e *core.RecordRequestEvent, authCheck func() bool, linkCheck 
 // All map IDs present in the filter must be authorized.
 func linkMapListAuth(e *core.RecordsListRequestEvent, app core.App) error {
 	mapIds := uniqueStrings(extractIdsFromFilter(mapIdPattern, e.Request.URL.Query().Get("filter")))
-	return authorizeList(e,
+	if err := authorizeList(e,
 		func() bool { return len(mapIds) > 0 && authorizeUserForMaps(app, e.Auth.Id, mapIds) },
 		// A link-id is scoped to exactly one map; reject multi-map filters.
 		func(linkId string) bool { return len(mapIds) == 1 && AuthorizeLinkAccess(app, linkId, mapIds[0]) },
-	)
+	); err != nil {
+		return err
+	}
+	if e.HasSuperuserAuth() {
+		return e.Next()
+	}
+
+	keep, err := mapScopeKeep(app, e.Auth, e.Request.Header.Get("link-id"))
+	if err != nil {
+		return apis.NewForbiddenError("Unauthorized", nil)
+	}
+	filterListResults(e, keep)
+	return e.Next()
 }
 
 // RegisterAuthHooks registers authorization hooks for all create/update/delete operations
@@ -248,32 +319,8 @@ func RegisterAuthHooks(app core.App) {
 				continue
 			}
 
-			var filter, linkId string
-			u, err := url.Parse(sub)
-			if err == nil {
-				raw := u.Query().Get("options")
-				if raw != "" {
-					type subOpts struct {
-						Query   map[string]any `json:"query"`
-						Headers map[string]any `json:"headers"`
-					}
-					var opts subOpts
-					if jsonErr := json.Unmarshal([]byte(raw), &opts); jsonErr == nil {
-						if f, ok := opts.Query["filter"]; ok {
-							filter, _ = f.(string)
-						}
-						if h, ok := opts.Headers["link-id"]; ok {
-							linkId, _ = h.(string)
-						}
-						if h, ok := opts.Headers["link_id"]; ok {
-							linkId, _ = h.(string)
-						}
-					}
-				}
-			}
-
-			if authorizeMapSubscription(app, e.Auth, linkId, filter) {
-				filtered = append(filtered, sub)
+			if rewritten, ok := scopeSubscription(app, e.Auth, sub); ok {
+				filtered = append(filtered, rewritten)
 			}
 		}
 
@@ -316,6 +363,12 @@ func RegisterAuthHooks(app core.App) {
 		if !authorizedForAllCongregations(app, e.Auth.Id, congIds) {
 			return apis.NewForbiddenError("Unauthorized", nil)
 		}
+
+		keep, err := congregationScopeKeep(app, e.Auth.Id)
+		if err != nil {
+			return apis.NewForbiddenError("Unauthorized", nil)
+		}
+		filterListResults(e, keep)
 		return e.Next()
 	})
 
@@ -335,6 +388,12 @@ func RegisterAuthHooks(app core.App) {
 		if !authorizedForAllCongregations(app, e.Auth.Id, congIds) {
 			return apis.NewForbiddenError("Unauthorized", nil)
 		}
+
+		keep, err := congregationScopeKeep(app, e.Auth.Id)
+		if err != nil {
+			return apis.NewForbiddenError("Unauthorized", nil)
+		}
+		filterListResults(e, keep)
 		return e.Next()
 	})
 
@@ -395,7 +454,7 @@ func RegisterAuthHooks(app core.App) {
 	app.OnRecordsListRequest("options").BindFunc(func(e *core.RecordsListRequestEvent) error {
 		filter := e.Request.URL.Query().Get("filter")
 		congIds := uniqueStrings(extractIdsFromFilter(congIdPattern, filter))
-		return authorizeList(e,
+		if err := authorizeList(e,
 			func() bool {
 				return authorizedForAllCongregations(app, e.Auth.Id, congIds)
 			},
@@ -403,7 +462,27 @@ func RegisterAuthHooks(app core.App) {
 			func(linkId string) bool {
 				return len(congIds) == 1 && AuthorizeLinkForCongregation(app, linkId, congIds[0])
 			},
-		)
+		); err != nil {
+			return err
+		}
+		if e.HasSuperuserAuth() {
+			return e.Next()
+		}
+
+		var keep func(*core.Record) bool
+		if linkId := e.Request.Header.Get("link-id"); linkId != "" {
+			// Already validated above as exactly one authorized congregation.
+			congId := congIds[0]
+			keep = func(r *core.Record) bool { return r.GetString("congregation") == congId }
+		} else {
+			k, err := congregationScopeKeep(app, e.Auth.Id)
+			if err != nil {
+				return apis.NewForbiddenError("Unauthorized", nil)
+			}
+			keep = k
+		}
+		filterListResults(e, keep)
+		return e.Next()
 	})
 
 	// options VIEW: validate role or link-id for the option's congregation.
@@ -429,15 +508,23 @@ func RegisterAuthHooks(app core.App) {
 		}
 		filter := e.Request.URL.Query().Get("filter")
 		congIds := uniqueStrings(extractIdsFromFilter(congIdPattern, filter))
+
+		keep, err := rolesScopeKeep(app, e.Auth.Id)
+		if err != nil {
+			return apis.NewForbiddenError("Unauthorized", nil)
+		}
+
 		if len(congIds) > 0 {
 			if !authorizedForAllCongregations(app, e.Auth.Id, congIds) {
 				return apis.NewForbiddenError("Unauthorized", nil)
 			}
+			filterListResults(e, keep)
 			return e.Next()
 		}
 		// user= filter only: allow if querying own roles
 		userId := extractUserIdFromFilter(filter)
 		if userId == e.Auth.Id {
+			filterListResults(e, keep)
 			return e.Next()
 		}
 		return apis.NewForbiddenError("Unauthorized", nil)
@@ -470,20 +557,29 @@ func RegisterAuthHooks(app core.App) {
 		}
 		filter := e.Request.URL.Query().Get("filter")
 		mapIds := extractIdsFromFilter(mapIdPattern, filter)
+
+		keep, err := assignmentsScopeKeep(app, e.Auth.Id, filter)
+		if err != nil {
+			return apis.NewForbiddenError("Unauthorized", nil)
+		}
+
 		if len(mapIds) > 0 {
 			if !authorizeUserForMaps(app, e.Auth.Id, mapIds) {
 				return apis.NewForbiddenError("Unauthorized", nil)
 			}
+			filterListResults(e, keep)
 			return e.Next()
 		}
 		// user= filter: allow self-query or admin/conductor
 		userId := extractUserIdFromFilter(filter)
 		if userId == e.Auth.Id {
+			filterListResults(e, keep)
 			return e.Next()
 		}
 		if !hasRoleAnywhere(app, e.Auth.Id, "administrator", "conductor") {
 			return apis.NewForbiddenError("Unauthorized", nil)
 		}
+		filterListResults(e, keep)
 		return e.Next()
 	})
 
