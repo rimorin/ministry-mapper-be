@@ -185,7 +185,7 @@
         
         <div class="content">
             <p>Hello Administrators,</p>
-            <p>You have received the following messages on <span class="map-name">{{.MapName}}</span>:</p>
+            <p>You have received the following messages:</p>
 
             <div class="feedback-container">
                 {{if .Summary.Available}}
@@ -215,6 +215,9 @@
                     </div>
                     <div class="date">
                         {{.Date}}
+                    </div>
+                    <div class="map-name">
+                        {{.MapName}}
                     </div>
                     <div class="message">
                         {{.Message}}
