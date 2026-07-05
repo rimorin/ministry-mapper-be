@@ -33,8 +33,10 @@ func wrapTransactionError(err error) error {
 	return newServerError(err)
 }
 
+// authID returns "" for superuser auth since there's no matching users record
+// for a "changed_by" relation to point to.
 func authID(auth *core.Record) string {
-	if auth == nil {
+	if auth == nil || auth.Collection().Name == core.CollectionNameSuperusers {
 		return ""
 	}
 	return auth.Id

@@ -61,6 +61,16 @@ func HandleCreateAddress(c *core.RequestEvent, app core.App) error {
 			return apis.NewNotFoundError("Map not found", nil)
 		}
 
+		if req.AddressId != "" {
+			if byId, _ := txApp.FindRecordById("addresses", req.AddressId); byId != nil {
+				if byId.GetString("map") != req.MapId {
+					return apis.NewForbiddenError("address_id belongs to a different map", nil)
+				}
+				newID = byId.Id
+				return nil // already created — treat retry as success
+			}
+		}
+
 		existing, _ := txApp.FindFirstRecordByFilter(
 			"addresses",
 			"map = {:map} AND code = {:code} AND floor = {:floor}",

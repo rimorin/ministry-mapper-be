@@ -8,6 +8,7 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/router"
 )
 
 // WrapHandler wraps a PocketBase handler with Sentry error capture and panic recovery.
@@ -50,7 +51,7 @@ func WrapHandler(handler func(*core.RequestEvent) error) func(*core.RequestEvent
 		})
 
 		err := handler(c)
-		if err != nil {
+		if err != nil && !isBusinessError(err) {
 			hub.WithScope(func(scope *sentry.Scope) {
 				scope.SetLevel(sentry.LevelError)
 				captureErr := err
@@ -72,6 +73,14 @@ func WrapHandler(handler func(*core.RequestEvent) error) func(*core.RequestEvent
 // causer is implemented by serverError in the handlers package to expose the
 // real underlying error through the generic HTTP wrapper.
 type causer interface{ Cause() error }
+
+// isBusinessError reports whether err is an expected 4xx client rejection.
+// serverError wraps infra failures but is never itself a *router.ApiError,
+// so this only matches ApiErrors returned directly by handlers.
+func isBusinessError(err error) bool {
+	apiErr, ok := err.(*router.ApiError)
+	return ok && apiErr.Status < 500
+}
 
 func enrichScopeWithRequest(scope *sentry.Scope, c *core.RequestEvent) {
 	req := c.Request

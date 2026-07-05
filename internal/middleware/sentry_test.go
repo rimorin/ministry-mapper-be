@@ -3,6 +3,8 @@ package middleware
 import (
 	"errors"
 	"testing"
+
+	"github.com/pocketbase/pocketbase/tools/router"
 )
 
 // mockCauser implements the causer interface for testing.
@@ -53,5 +55,32 @@ func TestCauserImplementedByMockCauser(t *testing.T) {
 	_, ok := error(mc).(causer)
 	if !ok {
 		t.Error("mockCauser should implement causer")
+	}
+}
+
+func TestIsBusinessErrorForApiError4xx(t *testing.T) {
+	err := router.NewForbiddenError("Unauthorized", nil)
+	if !isBusinessError(err) {
+		t.Error("expected 4xx ApiError to be classified as a business error")
+	}
+}
+
+func TestIsBusinessErrorForApiError5xx(t *testing.T) {
+	err := router.NewInternalServerError("boom", nil)
+	if isBusinessError(err) {
+		t.Error("expected 5xx ApiError not to be classified as a business error")
+	}
+}
+
+func TestIsBusinessErrorForNonApiError(t *testing.T) {
+	if isBusinessError(errors.New("plain error")) {
+		t.Error("plain errors should not be classified as business errors")
+	}
+}
+
+func TestIsBusinessErrorForWrappedServerError(t *testing.T) {
+	wrapper := &mockCauser{cause: errors.New("sql: connection refused")}
+	if isBusinessError(wrapper) {
+		t.Error("wrapped infra errors should not be classified as business errors")
 	}
 }

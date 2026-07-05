@@ -7,6 +7,7 @@ import (
 
 	"ministry-mapper/internal/handlers"
 
+	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 )
 
@@ -20,6 +21,20 @@ func generateToken(email string) (string, error) {
 	defer app.Cleanup()
 
 	record, err := app.FindAuthRecordByEmail("users", email)
+	if err != nil {
+		return "", err
+	}
+	return record.NewAuthToken()
+}
+
+func generateSuperuserToken(email string) (string, error) {
+	app, err := tests.NewTestApp(testDataDir)
+	if err != nil {
+		return "", err
+	}
+	defer app.Cleanup()
+
+	record, err := app.FindAuthRecordByEmail(core.CollectionNameSuperusers, email)
 	if err != nil {
 		return "", err
 	}

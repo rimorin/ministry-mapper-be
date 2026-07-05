@@ -113,6 +113,82 @@ func TestDomainHook_LogAssignmentExpired(t *testing.T) {
 	}
 }
 
+// A superuser id has no matching record in the users collection that
+// changed_by relates to, so it must be left empty rather than failing.
+func TestDomainHook_LogBySuperuserOmitsChangedBy(t *testing.T) {
+	superuserToken, err := generateSuperuserToken("testing_account@ministry-mapper.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	scenarios := []tests.ApiScenario{
+		{
+			Name:   "superuser creating role writes granted log entry with empty changed_by",
+			Method: http.MethodPost,
+			URL:    "/api/collections/roles/records",
+			Body: strings.NewReader(`{
+				"congregation":"testcongalpha01",
+				"user":"testuseralpha03",
+				"role":"conductor"
+			}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": superuserToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"collectionName":"roles"`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				logs, err := app.FindRecordsByFilter("roles_log", "action = 'granted'", "", 0, 0)
+				if err != nil {
+					t.Fatalf("failed to query roles_log: %v", err)
+				}
+				if len(logs) == 0 {
+					t.Fatal("expected roles_log entry for superuser-granted role, found none")
+				}
+				if got := logs[0].GetString("changed_by"); got != "" {
+					t.Errorf("expected empty changed_by for superuser action, got %q", got)
+				}
+			},
+		},
+		{
+			Name:   "superuser creating assignment writes assigned log entry with empty changed_by",
+			Method: http.MethodPost,
+			URL:    "/api/collections/assignments/records",
+			Body: strings.NewReader(`{
+				"map":"testmapalpha01a",
+				"congregation":"testcongalpha01",
+				"publisher":"Test Publisher",
+				"expiry_date":"2099-01-01 00:00:00.000Z",
+				"type":"normal"
+			}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": superuserToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"collectionName":"assignments"`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				logs, err := app.FindRecordsByFilter("assignments_log", "action = 'assigned'", "", 0, 0)
+				if err != nil {
+					t.Fatalf("failed to query assignments_log: %v", err)
+				}
+				if len(logs) == 0 {
+					t.Fatal("expected assignments_log entry for superuser-created assignment, found none")
+				}
+				if got := logs[0].GetString("changed_by"); got != "" {
+					t.Errorf("expected empty changed_by for superuser action, got %q", got)
+				}
+			},
+		},
+	}
+
+	for _, scenario := range scenarios {
+		scenario.Test(t)
+	}
+}
+
 func TestDomainHook_LogRole(t *testing.T) {
 	adminToken, err := generateToken("admin@alpha.test")
 	if err != nil {

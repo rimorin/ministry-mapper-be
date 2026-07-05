@@ -4,10 +4,13 @@ package setup
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/pocketbase/pocketbase/apis"
+	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 )
 
@@ -2082,6 +2085,59 @@ func TestAuthHook_AddressesCreateRequest(t *testing.T) {
 
 	for _, scenario := range scenarios {
 		scenario.Test(t)
+	}
+}
+
+// The router is built once and reused for both requests: apis.NewRouter isn't
+// safe to call twice on the same app — it re-registers framework routes and panics.
+func TestCreateAddress_RetryWithSameAddressIdIsIdempotent(t *testing.T) {
+	conductorToken, err := generateToken("conductor@alpha.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	app := setupTestApp(t)
+	defer app.Cleanup()
+
+	baseRouter, err := apis.NewRouter(app)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var mux http.Handler
+	serveEvent := &core.ServeEvent{App: app, Router: baseRouter}
+	err = app.OnServe().Trigger(serveEvent, func(e *core.ServeEvent) error {
+		var buildErr error
+		mux, buildErr = e.Router.BuildMux()
+		return buildErr
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"address_id":"clientretryid01","map_id":"testmapalpha01a","code":"77","status":"not_done","floor":1}`
+	doRequest := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/address/add", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", conductorToken)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		return rec
+	}
+
+	if res := doRequest(); res.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on first create, got %d: %s", res.Code, res.Body.String())
+	}
+	if res := doRequest(); res.Code != http.StatusCreated {
+		t.Fatalf("expected 201 on retried create, got %d: %s", res.Code, res.Body.String())
+	}
+
+	addresses, err := app.FindRecordsByFilter("addresses", "id = 'clientretryid01'", "", 0, 0)
+	if err != nil {
+		t.Fatalf("failed to query addresses: %v", err)
+	}
+	if len(addresses) != 1 {
+		t.Fatalf("expected exactly 1 address record after retry, found %d", len(addresses))
 	}
 }
 
