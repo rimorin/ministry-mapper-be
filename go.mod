@@ -3,28 +3,29 @@ module ministry-mapper
 go 1.26.2
 
 require (
-	github.com/getsentry/sentry-go v0.46.2
-	github.com/launchdarkly/go-sdk-common/v4 v4.0.0
-	github.com/launchdarkly/go-server-sdk/v7 v7.15.2
+	github.com/getsentry/sentry-go v0.47.0
+	github.com/launchdarkly/go-sdk-common/v3 v3.5.0
+	github.com/launchdarkly/go-server-sdk/v7 v7.15.4
 	github.com/mailersend/mailersend-go v1.6.4
-	github.com/openai/openai-go/v3 v3.39.0
-	github.com/pocketbase/pocketbase v0.39.3
-	github.com/xuri/excelize/v2 v2.10.1
+	github.com/openai/openai-go/v3 v3.41.1
+	github.com/pocketbase/pocketbase v0.39.6
+	github.com/xuri/excelize/v2 v2.11.0
 )
 
 require (
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/go-sql-driver/mysql v1.8.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
-	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
+	github.com/josharian/intern v1.0.0 // indirect
 	github.com/launchdarkly/ccache v1.1.0 // indirect
 	github.com/launchdarkly/eventsource v1.11.0 // indirect
-	github.com/launchdarkly/go-jsonstream/v4 v4.0.0 // indirect
-	github.com/launchdarkly/go-sdk-events/v3 v3.6.1 // indirect
+	github.com/launchdarkly/go-jsonstream/v3 v3.1.1 // indirect
+	github.com/launchdarkly/go-sdk-events/v3 v3.6.2 // indirect
 	github.com/launchdarkly/go-semver v1.0.4 // indirect
-	github.com/launchdarkly/go-server-sdk-evaluation/v4 v4.0.0 // indirect
+	github.com/launchdarkly/go-server-sdk-evaluation/v3 v3.0.1 // indirect
+	github.com/mailru/easyjson v0.9.2 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/richardlehane/mscfb v1.0.7 // indirect
 	github.com/richardlehane/msoleps v1.0.6 // indirect
@@ -58,12 +59,12 @@ require (
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	golang.org/x/crypto v0.53.0 // indirect
-	golang.org/x/image v0.42.0 // indirect
-	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/image v0.43.0 // indirect
+	golang.org/x/net v0.56.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.21.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
-	golang.org/x/text v0.38.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.39.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 	modernc.org/sqlite v1.52.0 // indirect

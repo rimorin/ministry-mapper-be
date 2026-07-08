@@ -57,7 +57,6 @@ func initSentry(buildVersion string) {
 		Environment:      sentryEnv,
 		Release:          buildVersion,
 		AttachStacktrace: true,
-		EnableLogs:       true,
 		SampleRate:       1.0,
 	}
 
