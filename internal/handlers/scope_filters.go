@@ -2,24 +2,11 @@ package handlers
 
 import (
 	"errors"
-	"fmt"
-	"strconv"
-	"strings"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/search"
 )
-
-func orClause(field string, values []string) string {
-	if len(values) == 0 {
-		return ""
-	}
-	clauses := make([]string, len(values))
-	for i, v := range values {
-		clauses[i] = fmt.Sprintf("%s = %s", field, strconv.Quote(v))
-	}
-	return strings.Join(clauses, " || ")
-}
 
 func toSet(ids []string) map[string]bool {
 	set := make(map[string]bool, len(ids))
@@ -141,16 +128,52 @@ func mapScopeKeep(app core.App, auth *core.Record, linkId string) (func(*core.Re
 	return func(r *core.Record) bool { return set[r.GetString("map")] }, nil
 }
 
-// buildMapScopeFilter is mapScopeKeep as a filter string instead of a
-// predicate, for realtime subscriptions — each change event there is
-// matched against the subscription's filter individually rather than
-// against an already-fetched result set.
-func buildMapScopeFilter(app core.App, auth *core.Record, linkId string) (string, error) {
-	ids, err := resolveMapScopeIDs(app, auth, linkId)
-	if err != nil {
-		return "", err
+// filterEscapesMapScope reports whether clientFilter could match a record
+// outside allowedIds. It runs the client's filter through PocketBase's parser
+// against the collection restricted to out-of-scope maps: any row returned
+// means the filter reaches wider than the requester may see.
+//
+// Fails closed — any parse or query error reports true.
+func filterEscapesMapScope(
+	app core.App,
+	collectionName string,
+	clientFilter string,
+	allowedIds []string,
+) bool {
+	if clientFilter == "" || len(allowedIds) == 0 {
+		return true
 	}
-	return orClause("map", ids), nil
+
+	collection, err := app.FindCachedCollectionByNameOrId(collectionName)
+	if err != nil {
+		return true
+	}
+
+	// nil requestInfo: a filter referencing @request.* fails to resolve and is
+	// refused, which is correct — its match set can't be verified here.
+	resolver := core.NewRecordFieldResolver(app, collection, nil, false)
+	expr, err := search.FilterData(clientFilter).BuildExpr(resolver)
+	if err != nil {
+		return true
+	}
+
+	outOfScope := make([]any, len(allowedIds))
+	for i, id := range allowedIds {
+		outOfScope[i] = id
+	}
+
+	// Mirrors PocketBase's own subscription-filter check
+	// (apis.realtimeCanAccessRecord), narrowed to out-of-scope maps.
+	var exists int
+	query := app.ConcurrentDB().Select("(1)").
+		From(collection.Name).
+		AndWhere(expr).
+		AndWhere(dbx.NotIn(collection.Name+".map", outOfScope...))
+	if err := resolver.UpdateQuery(query); err != nil {
+		return true
+	}
+
+	return query.Limit(1).Row(&exists) == nil && exists > 0
 }
 
 // congregationScopeKeep returns a predicate matching every congregation the

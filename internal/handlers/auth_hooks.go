@@ -137,13 +137,17 @@ func authorizeMapSubscription(app core.App, auth *core.Record, linkId string, fi
 	return auth != nil && authorizeUserForMaps(app, auth.Id, mapIds)
 }
 
-// scopeSubscription validates a realtime subscription for a map-scoped
-// collection and rewrites its embedded filter to the requester's real map
-// scope. Returns ok=false to drop the subscription.
-func scopeSubscription(app core.App, auth *core.Record, sub string) (string, bool) {
+// validateSubscription reports whether a realtime subscription to a map-scoped
+// collection is confined to the requester's authorized maps.
+//
+// Never rewrite the subscription string: it is the SSE channel name. The server
+// broadcasts under the string it stored and the client listens under the string
+// it sent, so any change silently stops delivery for that client. Scope is
+// therefore enforced by refusing over-broad filters, not by narrowing them.
+func validateSubscription(app core.App, auth *core.Record, collName string, sub string) bool {
 	u, err := url.Parse(sub)
 	if err != nil {
-		return "", false
+		return false
 	}
 
 	type subOpts struct {
@@ -153,11 +157,8 @@ func scopeSubscription(app core.App, auth *core.Record, sub string) (string, boo
 	var opts subOpts
 	if raw := u.Query().Get("options"); raw != "" {
 		if err := json.Unmarshal([]byte(raw), &opts); err != nil {
-			return "", false
+			return false
 		}
-	}
-	if opts.Query == nil {
-		opts.Query = map[string]any{}
 	}
 
 	clientFilter, _ := opts.Query["filter"].(string)
@@ -172,27 +173,14 @@ func scopeSubscription(app core.App, auth *core.Record, sub string) (string, boo
 	}
 
 	if !authorizeMapSubscription(app, auth, linkId, clientFilter) {
-		return "", false
+		return false
 	}
 
-	scope, err := buildMapScopeFilter(app, auth, linkId)
+	allowed, err := resolveMapScopeIDs(app, auth, linkId)
 	if err != nil {
-		return "", false
+		return false
 	}
-	if clientFilter != "" {
-		opts.Query["filter"] = "(" + scope + ") && (" + clientFilter + ")"
-	} else {
-		opts.Query["filter"] = scope
-	}
-
-	encoded, err := json.Marshal(opts)
-	if err != nil {
-		return "", false
-	}
-	q := u.Query()
-	q.Set("options", string(encoded))
-	u.RawQuery = q.Encode()
-	return u.String(), true
+	return !filterEscapesMapScope(app, collName, clientFilter, allowed)
 }
 
 // hasRoleAnywhere checks if the user holds one of the given roles in any congregation.
@@ -319,8 +307,9 @@ func RegisterAuthHooks(app core.App) {
 				continue
 			}
 
-			if rewritten, ok := scopeSubscription(app, e.Auth, sub); ok {
-				filtered = append(filtered, rewritten)
+			// Appended verbatim: the string is the client's SSE channel name.
+			if validateSubscription(app, e.Auth, collName, sub) {
+				filtered = append(filtered, sub)
 			}
 		}
 
