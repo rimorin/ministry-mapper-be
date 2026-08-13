@@ -1,2 +1,21 @@
-pb_data/*
-test_pb_data/
+# Deny everything, then allow only what the image build needs.
+#
+# An allowlist rather than a denylist because the denylist it replaced listed
+# only pb_data/ and test_pb_data/, so .env (SMTP password, MailerSend and
+# LaunchDarkly keys, Sentry DSN) and data/ (a ~880 MB database dump) were both
+# copied into the builder stage by "COPY . .". Anything added to the repo from
+# now on stays out of the build context until it is named here.
+*
+
+# Go module definition (copied first for dependency layer caching)
+!go.mod
+!go.sum
+
+# Application source. No go:embed anywhere, so nothing else is needed to compile.
+!main.go
+!internal/
+!migrations/
+
+# Email templates: parsed by relative path at runtime, so they ship in the
+# final image and must be present in the build context.
+!templates/
