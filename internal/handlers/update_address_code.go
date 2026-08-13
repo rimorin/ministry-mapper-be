@@ -91,11 +91,25 @@ func HandleMapUpdateSequence(e *core.RequestEvent, app core.App) error {
 
 // HandleMapDelete deletes all addresses for a given code and map, refusing to
 // remove the last remaining code. Map aggregates are recalculated afterwards.
+type DeleteAddressCodeRequest struct {
+	Code string `json:"code"`
+	Map  string `json:"map"`
+}
+
 func HandleMapDelete(c *core.RequestEvent, app core.App) error {
-	requestInfo, _ := c.RequestInfo()
-	data := requestInfo.Body
-	code := data["code"].(string)
-	mapId := data["map"].(string)
+	data := DeleteAddressCodeRequest{}
+	if err := c.BindBody(&data); err != nil {
+		return apis.NewBadRequestError("Invalid request body", nil)
+	}
+	if data.Map == "" {
+		return apis.NewBadRequestError("map is required", nil)
+	}
+	if data.Code == "" {
+		return apis.NewBadRequestError("code is required", nil)
+	}
+
+	code := data.Code
+	mapId := data.Map
 
 	mapData, err := fetchMapData(app, mapId)
 	if err != nil {

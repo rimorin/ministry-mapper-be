@@ -8,13 +8,29 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
+// AddMapFloorRequest uses a pointer for AddHigher so an omitted field is
+// rejected rather than silently defaulting to "add a floor below".
+type AddMapFloorRequest struct {
+	AddHigher *bool  `json:"add_higher"`
+	Map       string `json:"map"`
+}
+
 // HandleMapFloor adds a new floor to a map by copying the address codes of the
 // current highest (or lowest, per add_higher) floor onto the new floor.
 func HandleMapFloor(e *core.RequestEvent, app core.App) error {
-	requestInfo, _ := e.RequestInfo()
-	data := requestInfo.Body
-	add_higher := data["add_higher"].(bool)
-	mapId := data["map"].(string)
+	data := AddMapFloorRequest{}
+	if err := e.BindBody(&data); err != nil {
+		return apis.NewBadRequestError("Invalid request body", nil)
+	}
+	if data.Map == "" {
+		return apis.NewBadRequestError("map is required", nil)
+	}
+	if data.AddHigher == nil {
+		return apis.NewBadRequestError("add_higher is required", nil)
+	}
+
+	add_higher := *data.AddHigher
+	mapId := data.Map
 
 	mapData, err := fetchMapData(app, mapId)
 	if err != nil {
@@ -25,7 +41,7 @@ func HandleMapFloor(e *core.RequestEvent, app core.App) error {
 		return apis.NewForbiddenError("Administrator access required", nil)
 	}
 
-	defaultType, err := fetchDefaultCongregationOption(app, mapData.Get("congregation").(string))
+	defaultType, err := fetchDefaultCongregationOption(app, mapData.GetString("congregation"))
 	if err != nil {
 		return apis.NewNotFoundError("Error fetching default code", nil)
 	}
@@ -60,9 +76,15 @@ func HandleMapFloor(e *core.RequestEvent, app core.App) error {
 			return err
 		}
 
+		addressCollection, err := txApp.FindCachedCollectionByNameOrId("addresses")
+		if err != nil {
+			return err
+		}
+
+		createdBy := e.Auth.GetString("name")
+
 		for _, address := range addresses {
-			collection, _ := txApp.FindCollectionByNameOrId("addresses")
-			record := core.NewRecord(collection)
+			record := core.NewRecord(addressCollection)
 			record.Set("code", address.Get("code"))
 			record.Set("floor", floor)
 			record.Set("congregation", address.Get("congregation"))
@@ -71,7 +93,7 @@ func HandleMapFloor(e *core.RequestEvent, app core.App) error {
 			record.Set("territory", address.Get("territory"))
 			record.Set("sequence", address.Get("sequence"))
 			record.Set("source", "floor_copy")
-			record.Set("created_by", e.Auth.Get("name").(string))
+			record.Set("created_by", createdBy)
 
 			if err := txApp.SaveNoValidate(record); err != nil {
 				return err

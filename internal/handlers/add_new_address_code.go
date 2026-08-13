@@ -16,7 +16,14 @@ var codeFormatRegex = regexp.MustCompile(`^[a-zA-Z0-9-]+$`)
 func HandleMapAdd(e *core.RequestEvent, app core.App) error {
 	requestInfo, _ := e.RequestInfo()
 	data := requestInfo.Body
-	mapId := data["map"].(string)
+
+	// Kept on requestInfo.Body rather than BindBody: the per-element validation
+	// of "codes" below reports the offending index, which a typed bind would
+	// collapse into one generic unmarshal error.
+	mapId, ok := data["map"].(string)
+	if !ok || mapId == "" {
+		return apis.NewBadRequestError("map is required", nil)
+	}
 
 	mapData, err := fetchMapData(app, mapId)
 	if err != nil {
@@ -113,6 +120,8 @@ func HandleMapAdd(e *core.RequestEvent, app core.App) error {
 			return err
 		}
 
+		createdBy := e.Auth.GetString("name")
+
 		for _, code := range validCodes {
 			currentSequence++
 			for _, floor := range floors {
@@ -125,7 +134,7 @@ func HandleMapAdd(e *core.RequestEvent, app core.App) error {
 				record.Set("territory", mapData.GetString("territory"))
 				record.Set("sequence", currentSequence)
 				record.Set("source", "admin")
-				record.Set("created_by", e.Auth.Get("name").(string))
+				record.Set("created_by", createdBy)
 
 				if err := txApp.SaveNoValidate(record); err != nil {
 					return err

@@ -10,23 +10,51 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-func HandleNewMap(c *core.RequestEvent, app core.App) error {
-	requestInfo, _ := c.RequestInfo()
-	data := requestInfo.Body
-	territory := data["territory"].(string)
-	mapType := data["type"].(string)
-	floors := int(data["floors"].(float64))
-	name := data["name"].(string)
-	congregation := data["congregation"].(string)
-	coordinates := data["coordinates"].(string)
-	sequence := data["sequence"].(string)
+type NewMapRequest struct {
+	Territory    string `json:"territory"`
+	Type         string `json:"type"`
+	Floors       int    `json:"floors"`
+	Name         string `json:"name"`
+	Congregation string `json:"congregation"`
+	Coordinates  string `json:"coordinates"`
+	Sequence     string `json:"sequence"`
+}
 
-	if !isValidSequence(sequence) {
+func HandleNewMap(c *core.RequestEvent, app core.App) error {
+	data := NewMapRequest{}
+	if err := c.BindBody(&data); err != nil {
+		return apis.NewBadRequestError("Invalid request body", nil)
+	}
+
+	territory := data.Territory
+	mapType := data.Type
+	floors := data.Floors
+	name := data.Name
+	congregation := data.Congregation
+	coordinates := data.Coordinates
+
+	if territory == "" {
+		return apis.NewBadRequestError("territory is required", nil)
+	}
+
+	if congregation == "" {
+		return apis.NewBadRequestError("congregation is required", nil)
+	}
+
+	if name == "" {
+		return apis.NewBadRequestError("name is required", nil)
+	}
+
+	if !isValidSequence(data.Sequence) {
 		return apis.NewBadRequestError("Invalid sequence format", nil)
 	}
 
 	if mapType != "single" && mapType != "multi" {
 		return apis.NewBadRequestError("Invalid map type", nil)
+	}
+
+	if floors < 1 {
+		return apis.NewBadRequestError("floors must be at least 1", nil)
 	}
 
 	if mapType == "single" && floors != 1 {
@@ -43,7 +71,7 @@ func HandleNewMap(c *core.RequestEvent, app core.App) error {
 		return apis.NewNotFoundError("Error fetching default congregation option", nil)
 	}
 
-	sequenceArray := strings.Split(sequence, ",")
+	sequenceArray := strings.Split(data.Sequence, ",")
 	maxSeq, err := fetchTerritoryMaxSequence(app, territory)
 	if err != nil {
 		log.Println("Error fetching max sequence:", err)
@@ -73,9 +101,17 @@ func HandleNewMap(c *core.RequestEvent, app core.App) error {
 			return err
 		}
 
+		addressCollection, err := txApp.FindCachedCollectionByNameOrId("addresses")
+		if err != nil {
+			log.Printf("Error finding addresses collection: %v", err)
+			return err
+		}
+
+		createdBy := c.Auth.GetString("name")
+
 		for i := 1; i <= floors; i++ {
 			for index, seq := range sequenceArray {
-				address := createNewAddressRecord(txApp, seq, territory, i, index, mapRecord.Id, congregation, c.Auth.Get("name").(string))
+				address := createNewAddressRecord(addressCollection, seq, territory, i, index, mapRecord.Id, congregation, createdBy)
 				if err := txApp.SaveNoValidate(address); err != nil {
 					log.Println("Error saving address record:", err)
 					return err
@@ -103,8 +139,9 @@ func HandleNewMap(c *core.RequestEvent, app core.App) error {
 	return c.JSON(200, mapRecord)
 }
 
-func createNewAddressRecord(txApp core.App, code, territory string, floor, sequence int, mapId, congId, createdBy string) *core.Record {
-	collection, _ := txApp.FindCollectionByNameOrId("addresses")
+// createNewAddressRecord builds (but does not save) an address record. The
+// collection is passed in because this runs once per address in a nested loop.
+func createNewAddressRecord(collection *core.Collection, code, territory string, floor, sequence int, mapId, congId, createdBy string) *core.Record {
 	address := core.NewRecord(collection)
 	address.Set("code", code)
 	address.Set("territory", territory)
@@ -118,13 +155,14 @@ func createNewAddressRecord(txApp core.App, code, territory string, floor, seque
 	return address
 }
 
+var sequenceFormatRegex = regexp.MustCompile(`^([a-zA-Z0-9-]+,?)*[a-zA-Z0-9-]+$`)
+
 func isValidSequence(sequence string) bool {
 	if sequence == "" {
 		return false
 	}
 
-	re := regexp.MustCompile(`^([a-zA-Z0-9-]+,?)*[a-zA-Z0-9-]+$`)
-	return re.MatchString(sequence)
+	return sequenceFormatRegex.MatchString(sequence)
 }
 
 func fetchTerritoryMaxSequence(app core.App, territoryId string) (int, error) {

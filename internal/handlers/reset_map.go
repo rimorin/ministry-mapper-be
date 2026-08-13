@@ -11,11 +11,21 @@ import (
 
 // HandleResetMap resets a map's 'not_home' and 'done' addresses back to 'not_done'
 // and recalculates aggregates afterwards.
+type ResetMapRequest struct {
+	Map string `json:"map"`
+}
+
 func HandleResetMap(e *core.RequestEvent, app core.App) error {
-	requestInfo, _ := e.RequestInfo()
-	userName := e.Auth.Get("name").(string)
-	data := requestInfo.Body
-	mapId := data["map"].(string)
+	data := ResetMapRequest{}
+	if err := e.BindBody(&data); err != nil {
+		return apis.NewBadRequestError("Invalid request body", nil)
+	}
+	if data.Map == "" {
+		return apis.NewBadRequestError("map is required", nil)
+	}
+
+	userName := e.Auth.GetString("name")
+	mapId := data.Map
 
 	mapData, err := fetchMapData(app, mapId)
 	if err != nil {
@@ -68,17 +78,27 @@ func ResetMapTerritory(mapId string, app core.App) error {
 	if err != nil {
 		return apis.NewNotFoundError("Error fetching map details", nil)
 	}
-	ProcessTerritoryAggregates(mapDetails.Get("territory").(string), app)
+	ProcessTerritoryAggregates(mapDetails.GetString("territory"), app)
 	return nil
 }
 
 // HandleResetTerritory resets a territory's 'not_home' and 'done' addresses back
 // to 'not_done', then recalculates aggregates for each affected map and the territory.
+type ResetTerritoryRequest struct {
+	Territory string `json:"territory"`
+}
+
 func HandleResetTerritory(c *core.RequestEvent, app core.App) error {
-	requestInfo, _ := c.RequestInfo()
-	userName := c.Auth.Get("name").(string)
-	data := requestInfo.Body
-	territoryId := data["territory"].(string)
+	data := ResetTerritoryRequest{}
+	if err := c.BindBody(&data); err != nil {
+		return apis.NewBadRequestError("Invalid request body", nil)
+	}
+	if data.Territory == "" {
+		return apis.NewBadRequestError("territory is required", nil)
+	}
+
+	userName := c.Auth.GetString("name")
+	territoryId := data.Territory
 
 	territory, err := app.FindRecordById("territories", territoryId)
 	if err != nil {
