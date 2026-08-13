@@ -377,13 +377,32 @@ func createDetailsSheet(app core.App, f *excelize.File, congregation *core.Recor
 	f.SetCellStyle(sheet, "A2", "A6", detailLabelStyle)
 	f.SetCellStyle(sheet, "B2", "B6", detailValueStyle)
 
+	// Row styles alternate between two fills; build each once rather than per row.
+	// excelize deduplicates identical styles, so this changes cost, not output.
+	dataStyleEven, _ := getDataCellStyle(f, true)
+	dataStyleOdd, _ := getDataCellStyle(f, false)
+	alternatingDataStyle := func(even bool) int {
+		if even {
+			return dataStyleEven
+		}
+		return dataStyleOdd
+	}
+
+	percentStyleEven, _ := getPercentageCellStyle(f, true)
+	percentStyleOdd, _ := getPercentageCellStyle(f, false)
+	alternatingPercentStyle := func(even bool) int {
+		if even {
+			return percentStyleEven
+		}
+		return percentStyleOdd
+	}
+
 	row := 9
 	for i, option := range options {
 		f.SetCellValue(sheet, fmt.Sprintf("A%d", row), option.Get("code"))
 		f.SetCellValue(sheet, fmt.Sprintf("B%d", row), option.Get("description"))
 
-		optionRowStyleID, _ := getDataCellStyle(f, i%2 == 0)
-		f.SetCellStyle(sheet, fmt.Sprintf("A%d", row), fmt.Sprintf("B%d", row), optionRowStyleID)
+		f.SetCellStyle(sheet, fmt.Sprintf("A%d", row), fmt.Sprintf("B%d", row), alternatingDataStyle(i%2 == 0))
 		row++
 	}
 
@@ -429,11 +448,8 @@ func createDetailsSheet(app core.App, f *excelize.File, congregation *core.Recor
 				f.SetCellValue(sheet, fmt.Sprintf("C%d", row), "N/A")
 			}
 
-			territoryRowStyleID, _ := getDataCellStyle(f, i%2 == 0)
-			f.SetCellStyle(sheet, fmt.Sprintf("A%d", row), fmt.Sprintf("B%d", row), territoryRowStyleID)
-
-			percentageStyle, _ := getPercentageCellStyle(f, i%2 == 0)
-			f.SetCellStyle(sheet, fmt.Sprintf("C%d", row), fmt.Sprintf("C%d", row), percentageStyle)
+			f.SetCellStyle(sheet, fmt.Sprintf("A%d", row), fmt.Sprintf("B%d", row), alternatingDataStyle(i%2 == 0))
+			f.SetCellStyle(sheet, fmt.Sprintf("C%d", row), fmt.Sprintf("C%d", row), alternatingPercentStyle(i%2 == 0))
 
 			f.SetRowHeight(sheet, row, 25)
 			row++
@@ -526,8 +542,7 @@ func createDetailsSheet(app core.App, f *excelize.File, congregation *core.Recor
 			f.SetCellValue(sheet, fmt.Sprintf("B%d", row), userEmail)
 			f.SetCellValue(sheet, fmt.Sprintf("C%d", row), roleValue)
 
-			roleRowStyleID, _ := getDataCellStyle(f, (row-1)%2 == 0)
-			f.SetCellStyle(sheet, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row), roleRowStyleID)
+			f.SetCellStyle(sheet, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row), alternatingDataStyle((row-1)%2 == 0))
 			f.SetRowHeight(sheet, row, 25)
 			row++
 		}
@@ -625,6 +640,11 @@ func createAddressSheet(app core.App, f *excelize.File, congregation *core.Recor
 	f.SetRowHeight(sheetName, row, 28)
 	row++
 
+	// Built once instead of per row: this loop runs to 116k rows for the largest
+	// congregation, and excelize deduplicates identical styles anyway.
+	rowStyleEven, _ := getDataCellStyle(f, true)
+	rowStyleOdd, _ := getDataCellStyle(f, false)
+
 	for i, addr := range addresses {
 		mapDesc := defaultIfEmpty(addr.MapDescription, "N/A")
 
@@ -653,7 +673,10 @@ func createAddressSheet(app core.App, f *excelize.File, congregation *core.Recor
 		f.SetCellValue(sheetName, fmt.Sprintf("J%d", row), dncDate)
 		f.SetCellValue(sheetName, fmt.Sprintf("K%d", row), dncDuration)
 
-		rowStyle, _ := getDataCellStyle(f, i%2 == 0)
+		rowStyle := rowStyleOdd
+		if i%2 == 0 {
+			rowStyle = rowStyleEven
+		}
 		f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("K%d", row), rowStyle)
 		f.SetRowHeight(sheetName, row, 25)
 		row++
@@ -773,6 +796,26 @@ func createTerritorySheet(app core.App, f *excelize.File, territory *core.Record
 		return fmt.Errorf("failed to fetch maps for territory: %v", err)
 	}
 
+	// Fetch the addresses and option codes for every map in this territory up
+	// front. Doing it per map cost two queries per map — 1091 maps in the
+	// largest congregation — for rows a single indexed query returns at once.
+	mapIDs := make([]string, len(maps))
+	for i, mapRecord := range maps {
+		mapIDs[i] = mapRecord.Id
+	}
+
+	addressesByMapID, err := fetchAddressesByMapIDs(app, mapIDs)
+	if err != nil {
+		return fmt.Errorf("failed to fetch addresses for territory: %v", err)
+	}
+
+	typesByAddr, err := fetchTypeCodesByAddress(app, mapIDs, options)
+	if err != nil {
+		// Non-fatal: the grid still renders, just without option code prefixes.
+		log.Printf("warning: failed to fetch address_options for territory %s: %v", territory.Id, err)
+		typesByAddr = map[string]string{}
+	}
+
 	row := 7
 	f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), "Maps Overview")
 	f.MergeCell(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("C%d", row))
@@ -796,6 +839,28 @@ func createTerritorySheet(app core.App, f *excelize.File, territory *core.Record
 		f.SetRowHeight(sheetName, row, 28)
 		row++
 
+		// Overview row styles: two fills, built once rather than per map.
+		overviewStyles := map[string]int{}
+		for _, color := range []string{"FFFFFF", "F8F9FA"} {
+			id, _ := f.NewStyle(&excelize.Style{
+				Font: &excelize.Font{Size: 10, Color: "000000"},
+				Fill: excelize.Fill{Type: "pattern", Color: []string{color}, Pattern: 1},
+				Alignment: &excelize.Alignment{
+					Horizontal: "left",
+					Vertical:   "center",
+				},
+				Border: []excelize.Border{
+					{Type: "left", Color: "8EAADB", Style: 1},
+					{Type: "top", Color: "8EAADB", Style: 1},
+					{Type: "bottom", Color: "8EAADB", Style: 1},
+					{Type: "right", Color: "8EAADB", Style: 1},
+				},
+			})
+			overviewStyles[color] = id
+		}
+		overviewPercentEven, _ := getPercentageCellStyle(f, true)
+		overviewPercentOdd, _ := getPercentageCellStyle(f, false)
+
 		// Add each map to the overview table
 		for i, mapRecord := range maps {
 			f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), mapRecord.Get("description"))
@@ -811,23 +876,12 @@ func createTerritorySheet(app core.App, f *excelize.File, territory *core.Record
 			if i%2 == 0 {
 				rowColor = "F8F9FA"
 			}
-			overviewRowStyle, _ := f.NewStyle(&excelize.Style{
-				Font: &excelize.Font{Size: 10, Color: "000000"},
-				Fill: excelize.Fill{Type: "pattern", Color: []string{rowColor}, Pattern: 1},
-				Alignment: &excelize.Alignment{
-					Horizontal: "left",
-					Vertical:   "center",
-				},
-				Border: []excelize.Border{
-					{Type: "left", Color: "8EAADB", Style: 1},
-					{Type: "top", Color: "8EAADB", Style: 1},
-					{Type: "bottom", Color: "8EAADB", Style: 1},
-					{Type: "right", Color: "8EAADB", Style: 1},
-				},
-			})
-			f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("B%d", row), overviewRowStyle)
+			f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("B%d", row), overviewStyles[rowColor])
 
-			progressStyle, _ := getPercentageCellStyle(f, i%2 == 0)
+			progressStyle := overviewPercentOdd
+			if i%2 == 0 {
+				progressStyle = overviewPercentEven
+			}
 			f.SetCellStyle(sheetName, fmt.Sprintf("C%d", row), fmt.Sprintf("C%d", row), progressStyle)
 
 			f.SetRowHeight(sheetName, row, 25)
@@ -869,22 +923,11 @@ func createTerritorySheet(app core.App, f *excelize.File, territory *core.Record
 			mapHeader = fmt.Sprintf("%s - %s", mapHeader, mapType)
 		}
 
-		addresses, err := app.FindRecordsByFilter(
-			"addresses",
-			"map = {:map}",
-			"sequence, floor",
-			0,
-			0,
-			dbx.Params{"map": mapRecord.Id},
-		)
-		if err != nil {
-			log.Printf("Failed to fetch addresses for map header sizing: %v", err)
-		}
+		addresses := addressesByMapID[mapRecord.Id]
 
 		sequences := make(map[int]bool)
 		for _, addr := range addresses {
-			sequence := int(addr.Get("sequence").(float64))
-			sequences[sequence] = true
+			sequences[addr.GetInt("sequence")] = true
 		}
 
 		isSingleType := mapType == "single"
@@ -906,7 +949,7 @@ func createTerritorySheet(app core.App, f *excelize.File, territory *core.Record
 		f.SetRowHeight(sheetName, row, 30)
 		row++
 
-		if err := createAddressTable(app, f, sheetName, mapRecord, options, addresses, &row); err != nil {
+		if err := createAddressTable(f, sheetName, mapRecord, typesByAddr, addresses, &row); err != nil {
 			log.Printf("Failed to create address table for map %s: %v", mapRecord.Get("description"), err)
 		}
 
@@ -924,7 +967,11 @@ func createTerritorySheet(app core.App, f *excelize.File, territory *core.Record
 	return nil
 }
 
-func createAddressTable(app core.App, f *excelize.File, sheetName string, mapRecord *core.Record, options []*core.Record, addresses []*core.Record, startRow *int) error {
+// createAddressTable renders one map's floor/code grid. typesByAddr maps an
+// address id to its primary option code and is built once per territory by
+// fetchTypeCodesByAddress; addresses may arrive in any order because the grid is
+// keyed by sequence and floor and both axes are sorted below.
+func createAddressTable(f *excelize.File, sheetName string, mapRecord *core.Record, typesByAddr map[string]string, addresses []*core.Record, startRow *int) error {
 	if len(addresses) == 0 {
 		f.SetCellValue(sheetName, fmt.Sprintf("A%d", *startRow), "No addresses found")
 		*startRow++
@@ -933,36 +980,6 @@ func createAddressTable(app core.App, f *excelize.File, sheetName string, mapRec
 
 	mapType := fmt.Sprintf("%v", mapRecord.Get("type"))
 	isSingleType := mapType == "single"
-
-	optionsMap := make(map[string]string)
-	for _, option := range options {
-		optionsMap[option.Id] = fmt.Sprintf("%v", option.Get("code"))
-	}
-
-	// Pre-fetch type codes for all addresses in this map via address_options.
-	// Ordered by o.sequence so the congregation's primary option wins per address.
-	type aoRow struct {
-		Address  string `db:"address"`
-		OptionId string `db:"option_id"`
-	}
-	var aoRows []aoRow
-	if err := app.DB().NewQuery(`
-		SELECT ao.address, ao.option AS option_id
-		FROM address_options ao
-		JOIN options o ON o.id = ao.option
-		WHERE ao.map = {:map}
-		ORDER BY o.sequence ASC
-	`).Bind(dbx.Params{"map": mapRecord.Id}).All(&aoRows); err != nil {
-		log.Printf("warning: failed to fetch address_options for map %s: %v", mapRecord.Id, err)
-	}
-	typesByAddr := make(map[string]string)
-	for _, row := range aoRows {
-		if _, exists := typesByAddr[row.Address]; !exists {
-			if code, ok := optionsMap[row.OptionId]; ok {
-				typesByAddr[row.Address] = code
-			}
-		}
-	}
 
 	addressGrid := make(map[int]map[int]*core.Record)
 	sequenceToCode := make(map[int]string)
@@ -1182,6 +1199,82 @@ func createAddressTable(app core.App, f *excelize.File, sheetName string, mapRec
 	}
 
 	return nil
+}
+
+// fetchAddressesByMapIDs returns every address belonging to the given maps in a
+// single query, grouped by map id. Maps with no addresses are simply absent from
+// the result, which callers read as an empty slice.
+func fetchAddressesByMapIDs(app core.App, mapIDs []string) (map[string][]*core.Record, error) {
+	if len(mapIDs) == 0 {
+		return map[string][]*core.Record{}, nil
+	}
+
+	ids := make([]any, len(mapIDs))
+	for i, id := range mapIDs {
+		ids[i] = id
+	}
+
+	records, err := app.FindAllRecords("addresses", dbx.In("map", ids...))
+	if err != nil {
+		return nil, err
+	}
+
+	grouped := make(map[string][]*core.Record, len(mapIDs))
+	for _, record := range records {
+		mapID := record.GetString("map")
+		grouped[mapID] = append(grouped[mapID], record)
+	}
+
+	return grouped, nil
+}
+
+// fetchTypeCodesByAddress returns each address's primary option code — the one
+// with the lowest option sequence — for every address in the given maps.
+func fetchTypeCodesByAddress(app core.App, mapIDs []string, options []*core.Record) (map[string]string, error) {
+	if len(mapIDs) == 0 {
+		return map[string]string{}, nil
+	}
+
+	codeByOption := make(map[string]string, len(options))
+	for _, option := range options {
+		codeByOption[option.Id] = fmt.Sprintf("%v", option.Get("code"))
+	}
+
+	params := dbx.Params{}
+	placeholders := make([]string, len(mapIDs))
+	for i, id := range mapIDs {
+		key := fmt.Sprintf("m%d", i)
+		params[key] = id
+		placeholders[i] = "{:" + key + "}"
+	}
+
+	var rows []struct {
+		Address  string `db:"address"`
+		OptionId string `db:"option_id"`
+	}
+	query := fmt.Sprintf(`
+		SELECT ao.address, ao.option AS option_id
+		FROM address_options ao
+		JOIN options o ON o.id = ao.option
+		WHERE ao.map IN (%s)
+		ORDER BY o.sequence ASC
+	`, strings.Join(placeholders, ","))
+	if err := app.DB().NewQuery(query).Bind(params).All(&rows); err != nil {
+		return nil, err
+	}
+
+	// Ordered by option sequence, so the first row seen for an address wins.
+	typesByAddr := make(map[string]string, len(rows))
+	for _, row := range rows {
+		if _, exists := typesByAddr[row.Address]; exists {
+			continue
+		}
+		if code, ok := codeByOption[row.OptionId]; ok {
+			typesByAddr[row.Address] = code
+		}
+	}
+
+	return typesByAddr, nil
 }
 
 func getExcelColumnName(col int) string {
