@@ -11,7 +11,7 @@ applyTo:
 
 ## 🎯 Context
 
-Ministry Mapper backend using **Go 1.24+** and **PocketBase v0.30.4** (BaaS with embedded SQLite, real-time, auth, file storage).
+Ministry Mapper backend using **Go 1.26+** and **PocketBase v0.39.x** (BaaS with embedded SQLite, real-time, auth, file storage).
 
 **Stack:** PocketBase | SQLite | Sentry | LaunchDarkly | MailerSend
 

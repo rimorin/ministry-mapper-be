@@ -6,7 +6,7 @@ Behavioral guidelines to reduce common LLM coding mistakes.
 
 **Domain in one line:** Go/PocketBase backend for Ministry Mapper (door-to-door ministry territory management) — a congregation has territories, a territory has maps, a map has addresses (household units). Publishers work maps via time-limited link tokens; admins manage everything through custom routes.
 
-**Trust code over docs:** README.md and `.github/instructions/` contain stale claims (wrong PocketBase/Go versions, outdated aggregate and quicklink descriptions). Verify against source before repeating anything from them.
+**Trust code over docs:** the remaining `.github/instructions/` files (deployment, documentation, go, testing) are unaudited. Their domain counterpart was deleted after an audit found ~20 fabricated claims — a debounce/semaphore aggregation engine and a territory-aggregate cron job that never existed, plus handler examples using signatures and error handling this file forbids. README.md's aggregate and quicklink sections were corrected at the same time; the rest of it is unverified. Verify against source before repeating anything from either.
 
 ## 1. Think Before Coding
 

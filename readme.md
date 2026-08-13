@@ -45,7 +45,7 @@
   </tr>
   <tr>
     <td>📈 <b>Aggregation Engine</b></td>
-    <td>Debounced, semaphore-guarded real-time progress tracking per map and territory</td>
+    <td>Real-time progress tracking per map, rolled up to territory on every change</td>
   </tr>
   <tr>
     <td>📊 <b>Real-time Updates</b></td>
@@ -254,7 +254,7 @@ All jobs are **LaunchDarkly-gated** — toggle any job on or off without redeplo
 Schedules are staggered so no two jobs fire at the same minute. Heavy, non-urgent jobs run at **02:00–03:00 SGT (18:00–19:00 UTC)** — well clear of the peak field-service window (08:00–12:00 SGT).
 
 > [!NOTE]
-> Map progress (done %, not-home counts) is recalculated in real time via a debounced `OnRecordAfterUpdateSuccess` hook on `addresses` — not by a cron job. A 10-second debounce coalesces rapid taps into a single DB write, and a semaphore (max 5) prevents SQLite saturation during peak bursts.
+> Map progress (done %, not-home counts) is recalculated in real time via an `OnRecordAfterUpdateSuccess` hook on `addresses` — not by a cron job. The hook skips updates that changed neither `status` nor `not_home_tries`, then recalculates asynchronously with `routine.FireAndForget`; the map's territory is rolled up in the same pass. Bulk operations such as map or territory reset set a `bulk_reset:<mapID>` flag in the app store to suppress the per-address hook and recalculate once at the end.
 
 | Job | Cron (UTC) | SGT | Feature Flag | Description |
 |-----|-----------|-----|--------------|-------------|
@@ -415,31 +415,45 @@ pb.collection("addresses").subscribe("*", (e) => {
 | `POST /territory/reset` | Administrator or Conductor | Reset all maps in a territory |
 | `POST /territory/delete` | Administrator or Conductor | Delete a territory and all its maps |
 
-#### Any Authenticated User
+#### Any Congregation Member
 
 | Endpoint | Role | Description |
 |----------|------|-------------|
-| `POST /territory/link` | Any | Smart map assignment (Quicklink) |
+| `POST /territory/link` | Any role in the territory's congregation | Smart map assignment (Quicklink) |
 
 <details>
 <summary>📬 Quicklink algorithm details</summary>
 
-`POST /territory/link` ranks available maps by three criteria in priority order:
+The caller must hold a role — any role, including `read_only` — in the congregation that owns the territory. Candidate maps are restricted to that same congregation.
 
-1. **Workload** — maps with fewer active assignments are preferred
-2. **Proximity** — Haversine distance from the user's coordinates (50 m threshold)
-3. **Progress** — maps with lower completion % are preferred; 100% complete maps are skipped
+Maps are then ranked by three criteria in priority order:
 
-On a successful match an assignment record is created with an expiry derived from the congregation's `expiry_hours` setting.
+1. **Workload** — maps with the fewest active assignments are preferred
+2. **Proximity** — Haversine distance from the user's coordinates; maps within 50 m of the closest one are treated as equally near
+3. **Progress** — within that band, the map with the lowest completion % wins
+
+Maps with unparseable coordinates are skipped. On a successful match an assignment record is created with an expiry derived from the congregation's `expiry_hours` setting; its id is the returned `linkId`, which doubles as the publisher's `link-id` credential for that map.
 
 **Request body:**
 ```json
-{ "territory": "<territory_id>", "coordinates": { "lat": 1.23, "lng": 103.45 } }
+{
+  "territory": "<territory_id>",
+  "coordinates": { "lat": 1.23, "lng": 103.45 },
+  "publisher": "<publisher name>"
+}
 ```
 
 **Response:**
 ```json
-{ "map_id": "<map_id>", "distance": 35.7, "assignment_count": 1 }
+{
+  "linkId": "<assignment_id>",
+  "mapName": "Blk 100A",
+  "progress": 40,
+  "not_done": 3,
+  "not_home": 1,
+  "coordinates": { "lat": 1.23, "lng": 103.45 },
+  "assignees": ["Alice"]
+}
 ```
 
 </details>

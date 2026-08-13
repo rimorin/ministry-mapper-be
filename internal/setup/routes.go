@@ -3,7 +3,6 @@ package setup
 import (
 	"os"
 	"strings"
-	"time"
 
 	"ministry-mapper/internal/handlers"
 	"ministry-mapper/internal/jobs"
@@ -98,17 +97,6 @@ func RegisterRoutes(app core.App) {
 		e.Router.GET("/api/db-health", func(c *core.RequestEvent) error {
 			return handlers.HandleDBHealth(c, app)
 		})
-
-		// TEMPORARY: one-off endpoint to trigger new-address digest for historical records.
-		// Remove after use.
-		e.Router.POST("/api/admin/trigger-new-addresses", func(c *core.RequestEvent) error {
-			sinceStr := c.Request.URL.Query().Get("since")
-			since, err := time.Parse(time.RFC3339, sinceStr)
-			if err != nil {
-				return apis.NewBadRequestError("since param required, e.g. ?since=2026-04-01T00:00:00Z", nil)
-			}
-			return jobs.ProcessNewAddresses(app, since)
-		}).Bind(apis.RequireSuperuserAuth())
 
 		return e.Next()
 	})
