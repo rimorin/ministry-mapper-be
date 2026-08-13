@@ -113,12 +113,13 @@ func validateOptionsPayload(options []interface{}) error {
 func verifyOptionOwnership(txApp core.App, optionId, congregation string) error {
 	option, err := txApp.FindRecordById("options", optionId)
 	if err != nil {
-		return fmt.Errorf("option not found: %s", optionId)
+		return apis.NewBadRequestError(fmt.Sprintf("option %s is not valid for this congregation", optionId), nil)
 	}
 
-	optionCongregation := option.GetString("congregation")
-	if optionCongregation != congregation {
-		return fmt.Errorf("option %s does not belong to congregation %s", optionId, congregation)
+	// Same message for a missing option and one owned by another congregation,
+	// so the response can't be used to probe for option ids.
+	if option.GetString("congregation") != congregation {
+		return apis.NewBadRequestError(fmt.Sprintf("option %s is not valid for this congregation", optionId), nil)
 	}
 
 	return nil
@@ -141,7 +142,7 @@ func validateCodeUniquenessWithBatch(txApp core.App, code, optionId, congregatio
 		if batchOptionIds != nil && batchOptionIds[existing.Id] {
 			return nil
 		}
-		return fmt.Errorf("code '%s' already exists for another option (id: %s)", code, existing.Id)
+		return apis.NewBadRequestError(fmt.Sprintf("code '%s' already exists for another option", code), nil)
 	}
 
 	return nil
@@ -162,7 +163,7 @@ func validateSequenceUniquenessWithBatch(txApp core.App, sequence int, optionId,
 		if batchOptionIds != nil && batchOptionIds[existing.Id] {
 			return nil
 		}
-		return fmt.Errorf("sequence %d already exists for another option (id: %s)", sequence, existing.Id)
+		return apis.NewBadRequestError(fmt.Sprintf("sequence %d already exists for another option", sequence), nil)
 	}
 
 	return nil
@@ -412,7 +413,7 @@ func HandleOptionUpdate(c *core.RequestEvent, app core.App) error {
 		}
 
 		if defaultOption == "" {
-			return errors.New("no default option was set")
+			return apis.NewBadRequestError("no default option was set", nil)
 		}
 
 		for _, option := range options {
@@ -437,7 +438,10 @@ func HandleOptionUpdate(c *core.RequestEvent, app core.App) error {
 
 	if err != nil {
 		log.Printf("Error processing options for congregation %s: %v", congregation, err)
-		return apis.NewApiError(500, "Error processing options: "+err.Error(), nil)
+		// Business-rule rejections above are ApiErrors and pass through as 4xx
+		// (and stay out of Sentry); anything else is an infra failure whose real
+		// cause Sentry captures behind a generic 500.
+		return wrapTransactionError(err)
 	}
 
 	// Trigger aggregate recalculation for maps affected by is_countable changes.

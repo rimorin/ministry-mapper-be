@@ -95,6 +95,28 @@ func TestHandleOptionUpdate(t *testing.T) {
 			ExpectedContent: []string{`"Exactly one option must be marked as default."`},
 		},
 		{
+			// Caught inside the transaction rather than by the up-front payload
+			// validation: "NH" collides with an existing option that is not part of
+			// this batch. It is the admin's mistake, so it must be a 400 — it used
+			// to surface as a 500, which also meant Sentry logged every occurrence.
+			Name:   "code colliding with an existing option returns 400",
+			Method: http.MethodPost,
+			URL:    "/options/update",
+			Body: strings.NewReader(`{
+				"congregation":"testcongalpha01",
+				"options":[
+					{"code":"NH","description":"Duplicate of seeded NH","sequence":9,"is_default":true,"is_countable":true}
+				]
+			}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`already exists for another option`},
+		},
+		{
 			Name:   "valid options update returns 200",
 			Method: http.MethodPost,
 			URL:    "/options/update",

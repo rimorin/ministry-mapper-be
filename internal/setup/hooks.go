@@ -35,6 +35,14 @@ func RegisterDomainHooks(app core.App) {
 		return e.Next()
 	})
 
+	// Drop the cached expiry_hours so an admin's change takes effect immediately.
+	// Bound to the after-success hook rather than the update *request* hook so it
+	// also fires for superuser edits made through the PocketBase admin UI.
+	app.OnRecordAfterUpdateSuccess("congregations").BindFunc(func(e *core.RecordEvent) error {
+		handlers.InvalidateCongregationExpiryCache(e.Record.Id)
+		return e.Next()
+	})
+
 	// Track last login and reset inactive warnings
 	app.OnRecordAuthRequest("users").BindFunc(func(e *core.RecordAuthRequestEvent) error {
 		e.Record.Set("last_login", time.Now())

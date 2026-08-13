@@ -24,10 +24,18 @@ type MapWithDistance struct {
 	ParsedCoords *Coordinates // set by findBestMap; nil when coordinates are invalid
 }
 
-// congregationExpiryCache stores expiry_hours per congregation ID.
-// Congregation settings change rarely (admin action required), so a process-lifetime
-// cache is safe and eliminates one DB round trip per quicklink request.
+// congregationExpiryCache stores expiry_hours per congregation ID, saving a DB
+// round trip on every quicklink request. Congregation settings change rarely, but
+// "rarely" is not "never": InvalidateCongregationExpiryCache must be called
+// whenever a congregation record changes, or an admin's edit to expiry_hours has
+// no effect until the process restarts.
 var congregationExpiryCache sync.Map
+
+// InvalidateCongregationExpiryCache drops the cached expiry_hours for a
+// congregation. Wired to the congregations update hook in setup.RegisterDomainHooks.
+func InvalidateCongregationExpiryCache(congregationId string) {
+	congregationExpiryCache.Delete(congregationId)
+}
 
 type Coordinates struct {
 	Lat float64 `json:"lat"`
