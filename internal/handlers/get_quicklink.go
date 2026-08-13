@@ -20,7 +20,6 @@ type MapWithDistance struct {
 	Coordinates  string `db:"coordinates"`
 	Aggregates   string `db:"aggregates"`
 	AssignCount  int    `db:"assignment_count"`
-	Congregation string `db:"congregation"`
 	Distance     float64
 	ParsedCoords *Coordinates // set by findBestMap; nil when coordinates are invalid
 }
@@ -80,7 +79,18 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 
 	userId := c.Auth.Id
 
-	maps, err := getMapsWithAssignmentCount(app, territoryId)
+	// The assignment minted below grants publisher access to the selected map, so
+	// the caller must hold a role in the territory's congregation. Any role is
+	// enough — read_only publishers legitimately use quicklinks.
+	congregationId := getTerritoryCongregation(app, territoryId)
+	if congregationId == "" {
+		return apis.NewNotFoundError("Territory not found", nil)
+	}
+	if !AuthorizeByRole(app, userId, congregationId) {
+		return apis.NewForbiddenError("Unauthorized", nil)
+	}
+
+	maps, err := getMapsWithAssignmentCount(app, territoryId, congregationId)
 	if err != nil {
 		return apis.NewNotFoundError("Error fetching maps", nil)
 	}
@@ -93,8 +103,6 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 	if bestMap == nil {
 		return apis.NewNotFoundError("No suitable map found", nil)
 	}
-
-	congregationId := bestMap.Congregation
 
 	expiryHours, err := getCongregationExpiryHours(app, congregationId)
 	if err != nil {
@@ -138,13 +146,16 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 
 // getMapsWithAssignmentCount gets all maps for a territory with their current assignment counts.
 // Only counts active (non-expired) "normal" type assignments.
-func getMapsWithAssignmentCount(app core.App, territoryId string) ([]MapWithDistance, error) {
+//
+// Restricted to congregationId — the one the caller was authorized against — so a
+// map that ended up under a foreign congregation's territory can never be selected
+// and minted into an assignment the caller has no role for.
+func getMapsWithAssignmentCount(app core.App, territoryId string, congregationId string) ([]MapWithDistance, error) {
 	maps := []MapWithDistance{}
 
 	query := `
 		SELECT
 			m.id,
-			m.congregation,
 			COALESCE(m.description, '') as description,
 			COALESCE(m.progress, 0) as progress,
 			COALESCE(m.coordinates, '{}') as coordinates,
@@ -152,13 +163,14 @@ func getMapsWithAssignmentCount(app core.App, territoryId string) ([]MapWithDist
 			COUNT(CASE WHEN a.type = 'normal' AND a.expiry_date > datetime('now') THEN a.id END) as assignment_count
 		FROM maps m
 		LEFT JOIN assignments a ON m.id = a.map
-		WHERE m.territory = {:territory}
+		WHERE m.territory = {:territory} AND m.congregation = {:congregation}
 		GROUP BY m.id
 		ORDER BY assignment_count ASC, progress ASC
 	`
 
 	err := app.DB().NewQuery(query).Bind(dbx.Params{
-		"territory": territoryId,
+		"territory":    territoryId,
+		"congregation": congregationId,
 	}).All(&maps)
 
 	return maps, err

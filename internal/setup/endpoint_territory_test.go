@@ -235,6 +235,10 @@ func TestHandleTerritoryQuicklink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	betaAdminToken, err := generateToken("admin@beta.test")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	scenarios := []tests.ApiScenario{
 		{
@@ -261,6 +265,84 @@ func TestHandleTerritoryQuicklink(t *testing.T) {
 			TestAppFactory:  setupTestApp,
 			ExpectedStatus:  200,
 			ExpectedContent: []string{`"linkId"`},
+		},
+		{
+			// A minted link-id is a bearer credential for the map: it authorizes
+			// /link/map and /address/update with no JWT at all. A user with no role
+			// in the territory's congregation must not be able to obtain one.
+			Name:   "readonly user cannot quicklink another congregation's territory (403)",
+			Method: http.MethodPost,
+			URL:    "/territory/link",
+			Body:   strings.NewReader(`{"territory":"testterrbeta001","coordinates":{"lat":1.3521,"lng":103.8198},"publisher":"Intruder"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": readonlyToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  403,
+			ExpectedContent: []string{`"Unauthorized."`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				assignments, err := app.FindRecordsByFilter("assignments",
+					"user = 'testuseralpha03'", "", 0, 0, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(assignments) != 0 {
+					t.Errorf("expected no assignment to be minted, got %d", len(assignments))
+				}
+			},
+		},
+		{
+			Name:   "conductor cannot quicklink another congregation's territory (403)",
+			Method: http.MethodPost,
+			URL:    "/territory/link",
+			Body:   strings.NewReader(`{"territory":"testterrbeta001","coordinates":{"lat":1.3521,"lng":103.8198},"publisher":"Intruder"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  403,
+			ExpectedContent: []string{`"Unauthorized."`},
+		},
+		{
+			Name:   "beta admin cannot quicklink an alpha territory (403)",
+			Method: http.MethodPost,
+			URL:    "/territory/link",
+			Body:   strings.NewReader(`{"territory":"testterralpha01","coordinates":{"lat":1.3521,"lng":103.8198},"publisher":"Intruder"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": betaAdminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  403,
+			ExpectedContent: []string{`"Unauthorized."`},
+		},
+		{
+			Name:   "beta admin can quicklink their own territory",
+			Method: http.MethodPost,
+			URL:    "/territory/link",
+			Body:   strings.NewReader(`{"territory":"testterrbeta001","coordinates":{"lat":1.3521,"lng":103.8198},"publisher":"Beta Publisher"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": betaAdminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"linkId"`},
+		},
+		{
+			Name:   "unknown territory returns 404",
+			Method: http.MethodPost,
+			URL:    "/territory/link",
+			Body:   strings.NewReader(`{"territory":"doesnotexist001","coordinates":{"lat":1.3521,"lng":103.8198},"publisher":"Test Publisher"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  404,
+			ExpectedContent: []string{`"Territory not found."`},
 		},
 		{
 			Name:   "conductor can get quicklink with valid territory",
