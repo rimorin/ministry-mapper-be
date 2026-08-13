@@ -1042,6 +1042,116 @@ func TestHandleMapTerritoryUpdate(t *testing.T) {
 				}
 			},
 		},
+		{
+			// The map's congregation stays Alpha while its territory would become
+			// Beta's, so ProcessTerritoryAggregates would fold Alpha's addresses
+			// into Beta's territory progress.
+			Name:   "admin cannot move own map into another congregation's territory (400)",
+			Method: http.MethodPost,
+			URL:    "/map/territory/update",
+			Body:   strings.NewReader(`{"map":"testmapalpha01a","old_territory":"testterralpha01","new_territory":"testterrbeta001"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`"Invalid destination territory."`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				mapRecord, err := app.FindRecordById("maps", "testmapalpha01a")
+				if err != nil {
+					t.Fatalf("failed to fetch map: %v", err)
+				}
+				if mapRecord.GetString("territory") != "testterralpha01" {
+					t.Errorf("map territory should be unchanged, got %s", mapRecord.GetString("territory"))
+				}
+				addresses, err := app.FindRecordsByFilter("addresses", "map = 'testmapalpha01a'", "", 0, 0, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, a := range addresses {
+					if a.GetString("territory") != "testterralpha01" {
+						t.Errorf("address %s territory should be unchanged, got %s", a.Id, a.GetString("territory"))
+					}
+				}
+			},
+		},
+		{
+			Name:   "beta admin cannot pull an alpha map into their territory (403)",
+			Method: http.MethodPost,
+			URL:    "/map/territory/update",
+			Body:   strings.NewReader(`{"map":"testmapalpha01a","new_territory":"testterrbeta001"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": betaAdminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  403,
+			ExpectedContent: []string{`"Administrator access required."`},
+		},
+		{
+			Name:   "unknown destination territory is rejected (400)",
+			Method: http.MethodPost,
+			URL:    "/map/territory/update",
+			Body:   strings.NewReader(`{"map":"testmapalpha01a","new_territory":"doesnotexist001"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`"Invalid destination territory."`},
+		},
+		{
+			Name:   "missing new_territory is rejected (400)",
+			Method: http.MethodPost,
+			URL:    "/map/territory/update",
+			Body:   strings.NewReader(`{"map":"testmapalpha01a"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`"New_territory is required."`},
+		},
+		{
+			Name:   "missing map is rejected (400)",
+			Method: http.MethodPost,
+			URL:    "/map/territory/update",
+			Body:   strings.NewReader(`{"new_territory":"testterralpha02"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`"Map is required."`},
+		},
+		{
+			// old_territory in the body is ignored: the recalculated source
+			// territory comes from the map record, not the caller.
+			Name:   "bogus old_territory does not affect a valid move",
+			Method: http.MethodPost,
+			URL:    "/map/territory/update",
+			Body:   strings.NewReader(`{"map":"testmapalpha01a","old_territory":"testterrbeta001","new_territory":"testterralpha02"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`Map territory updated successfully`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				mapRecord, err := app.FindRecordById("maps", "testmapalpha01a")
+				if err != nil {
+					t.Fatalf("failed to fetch map: %v", err)
+				}
+				if mapRecord.GetString("territory") != "testterralpha02" {
+					t.Errorf("expected map territory testterralpha02, got %s", mapRecord.GetString("territory"))
+				}
+			},
+		},
 	}
 
 	for _, scenario := range scenarios {
