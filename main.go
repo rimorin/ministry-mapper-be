@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"ministry-mapper/internal/commands"
 	"ministry-mapper/internal/handlers"
 	"ministry-mapper/internal/jobs"
 	"ministry-mapper/internal/setup"
@@ -35,6 +36,8 @@ func main() {
 	setup.RegisterDomainHooks(app)
 	jobs.ConfigureScheduler(app)
 	registerSentryLogForwarding(app)
+
+	app.RootCmd.AddCommand(commands.NewFixSequences(app))
 
 	isGoRun := strings.HasPrefix(os.Args[0], os.TempDir())
 	migratecmd.MustRegister(app, app.RootCmd, migratecmd.Config{
