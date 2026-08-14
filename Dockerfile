@@ -17,15 +17,30 @@ WORKDIR /app
 # Only copies go.mod and go.sum to leverage Docker cache
 COPY go.mod go.sum ./
 
-# Install all Go dependencies
+# Install all Go dependencies.
+# Deliberately not a cache mount: this layer is already only invalidated when
+# go.mod/go.sum change, and baking the modules into the layer means a source-only
+# change never re-downloads them.
 RUN go mod download
 
 # Copy the entire source code
 # This layer changes when any source file changes
 COPY . .
 
-# Build the application with optimizations
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+# Build the application with optimizations.
+#
+# The cache mount is what keeps this affordable on a small build server. Any
+# source change invalidates this layer, and without a persisted GOCACHE that
+# means recompiling all 497 packages in the dependency tree -- including the 28
+# modernc.org SQLite/libc packages, which dominate the build. With the compiler
+# cache preserved between builds only the changed packages are rebuilt:
+# measured 21.4s -> 3.7s for a one-line change.
+#
+# Note this does not reduce peak memory. The high-water mark is the linker at
+# ~1.76 GB, single-threaded and unaffected by core count, so a build host needs
+# swap or >2 GB RAM for a cold build regardless.
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s" \
     -o main .
 
