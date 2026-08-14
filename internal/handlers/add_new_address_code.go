@@ -98,18 +98,21 @@ func HandleMapAdd(e *core.RequestEvent, app core.App) error {
 		return apis.NewNotFoundError("Error fetching floors", nil)
 	}
 
-	sequence, err := fetchMapMaxSequence(app, mapId)
-	if err != nil {
-		return apis.NewNotFoundError("Error fetching sequence", nil)
-	}
-
 	defaultCode, err := fetchDefaultCongregationOption(app, mapData.GetString("congregation"))
 	if err != nil {
 		return apis.NewNotFoundError("Error fetching default code", nil)
 	}
 
-	currentSequence := sequence
 	err = app.RunInTransaction(func(txApp core.App) error {
+		// Read the high-water mark inside the transaction. Read outside, two
+		// concurrent additions to the same map observe the same value and hand
+		// the same sequence to different codes, which puts their cells under
+		// each other's column header and drops one from the Excel report.
+		currentSequence, err := fetchMapMaxSequence(txApp, mapId)
+		if err != nil {
+			return err
+		}
+
 		collection, err := txApp.FindCollectionByNameOrId("addresses")
 		if err != nil {
 			return err
