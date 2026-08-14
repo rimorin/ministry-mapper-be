@@ -217,3 +217,82 @@ func TestPlanColumnsCleanMapNeedsNoChange(t *testing.T) {
 		t.Errorf("got %v changed, want none", changed)
 	}
 }
+
+// A tied column must not influence the direction vote, even when its neighbour
+// is untied. 16 Teck Whye Lane interleaves two stacks, so the boundary between
+// a tied pair and the next column used to cast votes that were artefacts of the
+// provisional ordering rather than evidence about the map.
+func TestDetectDirectionIgnoresTiedColumnsEntirely(t *testing.T) {
+	order := []string{"101", "103", "115", "105", "117", "107", "119"}
+	seq := map[string]int{
+		"101": 0, "103": 1, "115": 1, "105": 2, "117": 2, "107": 3, "119": 3,
+	}
+
+	// Only 101 owns its sequence outright, so there is nothing left to compare.
+	_, unclear := detectDirection(order, seq)
+	if !unclear {
+		t.Error("expected unclear: no two untied columns exist to vote")
+	}
+
+	// Reversing the tied pairs must not change the verdict.
+	reversed := []string{"101", "115", "103", "117", "105", "119", "107"}
+	_, unclearReversed := detectDirection(reversed, seq)
+	if unclearReversed != unclear {
+		t.Error("verdict changed when the provisional tie order was reversed")
+	}
+}
+
+func TestDetectDirectionUsesOnlyUntiedColumns(t *testing.T) {
+	// 90 80 70 60 runs cleanly downwards; the tied pair between them is noise.
+	order := []string{"90", "80", "5", "999", "70", "60"}
+	seq := map[string]int{"90": 0, "80": 1, "5": 2, "999": 2, "70": 3, "60": 4}
+
+	descending, unclear := detectDirection(order, seq)
+	if !descending {
+		t.Error("expected descending from the untied columns")
+	}
+	if unclear {
+		t.Error("expected a confident verdict")
+	}
+}
+
+func TestPlanVerifyAcceptsAWellFormedPlan(t *testing.T) {
+	plan := planColumns(rowsOf(3, "10", 0, "12", 1, "14", 1, "16", 5))
+	if err := plan.verify(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestPlanVerifyRejectsADuplicateAssignment(t *testing.T) {
+	plan := planColumns(rowsOf(3, "10", 0, "12", 1, "14", 2))
+	plan.NewSeq["14"] = plan.NewSeq["12"] // corrupt it
+
+	err := plan.verify()
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if !strings.Contains(err.Error(), "both assigned sequence") {
+		t.Errorf("error = %q", err.Error())
+	}
+}
+
+func TestPlanVerifyRejectsAnOutOfRangeAssignment(t *testing.T) {
+	plan := planColumns(rowsOf(3, "10", 0, "12", 1))
+	plan.NewSeq["12"] = 99
+
+	if err := plan.verify(); err == nil || !strings.Contains(err.Error(), "outside") {
+		t.Errorf("expected an out-of-range error, got %v", err)
+	}
+}
+
+func TestPlanVerifyRefusesADriftMap(t *testing.T) {
+	plan := planColumns([]codeSequence{
+		{Code: "703", Sequence: 4, N: 13},
+		{Code: "703", Sequence: 5, N: 13},
+		{Code: "705", Sequence: 6, N: 13},
+	})
+
+	if err := plan.verify(); err == nil {
+		t.Fatal("expected verify to refuse a map with duplicate unit records")
+	}
+}

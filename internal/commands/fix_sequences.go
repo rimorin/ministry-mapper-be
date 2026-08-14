@@ -75,7 +75,7 @@ func printUnclear(unclear []*mapPlan) {
 		fmt.Printf("  %-15s %-6s %s\n", plan.Id, plan.Type, truncate(plan.Name, 44))
 		fmt.Printf("      %s\n", truncate(strings.Join(plan.Order, " "), 70))
 	}
-	fmt.Println("  Pass --include-unclear to repair these with natural code order.")
+	fmt.Println("  Pass --include-unclear to repair these using the weaker majority direction.")
 	fmt.Println()
 }
 
@@ -298,16 +298,30 @@ func (p *mapPlan) sortColumns() {
 	})
 }
 
-// detectDirection reads the map's existing layout. Pairs sharing a sequence are
-// skipped — their order is exactly what is undefined, so they cannot vote.
+// detectDirection reads the map's existing layout.
+//
+// Only columns that solely own their sequence get a vote. A tied column's
+// position is precisely what is being decided, so letting one vote — even
+// against an untied neighbour — would feed the provisional ordering back into
+// its own input, and flipping that provisional order would flip the result.
+// Dropping them entirely leaves the vote resting only on positions the data
+// actually defines.
 func detectDirection(order []string, oldSeq map[string]int) (descending, unclear bool) {
-	var up, down int
-	for i := 1; i < len(order); i++ {
-		prev, cur := order[i-1], order[i]
-		if oldSeq[prev] == oldSeq[cur] {
-			continue
+	holders := make(map[int]int, len(order))
+	for _, code := range order {
+		holders[oldSeq[code]]++
+	}
+
+	settled := make([]string, 0, len(order))
+	for _, code := range order {
+		if holders[oldSeq[code]] == 1 {
+			settled = append(settled, code)
 		}
-		if naturalLess(prev, cur) {
+	}
+
+	var up, down int
+	for i := 1; i < len(settled); i++ {
+		if naturalLess(settled[i-1], settled[i]) {
 			up++
 		} else {
 			down++
@@ -338,9 +352,40 @@ func (p *mapPlan) changedCodes() []string {
 	return changed
 }
 
+// verify re-checks what the plan is supposed to guarantee, rather than trusting
+// that it was built correctly. Cheap, and it runs against production data.
+func (p *mapPlan) verify() error {
+	if len(p.Drift) > 0 {
+		return fmt.Errorf("plan covers a map with duplicate unit records")
+	}
+
+	taken := make(map[int]string, len(p.Order))
+	for _, code := range p.Order {
+		seq, ok := p.NewSeq[code]
+		if !ok {
+			return fmt.Errorf("code '%s' has no assigned sequence", code)
+		}
+		if seq < 0 || seq >= len(p.Order) {
+			return fmt.Errorf("code '%s' assigned sequence %d outside 0..%d",
+				code, seq, len(p.Order)-1)
+		}
+		if other, clash := taken[seq]; clash {
+			return fmt.Errorf("codes '%s' and '%s' both assigned sequence %d",
+				other, code, seq)
+		}
+		taken[seq] = code
+	}
+
+	return nil
+}
+
 // Raw SQL, not the record API: renumbering is not a user edit, so it must not
 // touch `updated`/`updated_by` or broadcast realtime events to publishers.
 func writePlan(app core.App, plan *mapPlan) error {
+	if err := plan.verify(); err != nil {
+		return err
+	}
+
 	return app.RunInTransaction(func(txApp core.App) error {
 		for _, code := range plan.changedCodes() {
 			_, err := txApp.DB().NewQuery(`
