@@ -627,6 +627,62 @@ func TestHandleMapUpdateSequence(t *testing.T) {
 			ExpectedStatus:  200,
 			ExpectedContent: []string{`Address sequences updated successfully`},
 		},
+		{
+			// Two codes on one sequence is the defect behind both the
+			// mislabelled columns and the column dropped from the Excel export.
+			Name:   "two codes claiming one sequence returns 400",
+			Method: http.MethodPost,
+			URL:    "/map/codes/update",
+			Body:   strings.NewReader(`{"map":"testmapalpha01a","codes":[{"code":"10","sequence":0},{"code":"11","sequence":1},{"code":"12","sequence":1},{"code":"13","sequence":3},{"code":"14","sequence":4}]}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`both claim sequence 1`},
+		},
+		{
+			Name:   "repeated code returns 400",
+			Method: http.MethodPost,
+			URL:    "/map/codes/update",
+			Body:   strings.NewReader(`{"map":"testmapalpha01a","codes":[{"code":"10","sequence":0},{"code":"10","sequence":1},{"code":"12","sequence":2},{"code":"13","sequence":3},{"code":"14","sequence":4}]}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`Duplicate code in request`},
+		},
+		{
+			// Codes left out keep their old sequences, which are then free to
+			// collide with the ones being rewritten.
+			Name:   "partial reorder returns 400",
+			Method: http.MethodPost,
+			URL:    "/map/codes/update",
+			Body:   strings.NewReader(`{"map":"testmapalpha01a","codes":[{"code":"10","sequence":0},{"code":"11","sequence":1}]}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`must cover all 5 codes in the map, got 2`},
+		},
+		{
+			Name:   "right count but an unknown code returns 400",
+			Method: http.MethodPost,
+			URL:    "/map/codes/update",
+			Body:   strings.NewReader(`{"map":"testmapalpha01a","codes":[{"code":"10","sequence":0},{"code":"11","sequence":1},{"code":"12","sequence":2},{"code":"13","sequence":3},{"code":"99","sequence":4}]}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`is missing from the request`},
+		},
 	}
 
 	for _, scenario := range scenarios {
