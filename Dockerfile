@@ -1,9 +1,8 @@
 # Stage 1: Build the Go application
 # Uses golang alpine as base image for smaller size.
-# 1.26.5 is the current stable patch (1.27 is still at rc): 1.26.3, 1.26.4 and
-# 1.26.5 carry security fixes for crypto/tls, crypto/x509, net/http,
-# net/http/httputil and html/template, all of which this server sits on.
-FROM golang:1.26.5-alpine AS builder
+# Must match the `go 1.27` in go.mod -- an older toolchain downloads 1.27 at
+# build time instead of compiling with what's in the image.
+FROM golang:1.27.0-alpine AS builder
 
 # Metadata and version information
 LABEL maintainer="John Eric"
@@ -45,9 +44,8 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     -o main .
 
 # Stage 2: Create the minimal runtime image.
-# 3.24 is the current stable series (supported until 2028-06-01, against
-# 2027-05-01 for the 3.22 it replaces) and is what golang:1.26.5-alpine is
-# itself built on, so both stages resolve to the same Alpine.
+# 3.24 is what golang:1.27.0-alpine is built on, so both stages resolve to the
+# same Alpine.
 FROM alpine:3.24
 
 # Install tzdata for time zone support and curl for healthchecks
