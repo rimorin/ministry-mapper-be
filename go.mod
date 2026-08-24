@@ -10,7 +10,7 @@ require (
 	github.com/openai/openai-go/v3 v3.52.0
 	github.com/pocketbase/dbx v1.12.0
 	github.com/pocketbase/ozzo-validation/v4 v4.3.0
-	github.com/pocketbase/pocketbase v0.40.0
+	github.com/pocketbase/pocketbase v0.40.1
 	github.com/spf13/cobra v1.10.2
 	github.com/xuri/excelize/v2 v2.11.0
 )
