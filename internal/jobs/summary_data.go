@@ -11,28 +11,25 @@ import (
 	"github.com/pocketbase/pocketbase/core"
 )
 
-// TerritoryProgress holds the current status snapshot for a single territory,
-// enriched with derived metrics computed before the LLM prompt.
+// TerritoryProgress holds the current cumulative status snapshot for a single territory.
 type TerritoryProgress struct {
-	Id                  string
-	Code                string
-	Description         string
-	Progress            float64
-	Total               int
-	Done                int
-	NotDone             int
-	NotHome             int
-	DNC                 int
-	Invalid             int
-	IsComplete          bool
-	EstMonthsToComplete float64 // not_done / monthly_done_rate; 0 if complete or no rate
+	Id          string
+	Code        string
+	Description string
+	Progress    float64
+	Total       int
+	Done        int
+	NotDone     int
+	NotHome     int
+	DNC         int
+	Invalid     int
+	IsComplete  bool
 }
 
-// ActivityItem represents the count and percentage of a single status in monthly activity.
+// ActivityItem represents the count of a single status in monthly activity.
 type ActivityItem struct {
 	Status string
 	Count  int
-	Pct    float64
 }
 
 // TerritoryMonthlyActivity holds what actually happened in a territory during the report month.
@@ -41,7 +38,6 @@ type TerritoryMonthlyActivity struct {
 	Done          int
 	NotHome       int
 	DNC           int
-	NotDone       int // re-opened (status changed back to not_done this month)
 }
 
 // NotHomeFatigue summarises not-home retry state per territory.
@@ -65,31 +61,29 @@ type MapHealthItem struct {
 
 // LLMResponse holds the parsed JSON output from the AI model.
 type LLMResponse struct {
-	CoveredActivity   string `json:"covered_activity"`
-	TerritoryAnalysis string `json:"territory_analysis"`
-	Conclusion        string `json:"conclusion"`
+	Coverage       string `json:"coverage"`
+	NeedsAttention string `json:"needs_attention"`
 }
 
 // SummaryData is the full data payload assembled from analytics views.
 // Available is set true only after a successful LLM call populates all narrative fields.
 type SummaryData struct {
-	Available           bool
-	CongregationName    string
-	Period              string // "February 2026"
-	Territories         []TerritoryProgress
-	MonthlyByTerritory  []TerritoryMonthlyActivity // per-territory activity for the report month
-	TotalChanges        int
-	Activity            []ActivityItem
-	PeakDay             string // "Feb 15 (47 changes)"
-	SlowWeek            string // "Feb 1–7 (12 changes)"
-	NotHomeFatigue      []NotHomeFatigue
-	StalledMaps         []MapHealthItem
-	CompletedMaps       []MapHealthItem
-	HighDNCMaps         []MapHealthItem // top 3 by DNC count
-	InactiveTerritories []string        // territory codes with no activity this month
-	CoveredActivity     string          // section 1: what was covered this month
-	TerritoryAnalysis   string          // section 2: per-territory observations
-	Conclusion          string          // section 3: overall progress and encouragement
+	Available          bool
+	CongregationName   string
+	Period             string // "February 2026"
+	Territories        []TerritoryProgress
+	MonthlyByTerritory []TerritoryMonthlyActivity // per-territory activity for the report month
+	Activity           []ActivityItem
+	// Pre-counted facts handed to the LLM so it never has to derive a number.
+	ActiveTerritories int // territories with at least one visit this period
+	HouseholdsReached int // "done" changes this period
+	Visits            int // done + not_home + do_not_call this period (excludes resets/invalid)
+	NotHomeFatigue    []NotHomeFatigue
+	StalledMaps       []MapHealthItem
+	CompletedMaps     []MapHealthItem
+	HighDNCMaps       []MapHealthItem // top 3 by DNC count
+	Coverage          string          // paragraph 1: what was covered this period
+	NeedsAttention    string          // paragraph 2: items for the territory servant to act on
 }
 
 // OnDemandReportDays is the default rolling window size for on-demand reports.
@@ -141,7 +135,7 @@ func reportMonth() time.Time {
 }
 
 // queryTerritoryProgress fetches the current territory status snapshot from analytics_territories.
-func queryTerritoryProgress(app core.App, congregationId string, monthlyDoneRate float64) ([]TerritoryProgress, error) {
+func queryTerritoryProgress(app core.App, congregationId string) ([]TerritoryProgress, error) {
 	type row struct {
 		Id          string  `db:"id"`
 		Code        string  `db:"code"`
@@ -181,20 +175,15 @@ func queryTerritoryProgress(app core.App, congregationId string, monthlyDoneRate
 			Invalid:     r.Invalid,
 			IsComplete:  r.Progress >= 100,
 		}
-		if !tp.IsComplete && monthlyDoneRate > 0 && r.NotDone > 0 {
-			raw := float64(r.NotDone) / monthlyDoneRate
-			tp.EstMonthsToComplete = math.Round(raw*10) / 10
-		}
 		result = append(result, tp)
 	}
 	return result, nil
 }
 
 // queryMonthlyActivity fetches status-change totals for the given period from analytics_daily_status.
-func queryMonthlyActivity(app core.App, congregationId string, period ReportPeriod) (items []ActivityItem, total int, peakDay, slowWeek string, monthlyDoneRate float64, err error) {
-	monthStart := period.Start.Format("2006-01-02")
-	monthEnd := period.End.Format("2006-01-02")
-
+// visits counts real household contact only (done + not_home + do_not_call); resets to
+// not_done and invalid marks are status changes but not visits.
+func queryMonthlyActivity(app core.App, congregationId string, period ReportPeriod) (items []ActivityItem, reached, visits int, err error) {
 	type statusRow struct {
 		Status string `db:"new_status"`
 		Count  int    `db:"total"`
@@ -210,80 +199,26 @@ func queryMonthlyActivity(app core.App, congregationId string, period ReportPeri
 		ORDER BY total DESC
 	`).Bind(dbx.Params{
 		"congregation": congregationId,
-		"start":        monthStart,
-		"end":          monthEnd,
+		"start":        period.Start.Format("2006-01-02"),
+		"end":          period.End.Format("2006-01-02"),
 	}).All(&statusRows)
 	if err != nil {
-		return nil, 0, "", "", 0, fmt.Errorf("query monthly activity: %w", err)
-	}
-
-	doneCount := 0
-	for _, r := range statusRows {
-		total += r.Count
-		if r.Status == "done" {
-			doneCount = r.Count
-		}
+		return nil, 0, 0, fmt.Errorf("query monthly activity: %w", err)
 	}
 
 	items = make([]ActivityItem, 0, len(statusRows))
 	for _, r := range statusRows {
-		pct := 0.0
-		if total > 0 {
-			pct = math.Round(float64(r.Count)/float64(total)*1000) / 10
+		switch r.Status {
+		case "done":
+			reached = r.Count
+			visits += r.Count
+		case "not_home", "do_not_call":
+			visits += r.Count
 		}
-		items = append(items, ActivityItem{Status: r.Status, Count: r.Count, Pct: pct})
+		items = append(items, ActivityItem{Status: r.Status, Count: r.Count})
 	}
 
-	// Peak activity day
-	type dayRow struct {
-		Day   string `db:"day"`
-		Total int    `db:"daily_total"`
-	}
-	var peak dayRow
-	_ = app.DB().NewQuery(`
-		SELECT day, SUM(change_count) AS daily_total
-		FROM analytics_daily_status
-		WHERE congregation = {:congregation}
-		  AND day >= {:start}
-		  AND day <  {:end}
-		GROUP BY day
-		ORDER BY daily_total DESC
-		LIMIT 1
-	`).Bind(dbx.Params{
-		"congregation": congregationId,
-		"start":        monthStart,
-		"end":          monthEnd,
-	}).One(&peak)
-	if peak.Day != "" {
-		if t, parseErr := time.Parse("2006-01-02", peak.Day); parseErr == nil {
-			peakDay = fmt.Sprintf("%s (%d changes)", t.Format("Jan 2"), peak.Total)
-		}
-	}
-
-	// First week of the month for context
-	type weekRow struct {
-		Total int `db:"week_total"`
-	}
-	var week weekRow
-	_ = app.DB().NewQuery(`
-		SELECT SUM(change_count) AS week_total
-		FROM analytics_daily_status
-		WHERE congregation = {:congregation}
-		  AND day >= {:start}
-		  AND day <  date(:start, '+7 days')
-	`).Bind(dbx.Params{
-		"congregation": congregationId,
-		"start":        monthStart,
-	}).One(&week)
-	if week.Total > 0 {
-		if t, parseErr := time.Parse("2006-01-02", monthStart); parseErr == nil {
-			t7 := t.AddDate(0, 0, 6)
-			slowWeek = fmt.Sprintf("Opening week %s–%s (%d changes)", t.Format("Jan 2"), t7.Format("Jan 2"), week.Total)
-		}
-	}
-
-	monthlyDoneRate = float64(doneCount)
-	return items, total, peakDay, slowWeek, monthlyDoneRate, nil
+	return items, reached, visits, nil
 }
 
 // queryMonthlyActivityByTerritory breaks down the period's status changes per territory.
@@ -330,17 +265,24 @@ func queryMonthlyActivityByTerritory(app core.App, congregationId string, period
 			a.NotHome = r.Count
 		case "do_not_call":
 			a.DNC = r.Count
-		case "not_done":
-			a.NotDone = r.Count
 		}
 	}
 
-	// Collect into a slice sorted by territory code (consistent ordering for prompt)
+	// Territories whose only change was a reset render as a row of zeros, which the
+	// narrative then comments on. Rank by Done so the top territories are the first rows.
 	result := make([]TerritoryMonthlyActivity, 0, len(byTerritory))
 	for _, v := range byTerritory {
+		if v.Done+v.NotHome+v.DNC == 0 {
+			continue
+		}
 		result = append(result, *v)
 	}
-	sort.Slice(result, func(i, j int) bool { return result[i].TerritoryCode < result[j].TerritoryCode })
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Done != result[j].Done {
+			return result[i].Done > result[j].Done
+		}
+		return result[i].TerritoryCode < result[j].TerritoryCode
+	})
 	return result, nil
 }
 
@@ -445,49 +387,13 @@ func queryMapHealth(app core.App, congregationId string) (stalled, completed, hi
 	return stalled, completed, highDNC, nil
 }
 
-// queryInactiveTerritories returns codes of non-complete territories that had no
-// activity in analytics_daily_status during the given period.
-func queryInactiveTerritories(app core.App, congregationId string, territories []TerritoryProgress, period ReportPeriod) []string {
-	monthStart := period.Start.Format("2006-01-02")
-	monthEnd := period.End.Format("2006-01-02")
-
-	type row struct {
-		Territory string `db:"territory"`
-	}
-	var rows []row
-	_ = app.DB().NewQuery(`
-		SELECT DISTINCT territory
-		FROM analytics_daily_status
-		WHERE congregation = {:congregation}
-		  AND day >= {:start}
-		  AND day <  {:end}
-	`).Bind(dbx.Params{
-		"congregation": congregationId,
-		"start":        monthStart,
-		"end":          monthEnd,
-	}).All(&rows)
-
-	activeIDs := make(map[string]bool, len(rows))
-	for _, r := range rows {
-		activeIDs[r.Territory] = true
-	}
-
-	var inactive []string
-	for _, t := range territories {
-		if !t.IsComplete && !activeIDs[t.Id] {
-			inactive = append(inactive, t.Code)
-		}
-	}
-	return inactive
-}
-
-// BuildSummaryData queries all four analytics views and assembles a SummaryData struct
+// BuildSummaryData queries the analytics views and assembles a SummaryData struct
 // ready for prompt building. The Available field is left false until the LLM call succeeds.
 func BuildSummaryData(app core.App, congregation *core.Record, period ReportPeriod) (SummaryData, error) {
 	cid := congregation.Id
 	name, _ := congregation.Get("name").(string)
 
-	activity, totalChanges, peakDay, slowWeek, monthlyDoneRate, err := queryMonthlyActivity(app, cid, period)
+	activity, reached, visits, err := queryMonthlyActivity(app, cid, period)
 	if err != nil {
 		return SummaryData{}, err
 	}
@@ -497,7 +403,7 @@ func BuildSummaryData(app core.App, congregation *core.Record, period ReportPeri
 		return SummaryData{}, err
 	}
 
-	territories, err := queryTerritoryProgress(app, cid, monthlyDoneRate)
+	territories, err := queryTerritoryProgress(app, cid)
 	if err != nil {
 		return SummaryData{}, err
 	}
@@ -512,202 +418,146 @@ func BuildSummaryData(app core.App, congregation *core.Record, period ReportPeri
 		return SummaryData{}, err
 	}
 
-	inactive := queryInactiveTerritories(app, cid, territories, period)
-
 	return SummaryData{
-		Available:           false,
-		CongregationName:    name,
-		Period:              period.Label,
-		Territories:         territories,
-		MonthlyByTerritory:  monthlyByTerritory,
-		TotalChanges:        totalChanges,
-		Activity:            activity,
-		PeakDay:             peakDay,
-		SlowWeek:            slowWeek,
-		NotHomeFatigue:      fatigue,
-		StalledMaps:         stalled,
-		CompletedMaps:       completed,
-		HighDNCMaps:         highDNC,
-		InactiveTerritories: inactive,
+		Available:          false,
+		CongregationName:   name,
+		Period:             period.Label,
+		Territories:        territories,
+		MonthlyByTerritory: monthlyByTerritory,
+		Activity:           activity,
+		ActiveTerritories:  len(monthlyByTerritory),
+		HouseholdsReached:  reached,
+		Visits:             visits,
+		NotHomeFatigue:     fatigue,
+		StalledMaps:        stalled,
+		CompletedMaps:      completed,
+		HighDNCMaps:        highDNC,
 	}, nil
 }
 
 // BuildPrompt constructs the system and user messages sent to the LLM.
-// All derived metrics must already be populated in data before calling this.
+// Figures the narrative needs are pre-counted in data, and anything that must not
+// appear in the narrative is left out of the prompt rather than forbidden by a rule —
+// re-opened counts and zero-visit territories were mentioned anyway when forbidden.
 func BuildPrompt(data SummaryData) (systemMsg, userMsg string) {
 	systemMsg = `You are the territory servant for a Jehovah's Witness congregation, writing the
 territory activity report for your service overseer and fellow elders.
 
-Your role is to give a clear, warm account of how the congregation's house-to-house
-ministry progressed during this period — acknowledging the publishers' diligent efforts,
-surfacing what needs attention, and encouraging continued zeal in the work of
-sharing the good news of the Kingdom (Matthew 24:14; Acts 20:20).
-
 MINISTRY CONTEXT:
-- Publishers systematically visit households in assigned territories to share
-  Bible-based material and offer the good news of God's Kingdom
+- Publishers work their assigned territories house-to-house, calling on each household
+  to share Bible-based material and offer the good news of God's Kingdom
+  (Matthew 24:14; Acts 20:20)
 - Each household visit is recorded with a status:
     done         — a householder was home and the publisher could share the good news
     not_home     — no one answered; publisher will make a return visit
-    do_not_call  — householder declined further visits; permanently recorded
+    do_not_call  — householder declined further visits (DNC); permanently recorded
     invalid      — address is inaccessible, non-existent, or otherwise unreachable
-    not_done     — address was reset to unworked, awaiting a publisher
-- not_home addresses represent householders who still need an opportunity to hear
-  the Kingdom message; publishers make return visits to reach them:
-    retrying             — within the allowed attempt limit; return visits are planned (normal)
-    high not home tries  — reached the maximum attempts with no contact; the territory
-                           servant must decide: reset the address, note as invalid,
-                           or organise a special return visit effort
+    not_done     — address is unworked, awaiting a publisher
+- A not_home address is retried up to an attempt limit:
+    retrying             — within the limit; return visits are planned (normal)
+    high not home tries  — limit reached with no contact; the territory servant must
+                           decide: reset the address, note it invalid, or organise a
+                           special return visit effort
 - A stalled map (0% progress with unworked addresses) means those householders have
-  not yet been reached — it is likely unassigned or inadvertently overlooked
-- Territory progress is cumulative coverage — not just this period's work
+  not been reached at all — it is likely unassigned or inadvertently overlooked
 
 REPORT READERS:
-- Territory servant: assigns maps to publishers, tracks territory progress,
-  follows up on high not-home-tries addresses, ensures no territory sits idle
-- Service overseer: has oversight of the overall field ministry health,
-  encourages publishers, and supports the territory servant in keeping
-  the good news reaching every household
+- Territory servant: assigns maps to publishers and follows up high not-home-tries addresses
+- Service overseer: has oversight of overall field ministry health and encourages publishers
 
-DATA SCOPE:
-- "TERRITORY ACTIVITY" = what happened during the report period per territory, enriched with each
-  territory's current overall state (Overall%, Remaining addresses, Est. Months to finish)
-  Column key:
-    Done / Not Home / DNC / Re-opened  = this period's counts only
-    Total / Invalid / Overall% / Remaining / Est.Months = cumulative territory state as of report date
-  "Re-opened" specifically = individual addresses re-opened for ministry this month
-    (status changed back to not_done; small counts are normal and not worth mentioning)
-  "Total" specifically = total addresses in the territory (all statuses combined)
-  "Invalid" specifically = addresses that are permanently unreachable (inaccessible, non-existent);
-    these are included in Total but can never be completed — high Invalid lowers the maximum achievable progress
-  "Remaining" specifically = total not_done addresses in the territory right now (not just this month)
-  "Overall%" = (done + exhausted not-home) / Total × 100 — cumulative, includes all prior months' work
-  "Est.Months" = Remaining ÷ this month's Done rate; treat as a rough guide only —
-    one unusually active or quiet month can make this estimate misleading
-- "NOT-HOME STANDING" and "MAP HEALTH" = current state as of the report date
+YOUR DATA:
+- VERIFIED FACTS — already counted for you. Quote these figures exactly. Never
+  recount them from the tables below and never adjust them.
+- TERRITORY ACTIVITY — one row per territory that saw real visits this period,
+  ordered by Done, highest first. Territories with no visits are not listed.
+    Done / Not Home / DNC                  = this period's visits only
+    Total / Invalid / Overall% / Remaining = cumulative state as of the report date
+    Total     = every address in the territory, all statuses combined
+    Invalid   = permanently unreachable; counted in Total but can never be completed,
+                so a high Invalid lowers the maximum achievable progress
+    Overall%  = (done + exhausted not-home) / Total x 100, cumulative across all periods
+    Remaining = not_done addresses in the territory right now, not just this period
+- NOT-HOME STANDING and MAP HEALTH — current state as of the report date
 
-VERIFY BEFORE WRITING:
-Before drafting any section, identify from TERRITORY ACTIVITY:
-1. Which territories have Done > 0 this month (only these are "active" for section 2)
-2. The exact Done count per active territory — use the number as printed; do not adjust it
-3. Whether any active territory has concerns in NOT-HOME STANDING or MAP HEALTH
-Use these verified facts as your sole basis for sections 1 and 2.
+WRITE EXACTLY TWO PARAGRAPHS:
 
-WRITING STYLE:
-- Write in plain, simple English — short sentences, everyday words
-- Avoid formal or corporate-sounding phrases (e.g. "in the absence of", "lay the groundwork",
-  "rekindling systematic outreach", "tangible progress")
-- Write as if speaking warmly to a fellow elder, not drafting an official document
-- When there was no activity, say so plainly and briefly — do not pad with generic advice
-- Each sentence should carry one clear idea; do not chain multiple clauses together
+Paragraph 1 — COVERAGE (2-4 sentences):
+  What the congregation accomplished in the house-to-house ministry this period.
+  Take the territory count and households reached from VERIFIED FACTS.
+  Name the three highest territories from TERRITORY ACTIVITY with their Done figures.
+  If a map was completed, name it — that is the clearest result worth reporting.
 
-REPORT STRUCTURE — write exactly three sections in this order:
+Paragraph 2 — NEEDS ATTENTION (2-4 sentences):
+  Only what the territory servant should act on, drawn from NOT-HOME STANDING and
+  MAP HEALTH. Name the territory or map, give the figure, and say plainly what the
+  concern is. Cover whichever of these the data shows:
+    - territories flagged "review needed" for high not home tries
+    - not-home addresses gone stale (not retried in over two weeks)
+    - stalled maps sitting at 0% with addresses unworked
+    - maps carrying the heaviest DNC concentration
+  If there is genuinely nothing to act on, say that in one sentence and stop.
 
-Section 1 — COVERED ACTIVITY (2–3 sentences):
-  Summarise what the congregation accomplished in the field ministry during this period.
-  How many territories saw active house-to-house work? How many households were reached?
-  Acknowledge the publishers' faithful efforts warmly — even small steps matter in this work.
+WRITING RULES:
+- Every sentence must name a territory, a map, or a figure from the data. Delete any
+  sentence that carries no specific fact.
+- Do not judge whether the period was good, busy, strong, slow or encouraging, and do
+  not compare it with any other period — you have no earlier figures to compare against.
+- Do not add general praise or exhortation.
+- One idea per sentence. Short sentences, everyday words, no corporate phrasing.
+- Call done addresses "reached", using that same word every time.
+- A high not-home count is a concern, never a strength — never call one "strong" or "good".
+- State the threshold whenever you rely on one, e.g. "above the 35% review level", so
+  the reader knows what the flag means.
+- Do not recommend which territory to assign next — that is the territory servant's
+  decision, not the report's.
+- Use only the figures given. Do not invent, infer or recompute anything.
+- Name a map by its description as shown, e.g. map "Block 412" in territory M05 —
+  never slash notation like "M05/112 (5)".
 
-Section 2 — TERRITORY ANALYSIS (3–5 sentences):
-  Focus on the territories that were actively worked this month.
-  Describe the meaningful progress made — which territories advanced, how many households
-  were reached, and what the numbers reveal about the pace of work.
-  If a worked territory has stalled maps or high not-home-tries, mention those specifically
-  as items for the territory servant's attention.
-  Do NOT mention inactive territories or suggest which territories should be assigned next —
-  that is the territory servant's decision, not the report's role.
-
-Section 3 — CONCLUSION (2–3 sentences):
-  Give an honest overall picture of the congregation's ministry momentum during this period.
-  If there was no activity, acknowledge it plainly and briefly.
-  Close with one warm, specific encouragement for the period ahead.
-
-RULES:
-- Base analysis primarily on "TERRITORY ACTIVITY" (this period's data)
-- Use not-home standing and map health as supporting context
-- Cite specific numbers from the data — no vague generalisations
-- Do not invent or infer data not present in the input
-- Each section: 2–5 sentences, warm and encouraging tone
-- Do not mention inactive territories in section 2 — inactive territory data is for the
-  territory servant's own reference, not for the narrative analysis
-- Do not make assignment recommendations — which territory gets assigned next is the
-  territory servant's decision, not the report's role
-- Do not mention the "Re-opened" count in narrative — it is an admin-level detail
-  (individual addresses re-opened for ministry) and is not meaningful for the activity summary
-- When referencing a map in narrative text, use the map's description as shown in the data
-  (e.g. "map [description] in territory [territory]") — never use slash notation like "M05/112 (5)"
-- Respond only in this exact JSON schema:
+Respond only in this exact JSON schema:
 {
-  "covered_activity": "<section 1 paragraph>",
-  "territory_analysis": "<section 2 paragraph>",
-  "conclusion": "<section 3 paragraph>"
+  "coverage": "<paragraph 1>",
+  "needs_attention": "<paragraph 2>"
 }`
 
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "CONGREGATION: %s\nREPORT PERIOD: %s\n\n", data.CongregationName, data.Period)
 
-	// Build a lookup map: territory code → TerritoryProgress for enriching the monthly table
+	// ── Verified facts (current state) ──
+	sb.WriteString("VERIFIED FACTS (quote exactly; do not recount):\n")
+	fmt.Fprintf(&sb, "  %-37s %d\n", "Territories with visits this period:", data.ActiveTerritories)
+	fmt.Fprintf(&sb, "  %-37s %d\n", "Households reached (done):", data.HouseholdsReached)
+	fmt.Fprintf(&sb, "  %-37s %d\n", "Total visits (done + not home + DNC):", data.Visits)
+
+	// Build a lookup map: territory code → TerritoryProgress for enriching the activity table
 	territoryByCode := make(map[string]TerritoryProgress, len(data.Territories))
 	for _, t := range data.Territories {
 		territoryByCode[t.Code] = t
 	}
 
-	// ── Section 1: Enriched per-territory activity (primary analysis signal) ──
-	// Each row shows what happened this month alongside the territory's current overall state,
-	// so the LLM can contextualise monthly activity against total size and cumulative progress.
-	fmt.Fprintf(&sb, "TERRITORY ACTIVITY — %s (with overall context):\n", data.Period)
+	// ── Per-territory activity, ranked by Done (primary analysis signal) ──
+	fmt.Fprintf(&sb, "\nTERRITORY ACTIVITY — %s (ordered by Done, highest first):\n", data.Period)
 	if len(data.MonthlyByTerritory) > 0 {
-		sb.WriteString("Done/Not Home/DNC/Re-opened = this month | Total/Invalid/Overall%/Remaining/Est.Months = cumulative state\n")
-		sb.WriteString("Territory | Done | Not Home | DNC | Re-opened | Total | Invalid | Overall% | Remaining | Est.Months\n")
+		sb.WriteString("Done/Not Home/DNC = this period | Total/Invalid/Overall%/Remaining = cumulative state\n")
+		sb.WriteString("Territory | Done | Not Home | DNC | Total | Invalid | Overall% | Remaining\n")
 		for _, a := range data.MonthlyByTerritory {
 			t := territoryByCode[a.TerritoryCode]
-			est := "unknown"
-			if t.IsComplete {
-				est = "complete"
-			} else if t.EstMonthsToComplete > 0 {
-				est = fmt.Sprintf("~%.1f", t.EstMonthsToComplete)
-			}
-			fmt.Fprintf(&sb, "%-10s| %4d | %8d | %3d | %6d | %5d | %7d | %7.0f%% | %9d | %s\n",
+			fmt.Fprintf(&sb, "%-10s| %4d | %8d | %3d | %5d | %7d | %7.0f%% | %9d\n",
 				truncate(a.TerritoryCode, 10),
-				a.Done, a.NotHome, a.DNC, a.NotDone,
-				t.Total, t.Invalid,
-				t.Progress, t.NotDone, est)
+				a.Done, a.NotHome, a.DNC,
+				t.Total, t.Invalid, t.Progress, t.NotDone)
 		}
 	} else {
-		sb.WriteString("No activity recorded this period.\n")
+		sb.WriteString("No visits recorded this period.\n")
 	}
 
-	// Also list territories that exist but had zero activity this month
-	if len(data.InactiveTerritories) > 0 {
-		sb.WriteString("\nTerritories with ZERO activity this period (cumulative state shown):\n")
-		sb.WriteString("Territory | Total | Invalid | Overall% | Remaining | Est.Months\n")
-		for _, code := range data.InactiveTerritories {
-			t := territoryByCode[code]
-			est := "unknown"
-			if t.IsComplete {
-				est = "complete"
-			} else if t.EstMonthsToComplete > 0 {
-				est = fmt.Sprintf("~%.1f", t.EstMonthsToComplete)
-			}
-			fmt.Fprintf(&sb, "%-10s| %5d | %7d | %7.0f%% | %9d | %s\n",
-				truncate(code, 10), t.Total, t.Invalid, t.Progress, t.NotDone, est)
-		}
-	}
-
-	// Congregation-wide totals
-	fmt.Fprintf(&sb, "\nCongregation totals for %s:\n", data.Period)
-	fmt.Fprintf(&sb, "Total status changes: %d\n", data.TotalChanges)
+	// Kept separate from the visit count above: resets and invalid marks are not visits.
+	fmt.Fprintf(&sb, "\nAll status changes for %s (includes resets and invalid marks, which are not visits):\n", data.Period)
 	for _, a := range data.Activity {
-		fmt.Fprintf(&sb, "  %-24s %4d (%5.1f%%)\n", statusLabel(a.Status)+":", a.Count, a.Pct)
-	}
-	if data.PeakDay != "" {
-		fmt.Fprintf(&sb, "Peak day: %s\n", data.PeakDay)
-	}
-	if data.SlowWeek != "" {
-		fmt.Fprintf(&sb, "Opening week: %s\n", data.SlowWeek)
+		fmt.Fprintf(&sb, "  %-24s %4d\n", statusLabel(a.Status)+":", a.Count)
 	}
 
-	// ── Section 2: Not-home standing (current state) ──
+	// ── Not-home standing (current state) ──
 	if len(data.NotHomeFatigue) > 0 {
 		sb.WriteString("\nNOT-HOME STANDING (current state):\n")
 		sb.WriteString("  retrying             = within retry limit; return visits planned (normal)\n")
@@ -724,7 +574,7 @@ RULES:
 		}
 	}
 
-	// ── Section 3: Map health (current state) ──
+	// ── Map health (current state) ──
 	sb.WriteString("\nMAP HEALTH (current state):\n")
 	if len(data.StalledMaps) > 0 {
 		sb.WriteString("Stalled maps (0% progress, work remaining):\n")

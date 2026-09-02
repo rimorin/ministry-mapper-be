@@ -139,9 +139,9 @@ func TestBuildPrompt_SystemMessageContainsDomainContext(t *testing.T) {
 		"return visit",
 		"Overall%",
 		"Invalid",
-		"covered_activity",
-		"territory_analysis",
-		"conclusion",
+		"VERIFIED FACTS",
+		"coverage",
+		"needs_attention",
 	}
 
 	for _, phrase := range requiredPhrases {
@@ -188,11 +188,10 @@ func TestBuildPrompt_TerritorySnapshotRendered(t *testing.T) {
 			IsComplete:  true,
 		},
 	}
-	// T1 was active this month; T2 had no activity but is in the inactive list
+	// Only T1 saw visits this period; T2 had none and must not be rendered at all
 	data.MonthlyByTerritory = []TerritoryMonthlyActivity{
 		{TerritoryCode: "T1", Done: 10, NotHome: 2},
 	}
-	data.InactiveTerritories = []string{"T2"}
 
 	_, userMsg := BuildPrompt(data)
 
@@ -200,16 +199,13 @@ func TestBuildPrompt_TerritorySnapshotRendered(t *testing.T) {
 	if !strings.Contains(userMsg, "T1") {
 		t.Error("user message should contain territory code 'T1'")
 	}
-	if !strings.Contains(userMsg, "T2") {
-		t.Error("user message should contain territory code 'T2'")
+	if strings.Contains(userMsg, "T2") {
+		t.Error("user message should NOT contain a territory with no visits this period")
 	}
 	if strings.Contains(userMsg, "North District") || strings.Contains(userMsg, "South District") {
 		t.Error("user message should NOT contain territory descriptions — use codes only")
 	}
-	if !strings.Contains(userMsg, "complete") {
-		t.Error("user message should mark complete territory with 'complete'")
-	}
-	// Total and Invalid columns should appear in the active-territory table
+	// Total and Invalid columns should appear in the activity table
 	if !strings.Contains(userMsg, "Total") {
 		t.Error("user message should include Total column in territory table")
 	}
@@ -223,8 +219,10 @@ func TestBuildPrompt_TerritoryUsesCodeWhenDescriptionEmpty(t *testing.T) {
 	data.Territories = []TerritoryProgress{
 		{Code: "T3", Description: "Some Description", Progress: 50, NotDone: 10},
 	}
-	// Put T3 in inactive list so it appears in the user message
-	data.InactiveTerritories = []string{"T3"}
+	// T3 must have visits this period to appear in the user message
+	data.MonthlyByTerritory = []TerritoryMonthlyActivity{
+		{TerritoryCode: "T3", Done: 4},
+	}
 
 	_, userMsg := BuildPrompt(data)
 
@@ -237,44 +235,55 @@ func TestBuildPrompt_TerritoryUsesCodeWhenDescriptionEmpty(t *testing.T) {
 	}
 }
 
-func TestBuildPrompt_InactiveTerritoresListed(t *testing.T) {
-	data := minimalSummaryData()
-	data.InactiveTerritories = []string{"T4", "T7"}
-
-	_, userMsg := BuildPrompt(data)
-
-	if !strings.Contains(userMsg, "T4") || !strings.Contains(userMsg, "T7") {
-		t.Error("user message should list inactive territory codes")
-	}
-}
-
-func TestBuildPrompt_NoInactiveTerritoriesMessage(t *testing.T) {
-	data := minimalSummaryData()
-	data.InactiveTerritories = nil
-
-	_, userMsg := BuildPrompt(data)
-
-	if !strings.Contains(userMsg, "none") {
-		t.Error("user message should state 'none' when there are no inactive territories")
-	}
-}
-
 func TestBuildPrompt_ActivityStatsRendered(t *testing.T) {
 	data := minimalSummaryData()
-	data.TotalChanges = 312
 	data.Activity = []ActivityItem{
-		{Status: "done", Count: 200, Pct: 64.1},
-		{Status: "not_home", Count: 112, Pct: 35.9},
+		{Status: "done", Count: 200},
+		{Status: "not_home", Count: 112},
+		{Status: "not_done", Count: 80},
 	}
-	data.PeakDay = "Feb 15 (47 changes)"
 
 	_, userMsg := BuildPrompt(data)
 
-	if !strings.Contains(userMsg, "312") {
-		t.Error("user message should contain total change count '312'")
+	for _, expected := range []string{"200", "112", "80"} {
+		if !strings.Contains(userMsg, expected) {
+			t.Errorf("user message should contain status change count %q", expected)
+		}
 	}
-	if !strings.Contains(userMsg, "Feb 15 (47 changes)") {
-		t.Error("user message should contain peak day label")
+	if !strings.Contains(userMsg, "not visits") {
+		t.Error("user message must say status changes are not all visits")
+	}
+}
+
+// The narrative previously miscounted active territories and quoted total status
+// changes as visits. Both figures are now pre-counted and labelled verified facts.
+func TestBuildPrompt_VerifiedFactsRendered(t *testing.T) {
+	data := minimalSummaryData()
+	data.ActiveTerritories = 7
+	data.HouseholdsReached = 1183
+	data.Visits = 2291
+
+	_, userMsg := BuildPrompt(data)
+
+	for _, expected := range []string{"VERIFIED FACTS", "7", "1183", "2291"} {
+		if !strings.Contains(userMsg, expected) {
+			t.Errorf("user message should contain verified fact %q", expected)
+		}
+	}
+}
+
+// Re-opened counts are admin detail; the prompt used to send them with a
+// "do not mention" rule attached and the narrative mentioned them anyway.
+func TestBuildPrompt_OmitsReopenedColumn(t *testing.T) {
+	data := minimalSummaryData()
+	data.MonthlyByTerritory = []TerritoryMonthlyActivity{
+		{TerritoryCode: "T1", Done: 5},
+	}
+
+	_, userMsg := BuildPrompt(data)
+
+	if strings.Contains(userMsg, "Re-opened") {
+		t.Error("user message must not include a Re-opened column")
 	}
 }
 
@@ -361,26 +370,22 @@ func TestBuildPrompt_HighDNCMapsListed(t *testing.T) {
 	}
 }
 
-func TestBuildPrompt_EstimatedCompletionRendered(t *testing.T) {
+func TestBuildPrompt_CumulativeStateRendered(t *testing.T) {
 	data := minimalSummaryData()
 	data.Territories = []TerritoryProgress{
-		{
-			Code:                "T5",
-			Description:         "East",
-			NotDone:             60,
-			IsComplete:          false,
-			EstMonthsToComplete: 3.5,
-		},
+		{Code: "T5", Description: "East", Total: 400, Invalid: 12, Progress: 55, NotDone: 60},
 	}
-	// T5 must appear in either MonthlyByTerritory or InactiveTerritories to be rendered
 	data.MonthlyByTerritory = []TerritoryMonthlyActivity{
 		{TerritoryCode: "T5", Done: 5},
 	}
 
 	_, userMsg := BuildPrompt(data)
 
-	if !strings.Contains(userMsg, "3.5") {
-		t.Error("user message should render estimated months to completion '3.5'")
+	// Remaining is the territory's current not_done count, not this period's activity
+	for _, expected := range []string{"400", "12", "55%", "60"} {
+		if !strings.Contains(userMsg, expected) {
+			t.Errorf("user message should render cumulative value %q", expected)
+		}
 	}
 }
 
@@ -400,7 +405,7 @@ func TestBuildPrompt_JSONSchemaInSystemMessage(t *testing.T) {
 	data := minimalSummaryData()
 	systemMsg, _ := BuildPrompt(data)
 
-	for _, field := range []string{`"covered_activity"`, `"territory_analysis"`, `"conclusion"`} {
+	for _, field := range []string{`"coverage"`, `"needs_attention"`} {
 		if !strings.Contains(systemMsg, field) {
 			t.Errorf("system message missing JSON schema field %s", field)
 		}
@@ -415,6 +420,5 @@ func minimalSummaryData() SummaryData {
 		Period:           "February 2026",
 		Territories:      []TerritoryProgress{},
 		Activity:         []ActivityItem{},
-		TotalChanges:     0,
 	}
 }

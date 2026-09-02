@@ -198,9 +198,8 @@ func generateAISummary(app core.App, congregation *core.Record, aiEnabled bool, 
 	}
 
 	data.Available = true
-	data.CoveredActivity = llmResp.CoveredActivity
-	data.TerritoryAnalysis = llmResp.TerritoryAnalysis
-	data.Conclusion = llmResp.Conclusion
+	data.Coverage = llmResp.Coverage
+	data.NeedsAttention = llmResp.NeedsAttention
 	return data
 }
 

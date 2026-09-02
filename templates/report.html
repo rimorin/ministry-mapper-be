@@ -192,37 +192,30 @@
             <div class="ai-summary">
                 <p class="ai-summary-title">📋 Territory Overview</p>
 
-                {{if .Summary.CoveredActivity}}
+                {{if .Summary.Coverage}}
                 <div class="ai-section">
                     <p class="ai-section-label">{{if .IsOnDemand}}Coverage Period{{else}}This Month's Coverage{{end}}</p>
-                    <p class="ai-narrative">{{.Summary.CoveredActivity}}</p>
+                    <p class="ai-narrative">{{.Summary.Coverage}}</p>
                 </div>
                 {{end}}
 
-                {{if .Summary.TerritoryAnalysis}}
+                {{if .Summary.NeedsAttention}}
                 <div class="ai-section">
-                    <p class="ai-section-label">Territory Analysis</p>
-                    <p class="ai-narrative">{{.Summary.TerritoryAnalysis}}</p>
-                </div>
-                {{end}}
-
-                {{if .Summary.Conclusion}}
-                <div class="ai-section">
-                    <p class="ai-section-label">Overall Progress</p>
-                    <p class="ai-narrative">{{.Summary.Conclusion}}</p>
+                    <p class="ai-section-label">Needs Attention</p>
+                    <p class="ai-narrative">{{.Summary.NeedsAttention}}</p>
                 </div>
                 {{end}}
 
                 {{if .Summary.Activity}}
                 <div class="ai-stats-row">
                     <div class="ai-stat">
-                        <div class="ai-stat-value">{{.Summary.TotalChanges}}</div>
+                        <div class="ai-stat-value">{{.Summary.Visits}}</div>
                         <div class="ai-stat-label">All Visits</div>
                     </div>
                     {{range .Summary.Activity}}{{if eq .Status "done"}}
                     <div class="ai-stat">
                         <div class="ai-stat-value">{{.Count}}</div>
-                        <div class="ai-stat-label">Completed</div>
+                        <div class="ai-stat-label">Reached</div>
                     </div>
                     {{end}}{{end}}
                     {{range .Summary.Activity}}{{if eq .Status "not_home"}}
