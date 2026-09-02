@@ -56,7 +56,7 @@ func generateNotesAISummary(notes []notesData, congregationName string) Overview
 	}
 
 	systemMsg, userMsg := BuildNotesPrompt(notes, congregationName)
-	resp, err := client.generateOverview(systemMsg, userMsg)
+	resp, err := client.generateOverview(systemMsg, userMsg, overviewOnlySchema)
 	if err != nil {
 		log.Printf("AI overview: LLM call failed for notes (%s): %v", congregationName, err)
 		return OverviewSummary{}

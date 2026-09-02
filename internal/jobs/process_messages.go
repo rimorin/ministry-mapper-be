@@ -69,7 +69,7 @@ func generateMessagesAISummary(messages []messagesData, congregationName string)
 	}
 
 	systemMsg, userMsg := BuildMessagesPrompt(messages, congregationName)
-	resp, err := client.generateOverview(systemMsg, userMsg)
+	resp, err := client.generateOverview(systemMsg, userMsg, messagesOverviewSchema)
 	if err != nil {
 		log.Printf("AI overview: LLM call failed for messages (%s): %v", congregationName, err)
 		return OverviewSummary{}

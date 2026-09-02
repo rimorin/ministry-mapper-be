@@ -10,6 +10,7 @@ import (
 
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/shared"
 )
 
 // OverviewLLMResponse holds the parsed JSON output from the AI model for notes and messages emails.
@@ -43,26 +44,57 @@ func newLLMClient() *llmClient {
 	}
 }
 
-// callLLM makes the API call to gpt-5.4-mini and returns the raw JSON content string.
-// gpt-5.4-mini is a unified model: it automatically routes to reasoning for statistical
-// analysis and uses efficient generation for narrative prose — giving better accuracy
-// and more natural writing than pure reasoning models like o4-mini.
-// Temperature 0.3 keeps output factual and deterministic.
-// JSON mode guarantees a valid JSON payload. 90-second timeout covers reasoning bursts.
-func (c *llmClient) callLLM(systemMsg, userMsg string) (string, error) {
+// reportModel is the model used for every congregation narrative. gpt-5.6-terra is
+// picked for instruction adherence, not reasoning: BuildPrompt hands it every figure
+// pre-counted, so following the writing rules is all that is left.
+//
+// IMPORTANT: the 5.6 family rejects any temperature but 1, so temperature is not sent
+// at all. reasoning_effort is left at its default; observed usage is 0 reasoning
+// tokens on this prompt, so there is nothing to tune down.
+const reportModel = openai.ChatModelGPT5_6Terra
+
+// jsonSchema builds a strict Structured Outputs schema from a field list. Strict mode
+// requires every property in "required" and additionalProperties false.
+func jsonSchema(name string, fields ...string) shared.ResponseFormatJSONSchemaJSONSchemaParam {
+	properties := make(map[string]any, len(fields))
+	for _, f := range fields {
+		properties[f] = map[string]any{"type": "string"}
+	}
+	return shared.ResponseFormatJSONSchemaJSONSchemaParam{
+		Name:   name,
+		Strict: openai.Bool(true),
+		Schema: map[string]any{
+			"type":                 "object",
+			"properties":           properties,
+			"required":             fields,
+			"additionalProperties": false,
+		},
+	}
+}
+
+// One schema per response shape, so a caller can never receive a field its prompt did
+// not ask for — the notes and instructions prompts ask for "exactly one field".
+var (
+	territoryReportSchema  = jsonSchema("territory_report", "coverage", "needs_attention")
+	overviewOnlySchema     = jsonSchema("overview_only", "overview")
+	messagesOverviewSchema = jsonSchema("messages_overview", "overview", "key_themes")
+)
+
+// callLLM makes the API call and returns the raw JSON content string. The schema is
+// enforced by the API, so callers can unmarshal without a shape check.
+func (c *llmClient) callLLM(systemMsg, userMsg string, schema shared.ResponseFormatJSONSchemaJSONSchemaParam) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
 	completion, err := c.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Model: openai.ChatModelGPT5_4Mini,
+		Model: reportModel,
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.DeveloperMessage(systemMsg),
 			openai.UserMessage(userMsg),
 		},
 		ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
-			OfJSONObject: &openai.ResponseFormatJSONObjectParam{Type: "json_object"},
+			OfJSONSchema: &shared.ResponseFormatJSONSchemaParam{JSONSchema: schema},
 		},
-		Temperature: openai.Float(0.3),
 	})
 	if err != nil {
 		return "", fmt.Errorf("openai request: %w", err)
@@ -78,7 +110,7 @@ func (c *llmClient) callLLM(systemMsg, userMsg string) (string, error) {
 // generateSummary sends the prompt to the LLM and returns a parsed LLMResponse
 // for the monthly territory report.
 func (c *llmClient) generateSummary(systemMsg, userMsg string) (LLMResponse, error) {
-	raw, err := c.callLLM(systemMsg, userMsg)
+	raw, err := c.callLLM(systemMsg, userMsg, territoryReportSchema)
 	if err != nil {
 		return LLMResponse{}, err
 	}
@@ -94,8 +126,8 @@ func (c *llmClient) generateSummary(systemMsg, userMsg string) (LLMResponse, err
 
 // generateOverview sends the prompt to the LLM and returns a parsed OverviewLLMResponse
 // for notes and messages emails.
-func (c *llmClient) generateOverview(systemMsg, userMsg string) (OverviewLLMResponse, error) {
-	raw, err := c.callLLM(systemMsg, userMsg)
+func (c *llmClient) generateOverview(systemMsg, userMsg string, schema shared.ResponseFormatJSONSchemaJSONSchemaParam) (OverviewLLMResponse, error) {
+	raw, err := c.callLLM(systemMsg, userMsg, schema)
 	if err != nil {
 		return OverviewLLMResponse{}, err
 	}

@@ -43,7 +43,7 @@ func generateInstructionsAISummary(messages []messagesData, mapName string) Over
 	}
 
 	systemMsg, userMsg := BuildInstructionsPrompt(messages, mapName)
-	resp, err := client.generateOverview(systemMsg, userMsg)
+	resp, err := client.generateOverview(systemMsg, userMsg, overviewOnlySchema)
 	if err != nil {
 		log.Printf("AI overview: LLM call failed for instructions (%s): %v", mapName, err)
 		return OverviewSummary{}
