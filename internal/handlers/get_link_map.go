@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
@@ -211,11 +212,12 @@ func HandleGetLinkMap(c *core.RequestEvent, app core.App) error {
 	}
 
 	// description may be a plain string (older records) or a JSON object (localized).
-	// Use json.Valid to distinguish: raw pass-through for JSON, string encoding for plain text.
+	// Only an object is passed through raw: json.Valid on its own is too loose, as a
+	// numeric name like "713" is a valid bare JSON number and would go out unquoted.
 	var mapDescription any
 	if row.Description != "" {
 		raw := []byte(row.Description)
-		if json.Valid(raw) {
+		if strings.HasPrefix(row.Description, "{") && json.Valid(raw) {
 			mapDescription = json.RawMessage(raw)
 		} else {
 			mapDescription = row.Description

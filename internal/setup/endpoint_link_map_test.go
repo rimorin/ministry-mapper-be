@@ -424,6 +424,49 @@ func TestHandleGetLinkMap(t *testing.T) {
 				}
 			},
 		},
+		{
+			// A purely numeric map name ("713") is itself a valid bare JSON number,
+			// so it must not be passed through raw — the client resolves description
+			// as a string or a localized object, and a number resolves to "".
+			Name:   "numeric map name stays a JSON string, not a number",
+			Method: http.MethodPost,
+			URL:    "/link/map",
+			Headers: map[string]string{
+				"Content-Type": "application/json",
+				"link-id":      "testassignnumr1",
+			},
+			TestAppFactory: setupTestApp,
+			ExpectedStatus: 200,
+			ExpectedContent: []string{
+				`"publisher":"Test Publisher Numeric"`,
+				`"description":"713"`,
+			},
+			NotExpectedContent: []string{
+				`"description":713`,
+			},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				var body struct {
+					Map struct {
+						Id          string          `json:"id"`
+						Description json.RawMessage `json:"description"`
+					} `json:"map"`
+				}
+				if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+					t.Fatalf("failed to decode response body: %v", err)
+				}
+
+				if body.Map.Id != "testmapalphnum01" {
+					t.Errorf("expected map.id = testmapalphnum01, got %s", body.Map.Id)
+				}
+				var desc string
+				if err := json.Unmarshal(body.Map.Description, &desc); err != nil {
+					t.Fatalf("description is not a JSON string: %v (raw: %s)", err, body.Map.Description)
+				}
+				if desc != "713" {
+					t.Errorf("expected description = 713, got %s", desc)
+				}
+			},
+		},
 	}
 
 	for _, scenario := range scenarios {

@@ -184,6 +184,9 @@ func init() {
 			{"testmapalphsc01", "testterralpha01", seedAlphaCongID, "SC", "Single Code Blk", "single", 10},
 			// testmapalphcf01: multi-floor map for floor add/remove tests
 			{"testmapalphcf01", "testterralpha01", seedAlphaCongID, "CF", "Multi Floor Blk", "single", 11},
+			// testmapalphnum01: purely numeric name, which is also a valid bare JSON
+			// number — it must still reach the client as a string.
+			{"testmapalphnum01", "testterralpha02", seedAlphaCongID, "N", "713", "single", 14},
 		} {
 			rec := core.NewRecord(mapCol)
 			rec.Id = mp.id
@@ -438,6 +441,7 @@ func init() {
 			{"testassignexprd01", "testmapalpha01a", seedAlphaCongID, "Expired Publisher", "2000-01-01 00:00:00.000Z"},
 			{"testassignrich1", "testmapalphrich1", seedAlphaCongID, "Test Publisher Rich", "2099-01-01 00:00:00.000Z"},
 			{"testassignmpty1", "testmapalphempt1", seedAlphaCongID, "Test Publisher Empty", "2099-01-01 00:00:00.000Z"},
+			{"testassignnumr1", "testmapalphnum01", seedAlphaCongID, "Test Publisher Numeric", "2099-01-01 00:00:00.000Z"},
 		} {
 			rec := core.NewRecord(assignCol)
 			rec.Id = a.id
