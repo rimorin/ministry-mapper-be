@@ -6,7 +6,11 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
+	"ministry-mapper/internal/handlers"
+
+	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 )
 
@@ -181,7 +185,56 @@ func TestHandleGenerateReport(t *testing.T) {
 				"Content-Type":  "application/json",
 				"Authorization": adminToken,
 			},
-			TestAppFactory:  setupTestApp,
+			TestAppFactory: setupTestApp,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, e *core.ServeEvent) {
+				// The real generator runs in the background; without a mail key it
+				// fails fast at the send step instead of retrying for 14s.
+				t.Setenv("MAILERSEND_API_KEY", "")
+			},
+			ExpectedStatus:  202,
+			ExpectedContent: []string{`"Report generation started. You will receive an email shortly."`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				// The in-flight marker must be released once the background job ends.
+				key := handlers.ReportInflightKey("testcongalpha01")
+				deadline := time.Now().Add(5 * time.Second)
+				for app.Store().Has(key) && time.Now().Before(deadline) {
+					time.Sleep(50 * time.Millisecond)
+				}
+				if app.Store().Has(key) {
+					t.Errorf("in-flight marker %q still set 5s after the report job started", key)
+				}
+			},
+		},
+		{
+			Name:   "second report for a congregation already in flight returns 409",
+			Method: http.MethodPost,
+			URL:    "/report/generate",
+			Body:   strings.NewReader(`{"congregation":"testcongalpha01"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory: setupTestApp,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, e *core.ServeEvent) {
+				app.Store().Set(handlers.ReportInflightKey("testcongalpha01"), "other-request")
+			},
+			ExpectedStatus:  409,
+			ExpectedContent: []string{`"A report for this congregation is already being generated."`},
+		},
+		{
+			Name:   "in-flight marker for another congregation does not block",
+			Method: http.MethodPost,
+			URL:    "/report/generate",
+			Body:   strings.NewReader(`{"congregation":"testcongalpha01"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory: setupTestApp,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, e *core.ServeEvent) {
+				t.Setenv("MAILERSEND_API_KEY", "")
+				app.Store().Set(handlers.ReportInflightKey("testcongbeta001"), "other-request")
+			},
 			ExpectedStatus:  202,
 			ExpectedContent: []string{`"Report generation started. You will receive an email shortly."`},
 		},

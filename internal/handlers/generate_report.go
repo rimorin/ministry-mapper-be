@@ -8,7 +8,16 @@ import (
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/security"
 )
+
+// ReportInflightKey is the app store key that marks a congregation's report as
+// being generated. A full report for the largest congregation takes ~10s and
+// several hundred MB, so the handler refuses a second request for the same
+// congregation until the first finishes instead of running them side by side.
+func ReportInflightKey(congregationId string) string {
+	return "report_inflight:" + congregationId
+}
 
 type GenerateReportRequest struct {
 	Congregation string `json:"congregation"`
@@ -51,7 +60,16 @@ func HandleGenerateReport(c *core.RequestEvent, app core.App, generator ReportGe
 	congregationID := congregation.Id
 	recipientID := c.Auth.Id
 
+	// GetOrSet is atomic, so of two concurrent requests exactly one sees its own
+	// token come back and proceeds; the other gets the winner's token.
+	inflightKey := ReportInflightKey(congregationID)
+	token := security.RandomString(16)
+	if app.Store().GetOrSet(inflightKey, func() any { return token }) != token {
+		return apis.NewApiError(http.StatusConflict, "A report for this congregation is already being generated", nil)
+	}
+
 	go func() {
+		defer app.Store().Remove(inflightKey)
 		defer func() {
 			if r := recover(); r != nil {
 				sentry.CaptureException(fmt.Errorf("report generation panic: %v", r))
