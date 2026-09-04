@@ -560,6 +560,10 @@ func createDetailsSheet(app core.App, f *excelize.File, congregation *core.Recor
 	return nil
 }
 
+// createAddressSheet streams the flat address list, which reaches 116k rows for
+// the largest congregation; the regular cell API would hold every cell in memory
+// until WriteToBuffer. StreamWriter needs column widths and panes set before the
+// first row, and has no AutoFilter, so the header filter comes from a table.
 func createAddressSheet(app core.App, f *excelize.File, congregation *core.Record) error {
 	sheetName := "Addresses"
 	index, err := f.NewSheet(sheetName)
@@ -567,8 +571,6 @@ func createAddressSheet(app core.App, f *excelize.File, congregation *core.Recor
 		return fmt.Errorf("failed to create address sheet: %v", err)
 	}
 	f.SetActiveSheet(index)
-
-	tableHeaderStyle, _ := getTableHeaderStyle(f)
 
 	addresses := []struct {
 		MapDescription     string `db:"map_description"`
@@ -618,31 +620,42 @@ func createAddressSheet(app core.App, f *excelize.File, congregation *core.Recor
 		return fmt.Errorf("failed to fetch addresses: %v", err)
 	}
 
-	row := 1
 	if len(addresses) == 0 {
-		f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), "No addresses found")
+		f.SetCellValue(sheetName, "A1", "No addresses found")
 		return nil
 	}
 
-	f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), "Map")
-	f.SetCellValue(sheetName, fmt.Sprintf("B%d", row), "Address")
-	f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), "Status")
-	f.SetCellValue(sheetName, fmt.Sprintf("D%d", row), "Type")
-	f.SetCellValue(sheetName, fmt.Sprintf("E%d", row), "Note")
-	f.SetCellValue(sheetName, fmt.Sprintf("F%d", row), "Note Updated")
-	f.SetCellValue(sheetName, fmt.Sprintf("G%d", row), "Note By")
-	f.SetCellValue(sheetName, fmt.Sprintf("H%d", row), "Last Updated")
-	f.SetCellValue(sheetName, fmt.Sprintf("I%d", row), "Updated By")
-	f.SetCellValue(sheetName, fmt.Sprintf("J%d", row), "DNC Date")
-	f.SetCellValue(sheetName, fmt.Sprintf("K%d", row), "DNC Duration")
-	f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("K%d", row), tableHeaderStyle)
-	f.SetRowHeight(sheetName, row, 28)
-	row++
-
-	// Built once instead of per row: this loop runs to 116k rows for the largest
-	// congregation, and excelize deduplicates identical styles anyway.
+	tableHeaderStyle, _ := getTableHeaderStyle(f)
 	rowStyleEven, _ := getDataCellStyle(f, true)
 	rowStyleOdd, _ := getDataCellStyle(f, false)
+
+	sw, err := f.NewStreamWriter(sheetName)
+	if err != nil {
+		return fmt.Errorf("failed to start address sheet stream: %v", err)
+	}
+
+	for i, width := range []float64{25, 20, 15, 20, 40, 15, 20, 15, 20, 15, 18} {
+		if err := sw.SetColWidth(i+1, i+1, width); err != nil {
+			return fmt.Errorf("failed to set column width: %v", err)
+		}
+	}
+	if err := sw.SetPanes(&excelize.Panes{
+		Freeze:      true,
+		YSplit:      1,
+		TopLeftCell: "A2",
+		ActivePane:  "bottomLeft",
+	}); err != nil {
+		return fmt.Errorf("failed to set freeze panes: %v", err)
+	}
+
+	headers := []string{"Map", "Address", "Status", "Type", "Note", "Note Updated", "Note By", "Last Updated", "Updated By", "DNC Date", "DNC Duration"}
+	headerCells := make([]interface{}, len(headers))
+	for i, h := range headers {
+		headerCells[i] = excelize.Cell{StyleID: tableHeaderStyle, Value: h}
+	}
+	if err := sw.SetRow("A1", headerCells, excelize.RowOpts{Height: 28}); err != nil {
+		return fmt.Errorf("failed to write address header: %v", err)
+	}
 
 	for i, addr := range addresses {
 		mapDesc := defaultIfEmpty(addr.MapDescription, "N/A")
@@ -660,50 +673,39 @@ func createAddressSheet(app core.App, f *excelize.File, congregation *core.Recor
 			dncDate, dncDuration = formatDNCInfo(timeStr)
 		}
 
-		f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), mapDesc)
-		f.SetCellValue(sheetName, fmt.Sprintf("B%d", row), address)
-		f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), status)
-		f.SetCellValue(sheetName, fmt.Sprintf("D%d", row), typeDesc)
-		f.SetCellValue(sheetName, fmt.Sprintf("E%d", row), notes)
-		f.SetCellValue(sheetName, fmt.Sprintf("F%d", row), noteUpdated)
-		f.SetCellValue(sheetName, fmt.Sprintf("G%d", row), addr.LastNotesUpdatedBy)
-		f.SetCellValue(sheetName, fmt.Sprintf("H%d", row), lastUpdated)
-		f.SetCellValue(sheetName, fmt.Sprintf("I%d", row), addr.UpdatedBy)
-		f.SetCellValue(sheetName, fmt.Sprintf("J%d", row), dncDate)
-		f.SetCellValue(sheetName, fmt.Sprintf("K%d", row), dncDuration)
-
 		rowStyle := rowStyleOdd
 		if i%2 == 0 {
 			rowStyle = rowStyleEven
 		}
-		f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("K%d", row), rowStyle)
-		f.SetRowHeight(sheetName, row, 25)
-		row++
+		cells := []interface{}{
+			excelize.Cell{StyleID: rowStyle, Value: mapDesc},
+			excelize.Cell{StyleID: rowStyle, Value: address},
+			excelize.Cell{StyleID: rowStyle, Value: status},
+			excelize.Cell{StyleID: rowStyle, Value: typeDesc},
+			excelize.Cell{StyleID: rowStyle, Value: notes},
+			excelize.Cell{StyleID: rowStyle, Value: noteUpdated},
+			excelize.Cell{StyleID: rowStyle, Value: addr.LastNotesUpdatedBy},
+			excelize.Cell{StyleID: rowStyle, Value: lastUpdated},
+			excelize.Cell{StyleID: rowStyle, Value: addr.UpdatedBy},
+			excelize.Cell{StyleID: rowStyle, Value: dncDate},
+			excelize.Cell{StyleID: rowStyle, Value: dncDuration},
+		}
+		if err := sw.SetRow(fmt.Sprintf("A%d", i+2), cells, excelize.RowOpts{Height: 25}); err != nil {
+			return fmt.Errorf("failed to write address row: %v", err)
+		}
 	}
 
-	f.SetColWidth(sheetName, "A", "A", 25)
-	f.SetColWidth(sheetName, "B", "B", 20)
-	f.SetColWidth(sheetName, "C", "C", 15)
-	f.SetColWidth(sheetName, "D", "D", 20)
-	f.SetColWidth(sheetName, "E", "E", 40)
-	f.SetColWidth(sheetName, "F", "F", 15)
-	f.SetColWidth(sheetName, "G", "G", 20)
-	f.SetColWidth(sheetName, "H", "H", 15)
-	f.SetColWidth(sheetName, "I", "I", 20)
-	f.SetColWidth(sheetName, "J", "J", 15)
-	f.SetColWidth(sheetName, "K", "K", 18)
-
-	if err := f.SetPanes(sheetName, &excelize.Panes{
-		Freeze:      true,
-		YSplit:      1,
-		TopLeftCell: "A2",
-		ActivePane:  "bottomLeft",
+	noStripes := false
+	if err := sw.AddTable(&excelize.Table{
+		Range:          fmt.Sprintf("A1:K%d", len(addresses)+1),
+		Name:           "AddressList",
+		ShowRowStripes: &noStripes,
 	}); err != nil {
-		return fmt.Errorf("failed to set freeze panes: %v", err)
+		return fmt.Errorf("failed to set header filter: %v", err)
 	}
 
-	if err := f.AutoFilter(sheetName, "A1:K1", nil); err != nil {
-		return fmt.Errorf("failed to set auto filter: %v", err)
+	if err := sw.Flush(); err != nil {
+		return fmt.Errorf("failed to flush address sheet: %v", err)
 	}
 
 	return nil
@@ -926,7 +928,7 @@ func createTerritorySheet(app core.App, f *excelize.File, territory *core.Record
 
 		sequences := make(map[int]bool)
 		for _, addr := range addresses {
-			sequences[addr.GetInt("sequence")] = true
+			sequences[addr.Sequence] = true
 		}
 
 		isSingleType := mapType == "single"
@@ -970,7 +972,7 @@ func createTerritorySheet(app core.App, f *excelize.File, territory *core.Record
 // address id to its primary option code and is built once per territory by
 // fetchTypeCodesByAddress; addresses may arrive in any order because the grid is
 // keyed by sequence and floor and both axes are sorted below.
-func createAddressTable(f *excelize.File, sheetName string, mapRecord *core.Record, typesByAddr map[string]string, addresses []*core.Record, startRow *int) error {
+func createAddressTable(f *excelize.File, sheetName string, mapRecord *core.Record, typesByAddr map[string]string, addresses []territoryAddress, startRow *int) error {
 	if len(addresses) == 0 {
 		f.SetCellValue(sheetName, fmt.Sprintf("A%d", *startRow), "No addresses found")
 		*startRow++
@@ -980,46 +982,17 @@ func createAddressTable(f *excelize.File, sheetName string, mapRecord *core.Reco
 	mapType := fmt.Sprintf("%v", mapRecord.Get("type"))
 	isSingleType := mapType == "single"
 
-	addressGrid := make(map[int]map[int]*core.Record)
+	addressGrid := make(map[int]map[int]*territoryAddress)
 	sequenceToCode := make(map[int]string)
 	sequences := make(map[int]bool)
 	floors := make(map[int]bool)
 
-	for _, addr := range addresses {
-		var sequence int
-		if seqVal := addr.Get("sequence"); seqVal != nil {
-			switch v := seqVal.(type) {
-			case float64:
-				sequence = int(v)
-			case int:
-				sequence = v
-			case int64:
-				sequence = int(v)
-			default:
-				sequence = 0
-			}
-		}
-
-		var floor int
-		if floorVal := addr.Get("floor"); floorVal != nil {
-			switch v := floorVal.(type) {
-			case float64:
-				floor = int(v)
-			case int:
-				floor = v
-			case int64:
-				floor = int(v)
-			default:
-				floor = 0
-			}
-		} else {
-			floor = 0
-		}
-
-		code := fmt.Sprintf("%v", addr.Get("code"))
+	for i := range addresses {
+		addr := &addresses[i]
+		sequence, floor, code := addr.Sequence, addr.Floor, addr.Code
 
 		if addressGrid[sequence] == nil {
-			addressGrid[sequence] = make(map[int]*core.Record)
+			addressGrid[sequence] = make(map[int]*territoryAddress)
 		}
 		addressGrid[sequence][floor] = addr
 		sequenceToCode[sequence] = code
@@ -1130,7 +1103,7 @@ func createAddressTable(f *excelize.File, sheetName string, mapRecord *core.Reco
 			col := getExcelColumnName(i + 1)
 			f.SetCellStyle(sheetName, fmt.Sprintf("%s%d", col, row), fmt.Sprintf("%s%d", col, row), dataCellStyleID)
 
-			var targetAddr *core.Record
+			var targetAddr *territoryAddress
 			if seqAddresses, exists := addressGrid[seq]; exists {
 				for _, addr := range seqAddresses {
 					targetAddr = addr
@@ -1139,7 +1112,7 @@ func createAddressTable(f *excelize.File, sheetName string, mapRecord *core.Reco
 			}
 
 			if targetAddr != nil {
-				cellValue := addressCellValue(typesByAddr[targetAddr.Id], getStatusSymbol(fmt.Sprintf("%v", targetAddr.Get("status"))))
+				cellValue := addressCellValue(typesByAddr[targetAddr.Id], getStatusSymbol(targetAddr.Status))
 				f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col, row), cellValue)
 			}
 		}
@@ -1162,7 +1135,7 @@ func createAddressTable(f *excelize.File, sheetName string, mapRecord *core.Reco
 				f.SetCellStyle(sheetName, fmt.Sprintf("%s%d", col, row), fmt.Sprintf("%s%d", col, row), currentDataStyleID)
 
 				if addr, exists := addressGrid[seq][floor]; exists {
-					cellValue := addressCellValue(typesByAddr[addr.Id], getStatusSymbol(fmt.Sprintf("%v", addr.Get("status"))))
+					cellValue := addressCellValue(typesByAddr[addr.Id], getStatusSymbol(addr.Status))
 					f.SetCellValue(sheetName, fmt.Sprintf("%s%d", col, row), cellValue)
 				}
 			}
@@ -1200,12 +1173,23 @@ func createAddressTable(f *excelize.File, sheetName string, mapRecord *core.Reco
 	return nil
 }
 
+// territoryAddress is the subset of an address the territory grid renders,
+// queried as a plain struct rather than a full *core.Record per address.
+type territoryAddress struct {
+	Id       string `db:"id"`
+	Map      string `db:"map"`
+	Code     string `db:"code"`
+	Floor    int    `db:"floor"`
+	Sequence int    `db:"sequence"`
+	Status   string `db:"status"`
+}
+
 // fetchAddressesByMapIDs returns every address belonging to the given maps in a
 // single query, grouped by map id. Maps with no addresses are simply absent from
 // the result, which callers read as an empty slice.
-func fetchAddressesByMapIDs(app core.App, mapIDs []string) (map[string][]*core.Record, error) {
+func fetchAddressesByMapIDs(app core.App, mapIDs []string) (map[string][]territoryAddress, error) {
 	if len(mapIDs) == 0 {
-		return map[string][]*core.Record{}, nil
+		return map[string][]territoryAddress{}, nil
 	}
 
 	ids := make([]any, len(mapIDs))
@@ -1213,15 +1197,19 @@ func fetchAddressesByMapIDs(app core.App, mapIDs []string) (map[string][]*core.R
 		ids[i] = id
 	}
 
-	records, err := app.FindAllRecords("addresses", dbx.In("map", ids...))
+	var rows []territoryAddress
+	err := app.DB().
+		Select("id", "map", "code", "floor", "sequence", "status").
+		From("addresses").
+		Where(dbx.In("map", ids...)).
+		All(&rows)
 	if err != nil {
 		return nil, err
 	}
 
-	grouped := make(map[string][]*core.Record, len(mapIDs))
-	for _, record := range records {
-		mapID := record.GetString("map")
-		grouped[mapID] = append(grouped[mapID], record)
+	grouped := make(map[string][]territoryAddress, len(mapIDs))
+	for _, row := range rows {
+		grouped[row.Map] = append(grouped[row.Map], row)
 	}
 
 	return grouped, nil
