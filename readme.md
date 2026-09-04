@@ -296,7 +296,8 @@ ministry-mapper-be/
 │   │   └── ...                     # Map, territory, address, options handlers
 │   ├── jobs/                       # Background job implementations
 │   │   ├── job_scheduler.go        # Cron setup + LaunchDarkly flag wiring
-│   │   ├── generate_report.go      # Monthly Excel report builder (MailerSend + OpenAI)
+│   │   ├── generate_report.go      # Report orchestration and email (MailerSend + OpenAI)
+│   │   ├── report_workbook.go      # Excel workbook: Summary, Addresses, territory grids, Setup
 │   │   ├── llm_client.go           # OpenAI client wrapper
 │   │   ├── summary_data.go         # Report analytics & LLM prompt builder
 │   │   └── process_*.go            # Individual job implementations
