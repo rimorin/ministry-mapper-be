@@ -1,92 +1,112 @@
 # CLAUDE.md
 
-Behavioral guidelines to reduce common LLM coding mistakes.
+Go/PocketBase backend for Ministry Mapper (door-to-door ministry territory management): a congregation has territories, a territory has maps, a map has addresses (household units). Publishers work maps through time-limited link tokens; admins manage everything through custom routes.
 
-**Tradeoff:** These guidelines bias toward caution over speed. If the diff can be described in one sentence, skip the ceremony and just make the change.
+Trust code over docs: `readme.md`'s aggregate, quicklink and scheduled-job sections are verified against source; treat the rest as unverified.
 
-**Domain in one line:** Go/PocketBase backend for Ministry Mapper (door-to-door ministry territory management) — a congregation has territories, a territory has maps, a map has addresses (household units). Publishers work maps via time-limited link tokens; admins manage everything through custom routes.
+## Working principles
+From Andrej Karpathy's guidelines (github.com/multica-ai/andrej-karpathy-skills), reproduced verbatim.
 
-**Trust code over docs:** README.md's aggregate, quicklink and scheduled-job sections have been verified against source; the rest of it has not — check before repeating anything else from it. The `.github/instructions/` Copilot files were deleted rather than fixed: they documented a PocketBase API that no longer exists (`app.Dao()`, the `daos` package, `apis.RequireAdminAuth()`) and an aggregation engine — debounce, semaphore, territory cron — that was never built. This file is the source of truth for how the codebase actually works.
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
-## 1. Think Before Coding
+### 1. Think Before Coding
 
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
 
-- State assumptions explicitly. If uncertain, ask — a clarifying question before coding beats a rewrite after.
-- If multiple interpretations exist, present them — don't pick silently.
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
 - If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
 
-**In this codebase:**
-- PocketBase v0.39.x, modern API (`core.App`, `*core.RequestEvent`, `e.Next()` chains). Bootstrap order in `main.go` matters: `RegisterAuthHooks` → `RegisterRoutes` → `RegisterDomainHooks` → `ConfigureScheduler`. Routes live in `internal/setup/routes.go`; one handler file per endpoint in `internal/handlers/`; cron jobs/email/reports in `internal/jobs/`.
-- IMPORTANT: `addresses`, `address_options`, and `messages` have superuser-only create/update/delete API rules **by design** — all mutations flow through custom routes (`/address/update`, `/address/add`, etc.). A hook on `OnRecordUpdateRequest("addresses")` will never fire (see the comment in `internal/handlers/auth_hooks.go` near the rules explanation). Before designing a mutation, check which custom route or handler owns that write path.
-- Auth is two-world: admin JWT (`apis.RequireAuth()` via the `authRoute` helper + role checks with `AuthorizeByRole`) vs publisher **link-id header**. The link token is just an unexpired `assignments` record id, validated in SQL (`expiry_date > datetime('now')`). When both JWT and link-id are present, **link-id takes precedence and must be valid** (`AuthorizeMapAccess`, `internal/handlers/common.go`). Header naming trap: Go reads `link-id` (hyphen); PocketBase API-rule strings see `@request.headers.link_id` (underscore).
-- List/view authorization is **post-query filtering**, not rule rewriting: `OnRecordsListRequest` hooks regex-extract IDs from the client filter, authorize, then prune `e.Records`/`e.Result.Items` via `filterListResults` (`scope_filters.go`). Realtime subscriptions are scoped in `OnRealtimeSubscribeRequest`. New list endpoints must follow this pattern.
-
-## 2. Simplicity First
+### 2. Simplicity First
 
 **Minimum code that solves the problem. Nothing speculative.**
 
-- No features, abstractions, or "configurability" beyond what was asked.
-- No defensive try/catch-everything bloat or handling for impossible scenarios.
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
 - If you write 200 lines and it could be 50, rewrite it.
 
-**In this codebase:**
-- Query records with `app.FindRecordById` / `FindFirstRecordByFilter` with `{:param}` placeholders and `dbx.Params`. Raw SQL via `app.DB().NewQuery(...)` is normal and preferred for aggregates and auth checks — don't build an ORM layer. Use `FindCachedCollectionByNameOrId` in loops.
-- New endpoints parse bodies with `e.BindBody(&struct{...})` + explicit validation (see `update_address.go`). Older handlers use unchecked `data["x"].(string)` assertions that panic on bad input — don't copy that style, and don't "fix" them incidentally either.
-- Multi-record writes go inside `app.RunInTransaction(func(txApp core.App) error {...})`.
-- Error returns are a two-way choice that controls Sentry noise: `apis.New*Error` for expected 4xx (not sent to Sentry); `newServerError(err)` — or `wrapTransactionError(err)` after transactions — for infra failures so Sentry captures the cause. Never return a bare `err` from a handler.
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
-## 3. Surgical Changes
+### 3. Surgical Changes
 
-**Touch only what you must. Fix causes, not symptoms.**
+**Touch only what you must. Clean up only your own mess.**
 
-- Don't "improve" adjacent code, comments, or formatting. Don't refactor things that aren't broken.
-- Address the root cause — a narrow diff that suppresses an error or dodges the real problem is still a failure.
-- Remove imports/variables YOUR changes orphaned; leave pre-existing dead code alone (mention it instead).
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
 
-**In this codebase:**
-- IMPORTANT: `SaveNoValidate` vs `Save` vs raw SQL is deliberate, not sloppiness. `SaveNoValidate` = trusted server-side write (fires hooks/realtime); `Save` = validation matters; raw SQL `DELETE` in `delete_territory.go` deliberately **suppresses** cascade realtime events, while `txApp.Delete` in `assignment_cleanup.go` deliberately **fires** them. Changing one changes what the frontend receives over realtime.
-- IMPORTANT: subscription strings in `OnRealtimeSubscribeRequest` are **SSE channel names**, not configuration — validate and drop, never rewrite. The server broadcasts each event under the exact string it stored and the client's `EventSource` listens under the string it sent, so editing one publishes to a channel nobody is subscribed to and every event is silently discarded, with no error on either side. Scope is enforced by refusing over-broad filters (`filterEscapesMapScope`), not by narrowing them. Covered by `internal/setup/realtime_subscribe_test.go`.
-- Bulk address writes must use the store-flag protocol: set `app.Store().Set("bulk_reset:"+mapId, true)` before the transaction, `defer` the removal, then call `ProcessMapAggregates` once — otherwise the per-address aggregate hook fires N async recalcs (`aggregate_hook.go`, `reset_map.go`).
-- `ProcessTerritoryAggregates` reads the `completed`/`total` keys of `maps.aggregates` JSON via `json_extract` — it does not scan addresses. Changing map aggregate output shape silently breaks territory progress.
-- Every created address must get an `address_options` row with the congregation's default option — map create, code add, and floor add all maintain this invariant.
-- Audit logs (`addresses_log`, `assignments_log`, `roles_log`): superuser actors map to `""` in `changed_by` via `authID()` because there's no users record — passing a superuser id fails the relation.
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
 
-## 4. Goal-Driven Execution
+The test: Every changed line should trace directly to the user's request.
 
-**Define a check you can run. Loop until it passes. Show evidence, not assertions.**
+### 4. Goal-Driven Execution
 
-- "Fix the bug" → write a test that reproduces it, then make it pass. "Refactor X" → tests pass before and after.
-- When claiming success, show the command and its output — don't just say "done".
+**Define success criteria. Loop until verified.**
 
-**In this codebase:**
-- Two test tiers. Unit tests: plain `go test ./...` (handlers, middleware, jobs). Integration tests: behind the **`testdata` build tag** in `internal/setup/` — plain `go test` compiles nothing there; run `./scripts/test.sh` (needs the `sqlite3` CLI), which builds with `-tags testdata`, generates `test_pb_data/` via migrations + seed, then runs the tagged tests.
-- Seed data IDs are stable and meant to be hard-coded in tests (`testcongalpha01`, `testmapalpha01a`, `admin@alpha.test` / `Test1234!` — see README's test-data section). Endpoint tests use PocketBase's `tests.ApiScenario` table style; `setupTestApp` re-registers routes+hooks per test app.
-- CI on PRs to master/staging: `go mod tidy && go mod verify`, `go build`, `go vet`, unit tests (excluding `internal/setup`), plus a separate integration job running `scripts/test.sh`. `go vet` is the only linter — there is no golangci-lint.
-- Run locally with `./scripts/start.sh` (exports `.env`, serves on :8090). Migrations automigrate only under `go run`; production never automigrates.
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
 
----
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
 
-## 5. Project Conventions
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
-**Migrations**
-- Files in `migrations/`, registered with `m.Register(up, down)`, named `<unix-timestamp>_snake_description.go`. Write them **idempotently** (check-exists-then-skip, `return nil` on missing collections) — they must run cleanly on fresh test DBs.
-- Env vars read inside migrations (`PB_ADMIN_EMAIL`, SMTP settings, OAuth keys, OTP/MFA flags) apply only on first run against a DB — changing them later does not re-apply.
-- `1780000000_seed_test_data.go` is behind `//go:build testdata` and exists only in test builds.
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+## Layout and bootstrap
+- PocketBase v0.40.x (`core.App`, `*core.RequestEvent`, `e.Next()` chains). Bootstrap order in `main.go` matters: `RegisterAuthHooks` → `RegisterRoutes` → `RegisterDomainHooks` → `ConfigureScheduler`.
+- Routes: `internal/setup/routes.go`. One handler file per endpoint in `internal/handlers/`. Cron jobs, email and the Excel report in `internal/jobs/`.
+- `serve` applies pending migrations at startup in every environment. Only `Automigrate`, which generates migration files from admin-UI edits, is limited to `go run`.
 
-**Cron jobs & email**
-- Jobs are registered in `internal/jobs/job_scheduler.go` via `app.Cron()` + `scheduler.MustAdd`, each wrapped in `middleware.WithJobRecovery`, and gated by LaunchDarkly flags — an unset `LAUNCHDARKLY_SDK_KEY` means **all flags default to enabled**.
-- Two separate mail paths: MailerSend for digests/reports (`MAILERSEND_API_KEY`), PocketBase SMTP for auth emails. Email templates in `templates/` are parsed by **relative path at runtime** — the binary must run from the repo root (Dockerfile copies `templates/` beside it).
-- Async recalcs use PocketBase's `routine.FireAndForget`, not bare goroutines.
+## Auth
+- Two worlds: admin JWT (`apis.RequireAuth()` via `authRoute` plus `AuthorizeByRole`) and the publisher `link-id` header. A link token is an unexpired `assignments` record id, validated in SQL (`expiry_date > datetime('now')`).
+- When both JWT and link-id are present, link-id takes precedence and must be valid (`AuthorizeMapAccess`, `internal/handlers/common.go`).
+- Header naming: Go reads `link-id` (hyphen); PocketBase API-rule strings see `@request.headers.link_id` (underscore).
+- List/view authorization is post-query filtering: `OnRecordsListRequest` hooks extract ids from the client filter, authorize, then prune results via `filterListResults` (`scope_filters.go`). New list endpoints follow this pattern.
 
-**Sequences & floors (subtle semantics)**
-- Address `sequence` is per-map and shared across floors for the same code; new codes get `MAX+1`. Map `sequence` is per-territory; `/maps/sequence` requires every map id in the territory and renumbers 1..N.
-- Adding a floor copies the codes of the current highest/lowest floor; going below floor 1 skips 0 and jumps to -1. Removing the last floor or deleting the last code is refused.
-- Map/territory reset only flips `not_home`/`done` back to `not_done` — DNC and invalid are untouched.
+## Writes
+- `addresses`, `address_options` and `messages` have superuser-only create/update/delete API rules by design; every mutation goes through a custom route (`/address/update`, `/address/add`, ...). A hook on `OnRecordUpdateRequest("addresses")` never fires. Find the route that owns a write path before designing a mutation.
+- `SaveNoValidate` is a trusted server-side write that fires hooks and realtime; `Save` is for when validation matters. The raw SQL `DELETE` in `delete_territory.go` deliberately suppresses cascade realtime events; `txApp.Delete` in `assignment_cleanup.go` deliberately fires them. Changing one changes what the frontend receives.
+- Multi-record writes go inside `app.RunInTransaction`.
+- Bulk address writes: set `app.Store().Set("bulk_reset:"+mapId, true)` before the transaction, `defer` its removal, then call `ProcessMapAggregates` once. Otherwise the per-address hook fires N async recalcs (`aggregate_hook.go`, `reset_map.go`).
+- `ProcessTerritoryAggregates` reads `completed`/`total` from `maps.aggregates` JSON. Changing the map aggregate shape silently breaks territory progress.
+- Every created address gets an `address_options` row with the congregation's default option; map create, code add and floor add all maintain this.
+- Audit logs (`addresses_log`, `assignments_log`, `roles_log`): superuser actors map to `""` in `changed_by` via `authID()`, because there is no users record to relate to.
+- Error returns control Sentry noise: `apis.New*Error` for expected 4xx; `newServerError(err)` or `wrapTransactionError(err)` for infrastructure failures. Never return a bare `err` from a handler.
+- New handlers parse bodies with `e.BindBody(&struct{...})` plus explicit validation (see `update_address.go`). Older handlers use unchecked `data["x"].(string)` assertions; don't copy that style and don't fix them incidentally.
+- Query with `app.FindRecordById` / `FindFirstRecordByFilter` and `{:param}` placeholders; raw SQL via `app.DB().NewQuery` is the norm for aggregates and auth checks. Use `FindCachedCollectionByNameOrId` in loops.
 
-**Commits**
-- Conventional Commits in practice (`fix:`, `feat:`, `chore:`, ...). No AI co-author trailers. Keep messages simple.
+## Realtime
+- IMPORTANT: subscription strings in `OnRealtimeSubscribeRequest` are SSE channel names. Validate and drop, never rewrite. A rewritten string publishes to a channel nobody listens on and every event is silently lost. Scope is enforced by refusing over-broad filters (`filterEscapesMapScope`); see `internal/setup/realtime_subscribe_test.go`.
+- Async recalcs use `routine.FireAndForget`, not bare goroutines.
 
----
+## Domain semantics
+- Address `sequence` is per map and shared across floors for the same code; new codes get `MAX+1`. Map `sequence` is per territory; `/maps/sequence` requires every map id in the territory and renumbers 1..N.
+- Adding a floor copies the codes of the current highest or lowest floor; going below floor 1 skips 0 and jumps to -1. Removing the last floor or deleting the last code is refused.
+- Map and territory reset flip only `not_home`/`done` back to `not_done`; DNC and invalid are untouched.
 
-**Maintaining this file:** treat it like code. If Claude makes a mistake this file should have prevented, add the rule; if a rule is always followed without being stated, delete it. Every line must earn its context cost.
+## Tests and CI
+- Unit tests: `go test ./...`. Integration tests sit behind the `testdata` build tag in `internal/setup/` and `internal/jobs/`; run `./scripts/test.sh` (needs the `sqlite3` CLI). It builds with `-tags testdata`, generates `test_pb_data/` from migrations plus seed, runs the tagged tests and removes the DB afterwards.
+- Seed ids are stable and meant to be hard-coded: `testcongalpha01`, `testmapalpha01a`, `admin@alpha.test` / `Test1234!`. Endpoint tests use `tests.ApiScenario`; `setupTestApp` re-registers routes and hooks per test app.
+- CI on PRs to master/staging: `go mod tidy && go mod verify`, `go build`, `go vet`, unit tests, plus the integration job. `go vet` is the only linter; a PostToolUse hook runs `gofmt -l` and `go vet` after each Go edit.
+- Run locally with `./scripts/start.sh` (exports `.env`, serves on :8090).
+
+## Conventions
+- Conventional Commits (`fix:`, `feat:`, `chore:`). No AI co-author trailers. Keep messages simple.
+- The README is tracked as `readme.md`; on this case-insensitive filesystem `git add README.md` stages nothing.
+- Migration and jobs conventions live in `.claude/rules/` and load when you touch `migrations/` or `internal/jobs/`.
+
+Maintaining this file: treat it like code. If Claude makes a mistake this file should have prevented, add the rule; if a rule is always followed without being stated, delete it.
