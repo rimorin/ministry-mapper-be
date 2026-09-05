@@ -1,10 +1,9 @@
 package jobs
 
 import (
-	"bytes"
 	"fmt"
-	"html/template"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -17,7 +16,7 @@ type newAddressEntry struct {
 	Date        string
 	CreatedBy   string
 	StatusLabel string
-	StatusClass string
+	StatusColor string
 	Types       []string
 	Notes       string
 	HasDetails  bool
@@ -31,6 +30,7 @@ type newAddressMapGroup struct {
 
 // NewAddressesTemplateData holds the data passed to the new_addresses.html template.
 type NewAddressesTemplateData struct {
+	emailChrome
 	Maps  []newAddressMapGroup
 	Count int
 }
@@ -47,7 +47,7 @@ type territoryRow struct {
 
 // ProcessNewAddress sends a daily digest of app-created addresses to all
 // administrators of the given congregation.
-func ProcessNewAddress(congID string, app core.App, since time.Time, tmpl *template.Template) error {
+func ProcessNewAddress(congID string, app core.App, since time.Time) error {
 	log.Printf("Processing new addresses for congregation: %s", congID)
 
 	congRecord, err := app.FindRecordById("congregations", congID)
@@ -169,16 +169,9 @@ func ProcessNewAddress(congID string, app core.App, since time.Time, tmpl *templ
 		createdBy, _ := addr.Get("created_by").(string)
 
 		status, _ := addr.Get("status").(string)
-		var statusLabel, statusClass string
-		switch status {
-		case "done":
-			statusLabel, statusClass = "Done", "status-done"
-		case "not_home":
-			statusLabel, statusClass = "Not Home", "status-not_home"
-		case "do_not_call":
-			statusLabel, statusClass = "Do Not Call", "status-dnc"
-		case "invalid":
-			statusLabel, statusClass = "Invalid", "status-invalid"
+		var statusLabel, statusColor string
+		if status != "" && status != "not_done" {
+			statusLabel, statusColor = statusOf(status).Label, statusOf(status).Fill
 		}
 
 		notes, _ := addr.Get("notes").(string)
@@ -189,7 +182,7 @@ func ProcessNewAddress(congID string, app core.App, since time.Time, tmpl *templ
 			Date:        addr.GetDateTime("created").Time().In(location).Format("03:04 PM"),
 			CreatedBy:   createdBy,
 			StatusLabel: statusLabel,
-			StatusClass: statusClass,
+			StatusColor: statusColor,
 			Types:       types,
 			Notes:       notes,
 			HasDetails:  statusLabel != "" || notes != "" || len(types) > 0,
@@ -225,15 +218,24 @@ func ProcessNewAddress(congID string, app core.App, since time.Time, tmpl *templ
 		return nil
 	}
 
-	var body bytes.Buffer
-	if err := tmpl.Execute(&body, emailData); err != nil {
-		log.Printf("Error executing new_addresses template: %v", err)
+	congName, _ := congRecord.Get("name").(string)
+	emailData.emailChrome = emailChrome{
+		Preheader:   fmt.Sprintf("%s added across %s in the last 24 hours.", pluralize(emailData.Count, "address"), pluralize(len(emailData.Maps), "map")),
+		Kicker:      congName,
+		Title:       fmt.Sprintf("%s added", pluralize(emailData.Count, "new address")),
+		Subtitle:    since.In(location).Format("2 Jan 2006"),
+		ButtonLabel: "Review in Ministry Mapper",
+		ButtonURL:   os.Getenv("PB_APP_URL"),
+		Footer:      fmt.Sprintf("Sent to administrators of %s each day publishers add addresses from the app.", congName),
+	}
+	htmlBody, textBody, err := renderEmail("new_addresses.html", emailData)
+	if err != nil {
+		log.Printf("Error rendering new_addresses email: %v", err)
 		return err
 	}
 
-	congName, _ := congRecord.Get("name").(string)
-	subject := fmt.Sprintf("New Addresses Added - %s - %s", congName, since.In(location).Format("02 Jan 2006"))
-	if err := sendHTMLEmail(recipients, subject, body.String()); err != nil {
+	subject := fmt.Sprintf("%s: %s added", congName, pluralize(emailData.Count, "new address"))
+	if err := sendHTMLEmail(recipients, subject, htmlBody, textBody); err != nil {
 		log.Printf("Error sending new addresses email for congregation %s: %v", congID, err)
 		return err
 	}
@@ -262,15 +264,9 @@ func ProcessNewAddresses(app core.App, since time.Time) error {
 		return nil
 	}
 
-	tmpl, err := template.ParseFiles("templates/new_addresses.html")
-	if err != nil {
-		log.Printf("Error parsing new_addresses template: %v", err)
-		return err
-	}
-
 	log.Printf("Processing %d congregation(s) with new addresses", len(congregations))
 	for _, c := range congregations {
-		if err := ProcessNewAddress(c.ID, app, since, tmpl); err != nil {
+		if err := ProcessNewAddress(c.ID, app, since); err != nil {
 			log.Printf("Error processing new addresses for congregation %s: %v", c.ID, err)
 		}
 	}

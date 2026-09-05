@@ -42,9 +42,9 @@ func loadCongregationLocation(congRecord *core.Record) *time.Location {
 	return location
 }
 
-// sendHTMLEmail sends a single HTML email via MailerSend to the given recipients.
-// It's a package-level var so tests can substitute a stub instead of sending real email.
-var sendHTMLEmail = func(recipients []Recipient, subject, htmlBody string) error {
+// sendHTMLEmail sends one email via MailerSend with an HTML body and its plain-text
+// alternative. It's a package-level var so tests can substitute a stub.
+var sendHTMLEmail = func(recipients []Recipient, subject, htmlBody, textBody string) error {
 	apiKey := os.Getenv("MAILERSEND_API_KEY")
 	fromEmail := os.Getenv("MAILERSEND_FROM_EMAIL")
 	if apiKey == "" || fromEmail == "" {
@@ -65,6 +65,9 @@ var sendHTMLEmail = func(recipients []Recipient, subject, htmlBody string) error
 	message.SetRecipients(emailRecipients)
 	message.SetSubject(subject)
 	message.SetHTML(htmlBody)
+	if textBody != "" {
+		message.SetText(textBody)
+	}
 
 	_, err := ms.Email.Send(ctx, message)
 	return err

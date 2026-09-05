@@ -1,9 +1,9 @@
 package jobs
 
 import (
-	"bytes"
-	"html/template"
+	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -115,12 +115,6 @@ func processInstruction(mapID string, app core.App) error {
 	}
 	log.Printf("Processing %d recipients\n", len(recipients))
 
-	tmpl, err := template.ParseFiles("templates/instructions.html")
-	if err != nil {
-		log.Println("Error parsing template:", err)
-		return err
-	}
-
 	emailData := EmailTemplateData{
 		Messages: make([]messagesData, 0),
 		MapName:  territoryCode + " - " + mapRecord.Get("description").(string),
@@ -140,14 +134,24 @@ func processInstruction(mapID string, app core.App) error {
 		emailData.Summary = generateInstructionsAISummary(emailData.Messages, emailData.MapName)
 	}
 
-	var body bytes.Buffer
-	if err := tmpl.Execute(&body, emailData); err != nil {
-		log.Println("Error executing template:", err)
+	mapDescription := mapRecord.Get("description").(string)
+	emailData.emailChrome = emailChrome{
+		Preheader:   fmt.Sprintf("%s for %s.", pluralize(len(emailData.Messages), "instruction"), mapDescription),
+		Kicker:      congRecord.Get("name").(string),
+		Title:       "Instructions for your map",
+		Subtitle:    emailData.MapName,
+		ButtonLabel: "Open the map",
+		ButtonURL:   os.Getenv("PB_APP_URL"),
+		Footer:      "Sent to everyone in the congregation when an administrator pins instructions to a map.",
+	}
+	htmlBody, textBody, err := renderEmail("instructions.html", emailData)
+	if err != nil {
+		log.Println("Error rendering instructions email:", err)
 		return err
 	}
 
-	subject := "New instructions received for " + mapRecord.Get("description").(string)
-	if err := sendHTMLEmail(recipients, subject, body.String()); err != nil {
+	subject := "Instructions for " + mapDescription
+	if err := sendHTMLEmail(recipients, subject, htmlBody, textBody); err != nil {
 		log.Println("Error sending email:", err)
 		return err
 	}

@@ -1,33 +1,16 @@
 package jobs
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
 	"log"
 	"os"
-	"sync"
-	"text/template"
 	"time"
 
 	"github.com/mailersend/mailersend-go"
 	"github.com/pocketbase/pocketbase/core"
 )
-
-// reportTmpl is parsed once on first use and reused for all email sends.
-var (
-	reportTmpl     *template.Template
-	reportTmplOnce sync.Once
-	reportTmplErr  error
-)
-
-func getReportTemplate() (*template.Template, error) {
-	reportTmplOnce.Do(func() {
-		reportTmpl, reportTmplErr = template.ParseFiles("templates/report.html")
-	})
-	return reportTmpl, reportTmplErr
-}
 
 // sendEmailWithRetry retries a MailerSend send call up to 3 times with exponential backoff.
 func sendEmailWithRetry(send func() error) error {
@@ -47,14 +30,10 @@ func sendEmailWithRetry(send func() error) error {
 }
 
 type ReportTemplateData struct {
-	CongregationName string
-	CongregationCode string
-	ReportDate       string
-	ReportTitle      string
-	FileName         string
-	RecipientName    string
-	IsOnDemand       bool
-	Summary          SummaryData
+	emailChrome
+	ReportDate string
+	FileName   string
+	Summary    SummaryData
 }
 
 func GenerateMonthlyReport(app core.App, aiEnabled bool) {
@@ -147,6 +126,51 @@ func buildEmailSummary(app core.App, congregation *core.Record, aiEnabled bool, 
 	return data
 }
 
+// reportChrome fills the shared email frame for a report: the inbox preview
+// line, the title block, the app button and the footer.
+func reportChrome(congregationName string, period ReportPeriod, summary SummaryData) emailChrome {
+	kicker := "Monthly report"
+	if period.IsOnDemand {
+		kicker = "Activity report"
+	}
+	preheader := "Activity report for " + period.Label + "."
+	if summary.Visits > 0 {
+		preheader = fmt.Sprintf("%d homes reached, %s.", summary.HouseholdsReached, todoPhrase(len(summary.ActionItems())))
+	}
+	return emailChrome{
+		Preheader:   preheader,
+		Kicker:      kicker,
+		Title:       congregationName,
+		Subtitle:    period.Label,
+		ButtonLabel: "Open Ministry Mapper",
+		ButtonURL:   os.Getenv("PB_APP_URL"),
+		Footer:      fmt.Sprintf("Sent to administrators of %s. Reply to this email if a figure looks wrong.", congregationName),
+	}
+}
+
+// reportSubject leads with the two numbers an administrator wants when the
+// period had visits, and falls back to the report kind and period otherwise.
+func reportSubject(congregationName string, period ReportPeriod, summary SummaryData) string {
+	if summary.Visits > 0 {
+		return fmt.Sprintf("%s: %d homes reached, %s", congregationName, summary.HouseholdsReached, todoPhrase(len(summary.ActionItems())))
+	}
+	kind := "Monthly report"
+	if period.IsOnDemand {
+		kind = "Activity report"
+	}
+	return fmt.Sprintf("%s for %s, %s", kind, congregationName, period.Label)
+}
+
+func todoPhrase(n int) string {
+	switch n {
+	case 0:
+		return "nothing to do"
+	case 1:
+		return "1 thing to do"
+	}
+	return fmt.Sprintf("%d things to do", n)
+}
+
 func sendReportEmailFromBuffer(app core.App, congregation *core.Record, filename string, content []byte, aiEnabled bool, period ReportPeriod) error {
 	log.Printf("Sending report email for congregation: %s", congregation.Get("code"))
 
@@ -169,27 +193,17 @@ func sendReportEmailFromBuffer(app core.App, congregation *core.Record, filename
 
 	log.Printf("Processing %d recipients\n", len(recipients))
 
-	tmpl, err := getReportTemplate()
-	if err != nil {
-		log.Println("Error parsing template:", err)
-		return err
-	}
-
 	congregationName, _ := congregation.Get("name").(string)
-	congregationCode, _ := congregation.Get("code").(string)
+	summary := buildEmailSummary(app, congregation, aiEnabled, period)
 	emailData := ReportTemplateData{
-		CongregationName: congregationName,
-		CongregationCode: congregationCode,
-		ReportDate:       period.Label,
-		ReportTitle:      "Monthly Report",
-		FileName:         filename,
-		IsOnDemand:       false,
-		Summary:          buildEmailSummary(app, congregation, aiEnabled, period),
+		emailChrome: reportChrome(congregationName, period, summary),
+		ReportDate:  period.Label,
+		FileName:    filename,
+		Summary:     summary,
 	}
-
-	var body bytes.Buffer
-	if err := tmpl.Execute(&body, emailData); err != nil {
-		log.Println("Error executing template:", err)
+	htmlBody, textBody, err := renderEmail("report.html", emailData)
+	if err != nil {
+		log.Println("Error rendering report email:", err)
 		return err
 	}
 
@@ -207,8 +221,9 @@ func sendReportEmailFromBuffer(app core.App, congregation *core.Record, filename
 	message := ms.Email.NewMessage()
 	message.SetFrom(mailersend.From{Email: os.Getenv("MAILERSEND_FROM_EMAIL"), Name: "Ministry Mapper"})
 	message.SetRecipients(emailRecipients)
-	message.SetSubject(fmt.Sprintf("Monthly Report for %s - %s", congregation.Get("name"), period.Label))
-	message.SetHTML(body.String())
+	message.SetSubject(reportSubject(congregationName, period, summary))
+	message.SetHTML(htmlBody)
+	message.SetText(textBody)
 	message.AddAttachment(mailersend.Attachment{Filename: filename, Content: encoded})
 
 	if err := sendEmailWithRetry(func() error {
@@ -243,27 +258,15 @@ func sendReportEmailToRecipient(app core.App, congregation *core.Record, filenam
 
 	log.Printf("Sending on-demand report for congregation %s to %s", congregation.Get("code"), email)
 
-	tmpl, err := getReportTemplate()
-	if err != nil {
-		log.Println("Error parsing template:", err)
-		return err
-	}
-
 	congregationName, _ := congregation.Get("name").(string)
-	congregationCode, _ := congregation.Get("code").(string)
 	emailData := ReportTemplateData{
-		CongregationName: congregationName,
-		CongregationCode: congregationCode,
-		ReportDate:       period.Label,
-		ReportTitle:      "Activity Report",
-		FileName:         filename,
-		RecipientName:    name,
-		IsOnDemand:       true,
-		Summary:          summary,
+		emailChrome: reportChrome(congregationName, period, summary),
+		ReportDate:  period.Label,
+		FileName:    filename,
+		Summary:     summary,
 	}
-
-	var body bytes.Buffer
-	if err := tmpl.Execute(&body, emailData); err != nil {
+	htmlBody, textBody, err := renderEmail("report.html", emailData)
+	if err != nil {
 		log.Println("Error executing template:", err)
 		return err
 	}
@@ -274,8 +277,9 @@ func sendReportEmailToRecipient(app core.App, congregation *core.Record, filenam
 	message := ms.Email.NewMessage()
 	message.SetFrom(mailersend.From{Email: os.Getenv("MAILERSEND_FROM_EMAIL"), Name: "Ministry Mapper"})
 	message.SetRecipients([]mailersend.Recipient{{Email: email, Name: name}})
-	message.SetSubject(fmt.Sprintf("Activity Report for %s - %s", congregationName, period.Label))
-	message.SetHTML(body.String())
+	message.SetSubject(reportSubject(congregationName, period, summary))
+	message.SetHTML(htmlBody)
+	message.SetText(textBody)
 	message.AddAttachment(mailersend.Attachment{Filename: filename, Content: encoded})
 
 	if err := sendEmailWithRetry(func() error {

@@ -4,7 +4,6 @@ package jobs
 
 import (
 	"errors"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -15,10 +14,8 @@ import (
 
 const testDataDir = "../../test_pb_data"
 
-// setupMessagesTestApp creates a test app and chdirs to the repo root, since
-// processMessage/processMessage load templates via a path relative to the
-// server's working directory (repo root at runtime), not the package directory
-// `go test` uses by default.
+// setupMessagesTestApp creates a test app. Templates resolve through templateDir,
+// which the package's tests point at ../../templates.
 func setupMessagesTestApp(t testing.TB) *tests.TestApp {
 	t.Helper()
 	app, err := tests.NewTestApp(testDataDir)
@@ -26,16 +23,6 @@ func setupMessagesTestApp(t testing.TB) *tests.TestApp {
 		t.Fatal(err)
 	}
 	t.Cleanup(app.Cleanup)
-
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir("../.."); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(origDir) })
-
 	return app
 }
 
@@ -51,7 +38,7 @@ func stubSend(t testing.TB, result error) *[]sentEmail {
 	t.Helper()
 	sent := []sentEmail{}
 	original := sendHTMLEmail
-	sendHTMLEmail = func(recipients []Recipient, subject, htmlBody string) error {
+	sendHTMLEmail = func(recipients []Recipient, subject, htmlBody, _ string) error {
 		sent = append(sent, sentEmail{Recipients: recipients, Subject: subject, Body: htmlBody})
 		return result
 	}

@@ -68,6 +68,17 @@ type NotHomeFatigue struct {
 type ActionItem struct {
 	Category string
 	Text     string
+	Color    string // status colour for the email's list marker
+}
+
+// Count returns this period's number of status changes to the given status.
+func (d SummaryData) Count(status string) int {
+	for _, a := range d.Activity {
+		if a.Status == status {
+			return a.Count
+		}
+	}
+	return 0
 }
 
 // MapHealthItem represents a single map for health reporting.
@@ -543,19 +554,19 @@ func (d SummaryData) ActionItems() []ActionItem {
 	for _, f := range capItems(review) {
 		items = append(items, ActionItem{"Nobody home after all tries", fmt.Sprintf(
 			"%s: %d homes had nobody home on every allowed visit. Decide whether to reset them, mark them invalid, or plan a special visit.",
-			f.TerritoryCode, f.MaxedOut)})
+			f.TerritoryCode, f.MaxedOut), statusOf("not_home").Fill})
 	}
 	for _, f := range capItems(stale) {
 		items = append(items, ActionItem{"Return visits overdue", fmt.Sprintf(
-			"%s: %d homes are waiting for a return visit and have not been tried for over two weeks.", f.TerritoryCode, f.Stale)})
+			"%s: %d homes are waiting for a return visit and have not been tried for over two weeks.", f.TerritoryCode, f.Stale), statusOf("not_home").Fill})
 	}
 	for _, m := range capItems(d.StalledMaps) {
 		items = append(items, ActionItem{"Map not started", fmt.Sprintf(
-			"%s, map \"%s\": %d homes, none visited yet.", m.TerritoryCode, m.MapDescription, m.NotDone)})
+			"%s, map \"%s\": %d homes, none visited yet.", m.TerritoryCode, m.MapDescription, m.NotDone), statusOf("invalid").Fill})
 	}
 	for _, m := range capItems(d.HighDNCMaps) {
 		items = append(items, ActionItem{"Many do-not-call homes", fmt.Sprintf(
-			"%s, map \"%s\": %d homes have asked not to be called again.", m.TerritoryCode, m.MapDescription, m.DNC)})
+			"%s, map \"%s\": %d homes have asked not to be called again.", m.TerritoryCode, m.MapDescription, m.DNC), statusOf("do_not_call").Fill})
 	}
 	return items
 }

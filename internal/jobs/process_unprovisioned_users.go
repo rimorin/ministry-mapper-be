@@ -1,9 +1,7 @@
 package jobs
 
 import (
-	"bytes"
 	"fmt"
-	"html/template"
 	"log"
 	"os"
 	"strings"
@@ -26,15 +24,14 @@ type unprovisionedUser struct {
 }
 
 type unprovisionedUserTmplData struct {
+	emailChrome
 	UserName      string
 	DaysRemaining int
-	AppURL        string
 }
 
 type unprovisionedAdminAlertTmplData struct {
-	AdminName string
-	NewUsers  []unprovisionedNewUser
-	AppURL    string
+	emailChrome
+	NewUsers []unprovisionedNewUser
 }
 
 type unprovisionedNewUser struct {
@@ -191,30 +188,37 @@ func processUnprovisionedUsers(app core.App) error {
 
 // sendUnprovisionedUserEmail sends a warning or final-warning email to an unprovisioned user.
 func sendUnprovisionedUserEmail(toEmail, toName string, isFinal bool, daysRemaining int, appURL string) error {
-	templateFile := "templates/user_unprovisioned_warning.html"
+	templateFile := "user_unprovisioned_warning.html"
 	subject := "Ministry Mapper: Please complete your account setup"
 	if isFinal {
-		templateFile = "templates/user_unprovisioned_final_warning.html"
+		templateFile = "user_unprovisioned_final_warning.html"
 		subject = "Ministry Mapper: Your account will be deactivated in 24 hours"
 	}
 
-	tmpl, err := template.ParseFiles(templateFile)
-	if err != nil {
-		return fmt.Errorf("sendUnprovisionedUserEmail: parse template: %w", err)
+	chrome := emailChrome{
+		Preheader: fmt.Sprintf("Your account has no role yet. %s left.", pluralize(daysRemaining, "day")),
+		Kicker:    "Your account",
+		Title:     "Your account needs a role",
+		Subtitle:  fmt.Sprintf("%s left before it is disabled", pluralize(daysRemaining, "day")),
+		Footer:    "Sent automatically when an account has no congregation or role. Contact your congregation administrator if you need help.",
+	}
+	if isFinal {
+		chrome.Preheader = "Your account will be disabled in 24 hours."
+		chrome.Title = "Last reminder: your account is disabled tomorrow"
+		chrome.Subtitle = "It still has no congregation or role"
 	}
 
 	data := unprovisionedUserTmplData{
+		emailChrome:   chrome,
 		UserName:      displayName(toName, toEmail),
 		DaysRemaining: daysRemaining,
-		AppURL:        appURL,
+	}
+	htmlBody, textBody, err := renderEmail(templateFile, data)
+	if err != nil {
+		return fmt.Errorf("sendUnprovisionedUserEmail: %w", err)
 	}
 
-	var body bytes.Buffer
-	if err := tmpl.Execute(&body, data); err != nil {
-		return fmt.Errorf("sendUnprovisionedUserEmail: execute template: %w", err)
-	}
-
-	return sendPlainEmail(toEmail, toName, subject, body.String())
+	return sendPlainEmail(toEmail, toName, subject, htmlBody, textBody)
 }
 
 // alertAdminsUnprovisionedUsers notifies all PocketBase superadmins about unprovisioned accounts.
@@ -233,27 +237,29 @@ func alertAdminsUnprovisionedUsers(app core.App, newUsers []unprovisionedNewUser
 		return 0, nil
 	}
 
-	tmpl, err := template.ParseFiles("templates/user_unprovisioned_admin_alert.html")
-	if err != nil {
-		return 0, fmt.Errorf("alertAdminsUnprovisionedUsers: parse template: %w", err)
-	}
-
 	subject := fmt.Sprintf("Ministry Mapper: %d unprovisioned account(s) require attention", len(newUsers))
 	sent := 0
 
 	for _, su := range superusers {
 		email := su.GetString("email")
 		data := unprovisionedAdminAlertTmplData{
-			AdminName: "Superadmin",
-			NewUsers:  newUsers,
-			AppURL:    appURL,
+			emailChrome: emailChrome{
+				Preheader:   fmt.Sprintf("%s need a congregation and role.", pluralize(len(newUsers), "new account")),
+				Kicker:      "Superadmin alert",
+				Title:       fmt.Sprintf("%s without a role", pluralize(len(newUsers), "new account")),
+				Subtitle:    "Disabled automatically after 7 days",
+				ButtonLabel: "Open the admin panel",
+				ButtonURL:   appURL,
+				Footer:      "Sent to Ministry Mapper superadmins when someone signs up without a congregation.",
+			},
+			NewUsers: newUsers,
 		}
-		var body bytes.Buffer
-		if err := tmpl.Execute(&body, data); err != nil {
+		htmlBody, textBody, err := renderEmail("user_unprovisioned_admin_alert.html", data)
+		if err != nil {
 			log.Printf("alertAdminsUnprovisionedUsers: template error for superadmin %s: %v", email, err)
 			continue
 		}
-		if err := sendPlainEmail(email, "Superadmin", subject, body.String()); err != nil {
+		if err := sendPlainEmail(email, "Superadmin", subject, htmlBody, textBody); err != nil {
 			log.Printf("alertAdminsUnprovisionedUsers: email failed for superadmin %s: %v", email, err)
 			continue
 		}
@@ -275,8 +281,8 @@ func updateUserField(app core.App, userID, field, value string) error {
 
 // sendPlainEmail sends a single HTML email to one recipient.
 // Shared by all user management job emails.
-func sendPlainEmail(toEmail, toName, subject, htmlBody string) error {
-	return sendHTMLEmail([]Recipient{{Email: toEmail, Name: toName}}, subject, htmlBody)
+func sendPlainEmail(toEmail, toName, subject, htmlBody, textBody string) error {
+	return sendHTMLEmail([]Recipient{{Email: toEmail, Name: toName}}, subject, htmlBody, textBody)
 }
 
 // accountAgeDays calculates how many full days have elapsed since the account was created.

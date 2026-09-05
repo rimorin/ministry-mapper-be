@@ -1,10 +1,9 @@
 package jobs
 
 import (
-	"bytes"
 	"fmt"
-	"html/template"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -20,6 +19,7 @@ type notesData struct {
 	Address   string
 }
 type NotesTemplateData struct {
+	emailChrome
 	Notes   []notesData
 	Summary OverviewSummary
 }
@@ -117,12 +117,6 @@ func ProcessNote(congID string, app core.App, timeBuffer time.Duration) error {
 	}
 	log.Printf("Processing %d recipients\n", len(recipients))
 
-	tmpl, err := template.ParseFiles("templates/notes.html")
-	if err != nil {
-		log.Println("Error parsing template:", err)
-		return err
-	}
-
 	emailData := NotesTemplateData{
 		Notes: make([]notesData, 0),
 	}
@@ -151,19 +145,29 @@ func ProcessNote(congID string, app core.App, timeBuffer time.Duration) error {
 		emailData.Notes = append(emailData.Notes, notesData)
 	}
 
+	congregationName, _ := congRecord.Get("name").(string)
 	if IsAISummaryEnabled() {
-		congregationName, _ := congRecord.Get("name").(string)
 		emailData.Summary = generateNotesAISummary(emailData.Notes, congregationName)
 	}
 
-	var body bytes.Buffer
-	if err := tmpl.Execute(&body, emailData); err != nil {
-		log.Println("Error executing template:", err)
+	count := len(emailData.Notes)
+	emailData.emailChrome = emailChrome{
+		Preheader:   fmt.Sprintf("%s across your maps.", pluralize(count, "note")),
+		Kicker:      congregationName,
+		Title:       "New notes from the field",
+		Subtitle:    fmt.Sprintf("%s updated · %s", pluralize(count, "note"), time.Now().In(location).Format("2 Jan 2006")),
+		ButtonLabel: "Open Ministry Mapper",
+		ButtonURL:   os.Getenv("PB_APP_URL"),
+		Footer:      fmt.Sprintf("Sent to administrators of %s when publishers update notes on their maps.", congregationName),
+	}
+	htmlBody, textBody, err := renderEmail("notes.html", emailData)
+	if err != nil {
+		log.Println("Error rendering notes email:", err)
 		return err
 	}
 
-	subject := "Notes updated for " + congRecord.Get("name").(string) + " - " + time.Now().Format("02 Jan 2006")
-	if err := sendHTMLEmail(recipients, subject, body.String()); err != nil {
+	subject := fmt.Sprintf("%s: %s updated", congregationName, pluralize(count, "note"))
+	if err := sendHTMLEmail(recipients, subject, htmlBody, textBody); err != nil {
 		log.Println("Error sending email:", err)
 		return err
 	}

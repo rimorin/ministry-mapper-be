@@ -1,9 +1,7 @@
 package jobs
 
 import (
-	"bytes"
 	"fmt"
-	"html/template"
 	"log"
 	"os"
 	"time"
@@ -23,11 +21,11 @@ type inactiveUser struct {
 }
 
 type inactiveUserTmplData struct {
+	emailChrome
 	UserName     string
 	LastLogin    string
 	DeadlineDate string
 	DaysLeft     int
-	AppURL       string
 }
 
 const (
@@ -142,21 +140,16 @@ func processInactiveUsers(app core.App) error {
 
 // sendInactiveUserEmail sends a warning or final-warning email to an inactive user.
 func sendInactiveUserEmail(u inactiveUser, isFinal bool, deadlineDate string, daysLeft int, appURL string) error {
-	templateFile := "templates/user_inactive_warning.html"
+	templateFile := "user_inactive_warning.html"
 	subject := "Ministry Mapper: Your account will be deactivated due to inactivity"
 
 	if isFinal {
-		templateFile = "templates/user_inactive_final_warning.html"
+		templateFile = "user_inactive_final_warning.html"
 		unit := "days"
 		if daysLeft == 1 {
 			unit = "day"
 		}
 		subject = fmt.Sprintf("Ministry Mapper: Your account will be deactivated in %d %s", daysLeft, unit)
-	}
-
-	tmpl, err := template.ParseFiles(templateFile)
-	if err != nil {
-		return fmt.Errorf("sendInactiveUserEmail: parse template: %w", err)
 	}
 
 	lastLoginDisplay := "Never"
@@ -166,20 +159,34 @@ func sendInactiveUserEmail(u inactiveUser, isFinal bool, deadlineDate string, da
 		}
 	}
 
+	chrome := emailChrome{
+		Preheader:   fmt.Sprintf("Log in by %s to keep your account.", deadlineDate),
+		Kicker:      "Your account",
+		Title:       "We have not seen you in a while",
+		Subtitle:    fmt.Sprintf("Your account is disabled on %s unless you log in", deadlineDate),
+		ButtonLabel: "Log in to Ministry Mapper",
+		ButtonURL:   appURL,
+		Footer:      "Sent because this account has been inactive for about three months.",
+	}
+	if isFinal {
+		chrome.Preheader = fmt.Sprintf("Your account will be disabled on %s.", deadlineDate)
+		chrome.Title = "Last reminder before your account is disabled"
+		chrome.Footer = "Sent because this account has been inactive for about five months."
+	}
+
 	data := inactiveUserTmplData{
+		emailChrome:  chrome,
 		UserName:     displayName(u.Name, u.Email),
 		LastLogin:    lastLoginDisplay,
 		DeadlineDate: deadlineDate,
 		DaysLeft:     daysLeft,
-		AppURL:       appURL,
+	}
+	htmlBody, textBody, err := renderEmail(templateFile, data)
+	if err != nil {
+		return fmt.Errorf("sendInactiveUserEmail: %w", err)
 	}
 
-	var body bytes.Buffer
-	if err := tmpl.Execute(&body, data); err != nil {
-		return fmt.Errorf("sendInactiveUserEmail: execute template: %w", err)
-	}
-
-	return sendPlainEmail(u.Email, u.Name, subject, body.String())
+	return sendPlainEmail(u.Email, u.Name, subject, htmlBody, textBody)
 }
 
 // inactiveDays returns the number of days since the user last interacted with the system.

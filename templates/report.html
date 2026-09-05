@@ -1,291 +1,67 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.ReportTitle}} for {{.CongregationName}}</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            line-height: 1.6;
-            margin: 0;
-            padding: 15px;
-            background-color: #f4f4f4;
-            color: #333;
-        }
-        .container {
-            max-width: 600px;
-            margin: 20px auto;
-            background: #ffffff;
-            border-radius: 16px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-        .header {
-            background: linear-gradient(135deg, #2c3e50, #3498db);
-            color: white;
-            padding: 30px 20px;
-            text-align: center;
-        }
-        .header h1 {
-            margin: 0 0 6px;
-            font-size: 26px;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-        }
-        .header p {
-            margin: 0;
-            font-size: 15px;
-            opacity: 0.8;
-        }
-        .content {
-            padding: 30px 25px;
-        }
-        .content p {
-            margin: 0 0 15px;
-            font-size: 16px;
-        }
-        .report-details {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 14px 18px;
-            margin: 20px 0;
-            border-left: 4px solid #27ae60;
-        }
-        .report-item {
-            padding: 6px 0;
-            border-bottom: 1px solid #e1e4e8;
-        }
-        .report-item:last-child {
-            border-bottom: none;
-        }
-        .report-label {
-            font-weight: 600;
-            color: #2c3e50;
-            font-size: 14px;
-            display: block;
-        }
-        .report-value {
-            color: #666;
-            font-size: 14px;
-            display: block;
-            margin-top: 1px;
-        }
-        .ai-summary {
-            background: #f0f7ff;
-            border-radius: 12px;
-            padding: 20px;
-            margin: 20px 0;
-            border-left: 4px solid #3498db;
-        }
-        .ai-summary-title {
-            font-size: 15px;
-            font-weight: 700;
-            color: #1a5276;
-            margin: 0 0 16px;
-        }
-        .ai-section {
-            border-left: 3px solid #d6eaf8;
-            padding-left: 12px;
-            margin: 0 0 14px;
-        }
-        .ai-section-label {
-            font-size: 11px;
-            font-weight: 700;
-            color: #4A90B8;
-            letter-spacing: 0.6px;
-            margin: 0 0 4px;
-            text-transform: uppercase;
-        }
-        .ai-narrative {
-            font-size: 15px;
-            color: #2c3e50;
-            line-height: 1.7;
-            margin: 0;
-        }
-        .ai-stats-row {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin: 16px 0;
-        }
-        .ai-stat {
-            background: #ffffff;
-            border: 1px solid #d6eaf8;
-            border-radius: 8px;
-            padding: 8px 14px;
-            text-align: center;
-            min-width: 76px;
-        }
-        .ai-stat-value {
-            font-size: 20px;
-            font-weight: 700;
-            color: #1a5276;
-        }
-        .ai-stat-label {
-            font-size: 11px;
-            color: #7f8c8d;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-        }
-        .ai-section > p {
-            font-size: 14px;
-            color: #2c3e50;
-            line-height: 1.6;
-            margin: 0;
-        }
-        .action-list {
-            background: #fff7ed;
-            border-radius: 10px;
-            padding: 14px 18px;
-            margin: 20px 0;
-            border-left: 4px solid #f59e0b;
-        }
-        .action-list ul {
-            margin: 8px 0 0;
-            padding-left: 18px;
-        }
-        .action-list li {
-            font-size: 14px;
-            color: #2c3e50;
-            line-height: 1.5;
-            margin: 6px 0;
-        }
-        .attachment-notice {
-            background: #f0faf0;
-            border: 1px solid #a9dfbf;
-            border-radius: 10px;
-            padding: 14px 18px;
-            margin: 20px 0;
-            text-align: center;
-        }
-        .attachment-icon {
-            font-size: 22px;
-            display: inline;
-            margin-right: 8px;
-            vertical-align: middle;
-        }
-        .attachment-text {
-            font-weight: 600;
-            color: #1e8449;
-            font-size: 15px;
-            display: inline;
-            vertical-align: middle;
-        }
-        .footer {
-            background: #f8f9fa;
-            padding: 20px 25px;
-            text-align: center;
-            border-top: 1px solid #e1e4e8;
-        }
-        .footer p {
-            margin: 4px 0;
-            font-size: 13px;
-            color: #999;
-        }
-
-        @media (max-width: 600px) {
-            body { padding: 10px; }
-            .container { border-radius: 8px; }
-            .header { padding: 20px 15px; }
-            .header h1 { font-size: 20px; }
-            .content { padding: 20px 15px; }
-            .report-item { flex-direction: column; align-items: flex-start; gap: 2px; }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <img src="https://utfs.io/f/bVgrXJoWK1jGDTTaL1pCQvoZy96OGp3idmtuIMAB2PfK7RjS" alt="App Logo" style="width: 25%; height: auto; margin-bottom: 20px;">
-            <h1>{{.CongregationName}}</h1>
-            <p>{{.ReportTitle}} — {{.ReportDate}}</p>
-        </div>
-
-        <div class="content">
-            <p>Hello {{if .RecipientName}}{{.RecipientName}}{{else}}Administrators{{end}},</p>
-
-            {{if .Summary.Available}}
-            <div class="ai-summary">
-                <p class="ai-summary-title">📋 This period at a glance</p>
-
-                {{if .Summary.Coverage}}
-                <div class="ai-section">
-                    <p class="ai-section-label">What was done</p>
-                    <p class="ai-narrative">{{.Summary.Coverage}}</p>
-                </div>
-                {{end}}
-
-                {{if .Summary.NeedsAttention}}
-                <div class="ai-section">
-                    <p class="ai-section-label">What needs your attention</p>
-                    <p class="ai-narrative">{{.Summary.NeedsAttention}}</p>
-                </div>
-                {{end}}
-
-
-            </div>
-            {{else}}
-            <p>Your activity report for <strong>{{.ReportDate}}</strong> is attached. Open the Excel file for the full details.</p>
-            <div class="report-details">
-                <div class="report-item">
-                    <span class="report-label">{{if .IsOnDemand}}Report Period{{else}}Report Month{{end}}</span>
-                    <span class="report-value">{{.ReportDate}}</span>
-                </div>
-                <div class="report-item">
-                    <span class="report-label">Congregation</span>
-                    <span class="report-value">{{.CongregationName}}</span>
-                </div>
-            </div>
-            {{end}}
-
-            {{if .Summary.Activity}}
-            <div class="ai-stats-row">
-                <div class="ai-stat">
-                    <div class="ai-stat-value">{{.Summary.Visits}}</div>
-                    <div class="ai-stat-label">Visits</div>
-                </div>
-                {{range .Summary.Activity}}{{if eq .Status "done"}}
-                <div class="ai-stat">
-                    <div class="ai-stat-value">{{.Count}}</div>
-                    <div class="ai-stat-label">Reached</div>
-                </div>
-                {{end}}{{end}}
-                {{range .Summary.Activity}}{{if eq .Status "not_home"}}
-                <div class="ai-stat">
-                    <div class="ai-stat-value">{{.Count}}</div>
-                    <div class="ai-stat-label">Nobody home</div>
-                </div>
-                {{end}}{{end}}
-                {{range .Summary.Activity}}{{if eq .Status "do_not_call"}}
-                <div class="ai-stat">
-                    <div class="ai-stat-value">{{.Count}}</div>
-                    <div class="ai-stat-label">Do not call</div>
-                </div>
-                {{end}}{{end}}
-            </div>
-            {{end}}
-
-            {{with .Summary.ActionItems}}
-            <div class="action-list">
-                <p class="ai-section-label">To do</p>
-                <ul>
-                    {{range .}}<li><strong>{{.Category | html}}</strong> — {{.Text | html}}</li>
-                    {{end}}
-                </ul>
-            </div>
-            {{end}}
-
-            <div class="attachment-notice">
-                <div class="attachment-icon">📊</div>
-                <div class="attachment-text">Excel Report Attached</div>
-            </div>
-        </div>
-
-        <div class="footer">
-            <p>© 2026 Ministry Mapper. All rights reserved.</p>
-            <p>{{if .IsOnDemand}}You requested this report as an administrator of your congregation.{{else}}You received this email because you're an administrator of your congregation.{{end}}</p>
-        </div>
-    </div>
-</body>
-</html>
+{{define "content"}}
+{{if .Summary.Activity}}
+<tr>
+  <td class="em-pad" style="padding:20px 32px 4px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td class="em-tile" width="25%" valign="top" style="background-color:#f4f5f7;border-radius:6px;padding:12px 14px;">
+        <p class="em-muted" style="margin:0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;">Visits</p>
+        <p style="margin:4px 0 0;font-size:26px;line-height:1.1;font-weight:600;color:#1f2937;">{{.Summary.Visits}}</p>
+      </td>
+      <td class="em-tile-sep" width="8"></td>
+      <td class="em-tile" width="25%" valign="top" style="background-color:#f4f5f7;border-radius:6px;padding:12px 14px;">
+        <p class="em-muted" style="margin:0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;">Reached</p>
+        <p style="margin:4px 0 0;font-size:26px;line-height:1.1;font-weight:600;color:#16a34a;">{{.Summary.Count "done"}}</p>
+      </td>
+      <td class="em-tile-sep" width="8"></td>
+      <td class="em-tile" width="25%" valign="top" style="background-color:#f4f5f7;border-radius:6px;padding:12px 14px;">
+        <p class="em-muted" style="margin:0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;">Nobody home</p>
+        <p style="margin:4px 0 0;font-size:26px;line-height:1.1;font-weight:600;color:#d97706;">{{.Summary.Count "not_home"}}</p>
+      </td>
+      <td class="em-tile-sep" width="8"></td>
+      <td class="em-tile" width="25%" valign="top" style="background-color:#f4f5f7;border-radius:6px;padding:12px 14px;">
+        <p class="em-muted" style="margin:0;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;">Do not call</p>
+        <p style="margin:4px 0 0;font-size:26px;line-height:1.1;font-weight:600;color:#dc2626;">{{.Summary.Count "do_not_call"}}</p>
+      </td>
+    </tr></table>
+  </td>
+</tr>
+{{end}}
+{{if .Summary.Available}}
+<tr>
+  <td class="em-pad" style="padding:24px 32px 0;">
+    {{template "label" "What was done"}}
+    <p style="margin:0;font-size:16px;line-height:1.55;color:#1f2937;">{{.Summary.Coverage}}</p>
+  </td>
+</tr>
+<tr>
+  <td class="em-pad" style="padding:20px 32px 0;">
+    {{template "label" "What needs your attention"}}
+    <p style="margin:0;font-size:16px;line-height:1.55;color:#1f2937;">{{.Summary.NeedsAttention}}</p>
+  </td>
+</tr>
+{{else}}
+<tr>
+  <td class="em-pad" style="padding:16px 32px 0;">
+    <p style="margin:0;font-size:16px;line-height:1.55;color:#1f2937;">Your activity report for {{.ReportDate}} is attached. Open the Excel file for the full details.</p>
+  </td>
+</tr>
+{{end}}
+{{with .Summary.ActionItems}}
+<tr>
+  <td class="em-pad" style="padding:24px 32px 0;">
+    {{template "label" "To do"}}
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      {{range .}}<tr>
+        <td class="em-line" width="14" valign="top" style="padding:12px 0;border-top:1px solid #e5e7eb;"><span style="display:inline-block;width:10px;height:10px;border-radius:5px;background-color:{{.Color}};margin-top:6px;"></span></td>
+        <td class="em-line" valign="top" style="padding:12px 0 12px 10px;border-top:1px solid #e5e7eb;font-size:15px;line-height:1.5;color:#1f2937;"><span class="em-strong" style="font-weight:600;">{{.Category}}.</span> {{.Text}}</td>
+      </tr>{{end}}
+    </table>
+  </td>
+</tr>
+{{end}}
+<tr>
+  <td class="em-pad" style="padding:24px 32px 20px;">
+    <p class="em-muted" style="margin:0;font-size:14px;line-height:1.5;color:#6b7280;">The full workbook is attached: <span class="em-strong" style="color:#1f2937;">{{.FileName}}</span>. It opens on a Summary sheet with every territory linked.</p>
+  </td>
+</tr>
+{{end}}
