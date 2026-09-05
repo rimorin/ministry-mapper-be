@@ -29,15 +29,25 @@ func TestCheckNarrative_AcceptsGroundedFigures(t *testing.T) {
 func TestCheckNarrative_RejectsInventedNumber(t *testing.T) {
 	resp := LLMResponse{Coverage: "Publishers reached 1,400 households.", NeedsAttention: "Nothing to act on."}
 	err := checkNarrative(resp, checkPrompt)
-	if err == nil || !strings.Contains(err.Error(), "number 1,400") {
+	if err == nil || !strings.Contains(err.Error(), "1,400") {
 		t.Fatalf("expected the invented number to be reported, got %v", err)
 	}
 }
 
 func TestCheckNarrative_RejectsInventedMapName(t *testing.T) {
-	resp := LLMResponse{Coverage: "M04 reached 142.", NeedsAttention: `Map "Block 999" in M05 is stalled.`}
+	resp := LLMResponse{Coverage: "M04 reached 142.", NeedsAttention: `Map "Block Nine" in M05 is stalled.`}
 	err := checkNarrative(resp, checkPrompt)
-	if err == nil || !strings.Contains(err.Error(), `name "Block 999"`) {
+	if err == nil || !strings.Contains(err.Error(), `"Block Nine"`) {
 		t.Fatalf("expected the invented map name to be reported, got %v", err)
+	}
+}
+
+func TestGroundedNumbers_NormalisesSeparatorsAndLeadingZeros(t *testing.T) {
+	source := "Address: Blk 412 #05-12\nDate: 02 Aug 2026\nTotal 1,305"
+	if err := groundedNumbers(source, "Blk 412 unit 5-12 on 2 Aug: 1305 homes."); err != nil {
+		t.Errorf("normalised numbers rejected: %v", err)
+	}
+	if err := groundedNumbers(source, "Blk 413 has a dog."); err == nil || !strings.Contains(err.Error(), "413") {
+		t.Errorf("invented block number accepted: %v", err)
 	}
 }

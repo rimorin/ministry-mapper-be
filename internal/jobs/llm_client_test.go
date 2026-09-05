@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"encoding/json"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -27,7 +28,7 @@ func TestResponseSchemas_Strict(t *testing.T) {
 	cases := map[string][]string{
 		"territory_report":  {"coverage", "needs_attention"},
 		"overview_only":     {"overview"},
-		"messages_overview": {"overview", "key_themes"},
+		"messages_overview": {"overview", "todo"},
 	}
 
 	for _, sc := range []shared.ResponseFormatJSONSchemaJSONSchemaParam{
@@ -81,8 +82,12 @@ func TestResponseSchemas_MatchStructTags(t *testing.T) {
 		def := schema["schema"].(map[string]any)
 
 		payload := map[string]any{}
-		for f := range def["properties"].(map[string]any) {
-			payload[f] = "x"
+		for f, p := range def["properties"].(map[string]any) {
+			if p.(map[string]any)["type"] == "array" {
+				payload[f] = []any{"x"}
+			} else {
+				payload[f] = "x"
+			}
 		}
 		raw, err := json.Marshal(payload)
 		if err != nil {
@@ -100,8 +105,8 @@ func TestResponseSchemas_MatchStructTags(t *testing.T) {
 		if err := json.Unmarshal(round, &back); err != nil {
 			t.Fatal(err)
 		}
-		for f := range payload {
-			if back[f] != "x" {
+		for f, want := range payload {
+			if !reflect.DeepEqual(back[f], want) {
 				t.Errorf("%s: schema field %q does not map to a struct field", schema["name"], f)
 			}
 		}

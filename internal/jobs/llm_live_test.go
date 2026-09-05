@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,13 +100,13 @@ func TestLiveOverviewOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generateOverview (overview_only): %v", err)
 	}
-	fmt.Printf("=== NOTES OVERVIEW ===\n%s\n\nkey_themes (must be empty): %q\n\n", resp.Overview, resp.KeyThemes)
+	fmt.Printf("=== NOTES OVERVIEW ===\n%s\n\ntodo (must be empty): %q\n\n", resp.Overview, resp.Todo)
 
 	if resp.Overview == "" {
 		t.Error("overview must be populated")
 	}
-	if resp.KeyThemes != "" {
-		t.Error("strict schema must prevent key_themes on the overview_only shape")
+	if len(resp.Todo) != 0 {
+		t.Error("strict schema must prevent todo on the overview_only shape")
 	}
 }
 
@@ -120,9 +121,9 @@ func TestLiveMessagesOverview(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generateOverview (messages_overview): %v", err)
 	}
-	fmt.Printf("=== MESSAGES OVERVIEW ===\n%s\n\nKEY THEMES:\n%s\n\n", resp.Overview, resp.KeyThemes)
+	fmt.Printf("=== MESSAGES OVERVIEW ===\n%s\n\nTO DO:\n%s\n\n", resp.Overview, strings.Join(resp.Todo, "\n"))
 
-	if resp.Overview == "" || resp.KeyThemes == "" {
+	if resp.Overview == "" {
 		t.Error("both fields must be populated")
 	}
 }

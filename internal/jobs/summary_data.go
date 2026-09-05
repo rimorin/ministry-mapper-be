@@ -635,19 +635,14 @@ Paragraph 2 — WHAT NEEDS ATTENTION (1-3 sentences):
   Do not list every item; the reader has the full list next to your text.
   If ACTION ITEMS is empty, say in one sentence that there is nothing to act on.
 
-WRITING RULES:
-- Write for a busy reader on a phone. Sentences of 15 words or fewer. One fact per sentence.
-- Start each sentence with the place (territory or map), then the number, then what it means.
-- Everyday words only. Say "homes", not households, addresses or units. Say "nobody home",
-  not not_home. Say "do not call", not DNC. Say "finished", not completed or 100%. Say
-  "not started", not stalled or 0%. Call reached homes "reached", every time.
+` + plainLanguageRules + `- Start each sentence with the place (territory or map), then the number, then what it means.
+- Say "finished", not completed or 100%. Say "not started", not stalled or 0%. Call reached
+  homes "reached", every time.
 - Never use these words: attempt limit, threshold, review level, concentration, cumulative,
   retrying, status, progress percentage.
-- Use only the figures given. Never invent, infer or recompute a number. Compare with the
-  previous period only through the change values given; when none are given, make no
-  comparison at all.
-- Do not judge the period as good, busy, strong, slow or encouraging. No praise, no
-  exhortation. A high nobody-home count is a concern, never a strength.
+- Compare with the previous period only through the change values given; when none are
+  given, make no comparison at all.
+- A high nobody-home count is a concern, never a strength.
 - Do not recommend which territory to assign next — that is the territory servant's decision.
 - Name a map by its description as shown, e.g. map "Block 412" in territory M05 — never
   slash notation like "M05/112 (5)".

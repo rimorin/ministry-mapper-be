@@ -26,34 +26,24 @@ type EmailTemplateData struct {
 
 // BuildMessagesPrompt constructs the system and user messages for the messages AI overview.
 func BuildMessagesPrompt(messages []messagesData, congregationName string) (systemMsg, userMsg string) {
-	systemMsg = `You are an assistant helping congregation administrators review a digest of ` +
-		`recently received feedback messages from publishers about their assigned map territories. ` +
-		`Messages may cover topics like map boundaries, access difficulties, special conditions, ` +
-		`coordination requests, territory observations, or address corrections such as missing ` +
-		`house numbers and incorrect unit details. ` +
-		`Analyse the messages and return a JSON object with exactly two fields: ` +
-		`"overview" (2-3 sentence narrative summarising the recent publisher feedback) and ` +
-		`"key_themes" (1-2 sentences identifying the main concerns or action items administrators ` +
-		`should address, including any address data corrections needed). ` +
-		`Be factual, concise, and respectful.`
+	systemMsg = `You write a short digest for congregation administrators of the messages below,
+sent by publishers about their maps: boundaries, access problems, special conditions,
+requests, and address corrections such as missing house numbers or wrong unit details.
+The full list is shown under your text.
+
+Return JSON with exactly two fields:
+  "overview": at most 2 sentences on what the messages are about.
+  "todo": up to 3 short lines. Each names the map and the one thing an administrator
+          should do, taken only from the messages. Leave the list empty if nothing needs doing.
+
+` + plainLanguageRules
 
 	var sb strings.Builder
-	sb.WriteString("Recent publisher feedback for ")
-	sb.WriteString(congregationName)
-	sb.WriteString(" congregation:\n\n")
+	sb.WriteString("Recent publisher feedback for " + congregationName + " congregation:\n\n")
 	for _, m := range messages {
-		sb.WriteString("Map: ")
-		sb.WriteString(m.MapName)
-		sb.WriteString("\n")
-		sb.WriteString("Publisher: ")
-		sb.WriteString(m.Publisher)
-		sb.WriteString("\n")
-		sb.WriteString("Date: ")
-		sb.WriteString(m.Date)
-		sb.WriteString("\n")
-		sb.WriteString("Message: ")
-		sb.WriteString(m.Message)
-		sb.WriteString("\n\n")
+		sb.WriteString("Map: " + m.MapName + "\n")
+		sb.WriteString("Date: " + m.Date + "\n")
+		sb.WriteString("Message: " + m.Message + "\n\n")
 	}
 	userMsg = sb.String()
 	return
@@ -62,6 +52,9 @@ func BuildMessagesPrompt(messages []messagesData, congregationName string) (syst
 // generateMessagesAISummary builds an OverviewSummary from the messages list.
 // Returns an empty OverviewSummary (Available=false) if AI is disabled or the call fails.
 func generateMessagesAISummary(messages []messagesData, congregationName string) OverviewSummary {
+	if len(messages) < overviewMinItems {
+		return OverviewSummary{}
+	}
 	client := newLLMClient()
 	if client == nil {
 		log.Printf("AI overview skipped for messages (%s): OPENAI_API_KEY not set", congregationName)
@@ -74,11 +67,19 @@ func generateMessagesAISummary(messages []messagesData, congregationName string)
 		log.Printf("AI overview: LLM call failed for messages (%s): %v", congregationName, err)
 		return OverviewSummary{}
 	}
+	todo := resp.Todo
+	if len(todo) > 3 {
+		todo = todo[:3]
+	}
+	if err := groundedNumbers(userMsg, append([]string{resp.Overview}, todo...)...); err != nil {
+		log.Printf("AI overview dropped for messages (%s): %v", congregationName, err)
+		return OverviewSummary{}
+	}
 
 	return OverviewSummary{
 		Available: true,
 		Overview:  resp.Overview,
-		KeyThemes: resp.KeyThemes,
+		Todo:      todo,
 	}
 }
 

@@ -13,18 +13,19 @@ import (
 	"github.com/openai/openai-go/v3/shared"
 )
 
-// OverviewLLMResponse holds the parsed JSON output from the AI model for notes and messages emails.
+// OverviewLLMResponse holds the parsed JSON output from the AI model for the notes,
+// messages and instructions emails. Todo is filled only by the messages shape.
 type OverviewLLMResponse struct {
-	Overview  string `json:"overview"`
-	KeyThemes string `json:"key_themes"`
+	Overview string   `json:"overview"`
+	Todo     []string `json:"todo"`
 }
 
-// OverviewSummary is the template-ready AI overview for notes and messages emails.
-// Available is set true only after a successful LLM call populates the narrative fields.
+// OverviewSummary is the template-ready AI overview for those emails.
+// Available is set true only after a successful, grounded LLM call.
 type OverviewSummary struct {
 	Available bool
 	Overview  string
-	KeyThemes string
+	Todo      []string
 }
 
 // llmClient wraps the official OpenAI Go SDK for generating congregation summaries.
@@ -73,11 +74,24 @@ func jsonSchema(name string, fields ...string) shared.ResponseFormatJSONSchemaJS
 }
 
 // One schema per response shape, so a caller can never receive a field its prompt did
-// not ask for — the notes and instructions prompts ask for "exactly one field".
+// not ask for — the notes and instructions prompts ask for "exactly one field". The
+// messages shape adds a to-do list; strict mode has no maxItems, so the prompt caps it.
 var (
 	territoryReportSchema  = jsonSchema("territory_report", "coverage", "needs_attention")
 	overviewOnlySchema     = jsonSchema("overview_only", "overview")
-	messagesOverviewSchema = jsonSchema("messages_overview", "overview", "key_themes")
+	messagesOverviewSchema = shared.ResponseFormatJSONSchemaJSONSchemaParam{
+		Name:   "messages_overview",
+		Strict: openai.Bool(true),
+		Schema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"overview": map[string]any{"type": "string"},
+				"todo":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			},
+			"required":             []string{"overview", "todo"},
+			"additionalProperties": false,
+		},
+	}
 )
 
 // callLLM makes the API call and returns the raw JSON content string. The schema is

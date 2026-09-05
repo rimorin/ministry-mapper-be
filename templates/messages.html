@@ -179,7 +179,7 @@
     <div class="container">
         <div class="header">
             <img src="https://utfs.io/f/bVgrXJoWK1jGDTTaL1pCQvoZy96OGp3idmtuIMAB2PfK7RjS" alt="App Logo" style="width: 25%; height: auto; margin-bottom: 20px;">
-            <h1>New Messages Alert</h1>
+            <h1>New messages from publishers</h1>
             <p>You have received new messages</p>
         </div>
         
@@ -190,19 +190,21 @@
             <div class="feedback-container">
                 {{if .Summary.Available}}
                 <div class="ai-summary">
-                    <p class="ai-summary-title">📋 Map Feedback Overview</p>
+                    <p class="ai-summary-title">📋 In short</p>
 
                     {{if .Summary.Overview}}
                     <div class="ai-section">
-                        <p class="ai-section-label">Feedback Summary</p>
+                        <p class="ai-section-label">What publishers said</p>
                         <p class="ai-narrative">{{.Summary.Overview}}</p>
                     </div>
                     {{end}}
-
-                    {{if .Summary.KeyThemes}}
+                    {{if .Summary.Todo}}
                     <div class="ai-section">
-                        <p class="ai-section-label">Action Items</p>
-                        <p class="ai-narrative">{{.Summary.KeyThemes}}</p>
+                        <p class="ai-section-label">To do</p>
+                        <ul class="ai-narrative" style="margin:0;padding-left:18px;">
+                            {{range .Summary.Todo}}<li>{{.}}</li>
+                            {{end}}
+                        </ul>
                     </div>
                     {{end}}
                 </div>

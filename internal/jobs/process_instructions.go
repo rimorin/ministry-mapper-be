@@ -14,18 +14,18 @@ import (
 
 // BuildInstructionsPrompt constructs the system and user messages for the instructions AI overview.
 func BuildInstructionsPrompt(messages []messagesData, mapName string) (systemMsg, userMsg string) {
-	systemMsg = `You are an assistant helping congregation publishers understand instructions ` +
-		`from their administrator about their assigned territory map. ` +
-		`These instructions may include directives, special conditions, access notes, ` +
-		`or other guidance the administrator wants publishers to follow. ` +
-		`Analyse the instructions and return a JSON object with exactly one field: ` +
-		`"overview" (2-3 sentence narrative summarising the key directives and what publishers need to do or be aware of). ` +
-		`Be factual, concise, and respectful.`
+	systemMsg = `You write a short summary for publishers of the administrator's instructions below
+for one territory map. Publishers read it on a phone before working the map. The full
+instructions are shown under your text.
+
+Return JSON with exactly one field: "overview" (at most 2 sentences on what publishers
+must do or watch out for).
+
+` + plainLanguageRules
 
 	var sb strings.Builder
 	sb.WriteString("Administrator instructions for territory map " + mapName + ":\n\n")
 	for _, m := range messages {
-		sb.WriteString("From: " + m.Publisher + "\n")
 		sb.WriteString("Date: " + m.Date + "\n")
 		sb.WriteString("Instruction: " + m.Message + "\n\n")
 	}
@@ -36,6 +36,9 @@ func BuildInstructionsPrompt(messages []messagesData, mapName string) (systemMsg
 // generateInstructionsAISummary builds an OverviewSummary from the instructions list.
 // Returns an empty OverviewSummary (Available=false) if AI is disabled or the call fails.
 func generateInstructionsAISummary(messages []messagesData, mapName string) OverviewSummary {
+	if len(messages) < overviewMinItems {
+		return OverviewSummary{}
+	}
 	client := newLLMClient()
 	if client == nil {
 		log.Printf("AI overview skipped for instructions (%s): OPENAI_API_KEY not set", mapName)
@@ -46,6 +49,10 @@ func generateInstructionsAISummary(messages []messagesData, mapName string) Over
 	resp, err := client.generateOverview(systemMsg, userMsg, overviewOnlySchema)
 	if err != nil {
 		log.Printf("AI overview: LLM call failed for instructions (%s): %v", mapName, err)
+		return OverviewSummary{}
+	}
+	if err := groundedNumbers(userMsg, resp.Overview); err != nil {
+		log.Printf("AI overview dropped for instructions (%s): %v", mapName, err)
 		return OverviewSummary{}
 	}
 
