@@ -287,20 +287,20 @@ func TestBuildPrompt_OmitsReopenedColumn(t *testing.T) {
 	}
 }
 
-func TestBuildPrompt_NotHomeFatigueWithElevatedFlag(t *testing.T) {
+func TestBuildPrompt_ReviewNeededTerritoryListed(t *testing.T) {
 	data := minimalSummaryData()
 	data.NotHomeFatigue = []NotHomeFatigue{
-		{TerritoryCode: "T1", MaxedOut: 40, Retrying: 10, MaxedOutPct: 80.0},
+		{TerritoryCode: "T1", MaxedOut: 40, Retrying: 10, MaxedOutPct: 80.0, ReviewNeeded: true},
 	}
 
 	_, userMsg := BuildPrompt(data)
 
-	if !strings.Contains(userMsg, "high") {
-		t.Error("user message should flag ≥35%% maxed-out rate as 'high'")
+	if !strings.Contains(userMsg, "[Nobody home after all tries] T1: 40 homes had nobody home on every allowed visit. Decide whether to reset them, mark them invalid, or plan a special visit.") {
+		t.Errorf("user message should carry the review action item; got:\n%s", userMsg)
 	}
 }
 
-func TestBuildPrompt_NotHomeFatigueNoFlag(t *testing.T) {
+func TestBuildPrompt_UnflaggedTerritoryNotListed(t *testing.T) {
 	data := minimalSummaryData()
 	data.NotHomeFatigue = []NotHomeFatigue{
 		{TerritoryCode: "T2", MaxedOut: 5, Retrying: 40, MaxedOutPct: 11.1},
@@ -308,8 +308,63 @@ func TestBuildPrompt_NotHomeFatigueNoFlag(t *testing.T) {
 
 	_, userMsg := BuildPrompt(data)
 
-	if strings.Contains(userMsg, "elevated") {
-		t.Error("user message should NOT flag <35%% maxed-out rate as 'elevated'")
+	if strings.Contains(userMsg, "T2") {
+		t.Error("a territory below the review thresholds must not appear as an action item")
+	}
+	if !strings.Contains(userMsg, "ACTION ITEMS: none") {
+		t.Error("user message should say there are no action items")
+	}
+}
+
+func TestSummaryData_ActionItems(t *testing.T) {
+	data := SummaryData{
+		NotHomeFatigue: []NotHomeFatigue{
+			{TerritoryCode: "A", MaxedOut: 12, MaxedOutPct: 40, ReviewNeeded: true, Stale: 3},
+			{TerritoryCode: "B", MaxedOut: 48, MaxedOutPct: 92, ReviewNeeded: true, Stale: 25},
+			{TerritoryCode: "C", MaxedOut: 1, MaxedOutPct: 100, Stale: 429},
+			{TerritoryCode: "D", MaxedOut: 20, MaxedOutPct: 50, ReviewNeeded: true},
+			{TerritoryCode: "E", MaxedOut: 15, MaxedOutPct: 60, ReviewNeeded: true},
+		},
+		StalledMaps: []MapHealthItem{{TerritoryCode: "W17", MapDescription: "903A North Woodlands Drive", NotDone: 318}},
+		HighDNCMaps: []MapHealthItem{{TerritoryCode: "M08", MapDescription: "149, Woodlands Street 13", DNC: 7}},
+	}
+
+	items := data.ActionItems()
+
+	got := make([]string, len(items))
+	for i, it := range items {
+		got[i] = it.Category + " | " + it.Text
+	}
+	want := []string{
+		// review items: most maxed-out first, capped at three (A is dropped)
+		"Nobody home after all tries | B: 48 homes had nobody home on every allowed visit. Decide whether to reset them, mark them invalid, or plan a special visit.",
+		"Nobody home after all tries | D: 20 homes had nobody home on every allowed visit. Decide whether to reset them, mark them invalid, or plan a special visit.",
+		"Nobody home after all tries | E: 15 homes had nobody home on every allowed visit. Decide whether to reset them, mark them invalid, or plan a special visit.",
+		// stale: C qualifies on count alone even though it is not flagged for review; A is below the floor
+		"Return visits overdue | C: 429 homes are waiting for a return visit and have not been tried for over two weeks.",
+		"Return visits overdue | B: 25 homes are waiting for a return visit and have not been tried for over two weeks.",
+		"Map not started | W17, map \"903A North Woodlands Drive\": 318 homes, none visited yet.",
+		"Many do-not-call homes | M08, map \"149, Woodlands Street 13\": 7 homes have asked not to be called again.",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("action items:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if len(SummaryData{}.ActionItems()) != 0 {
+		t.Error("empty data must produce no action items")
+	}
+}
+
+func TestStripTerritorySuffix(t *testing.T) {
+	cases := map[[2]string]string{
+		{"26, Marsiling Drive (M04)", "M04"}: "26, Marsiling Drive",
+		{"26, Marsiling Drive (M04)", "M05"}: "26, Marsiling Drive (M04)",
+		{"Blk 412", "M04"}:                   "Blk 412",
+		{"(M04)", ""}:                        "(M04)",
+	}
+	for in, want := range cases {
+		if got := stripTerritorySuffix(in[0], in[1]); got != want {
+			t.Errorf("stripTerritorySuffix(%q, %q) = %q; want %q", in[0], in[1], got, want)
+		}
 	}
 }
 
@@ -420,5 +475,64 @@ func minimalSummaryData() SummaryData {
 		Period:           "February 2026",
 		Territories:      []TerritoryProgress{},
 		Activity:         []ActivityItem{},
+	}
+}
+
+func TestBuildPrompt_PreviousPeriodRendered(t *testing.T) {
+	data := minimalSummaryData()
+	data.HasPrevious = true
+	data.PreviousPeriod = "January 2026"
+	data.HouseholdsReached, data.PrevHouseholdsReached = 142, 98
+	data.Visits, data.PrevVisits = 300, 320
+	data.ActiveTerritories, data.PrevActiveTerritories = 5, 5
+	data.MonthlyByTerritory = []TerritoryMonthlyActivity{{TerritoryCode: "T1", Done: 40, PrevDone: 25}}
+	_, userMsg := BuildPrompt(data)
+
+	for _, expected := range []string{
+		"PREVIOUS PERIOD (January 2026)",
+		"98   change: +44",
+		"320   change: -20",
+		"5   change: +0",
+		"Prev Done",
+	} {
+		if !strings.Contains(userMsg, expected) {
+			t.Errorf("user message missing %q", expected)
+		}
+	}
+	if strings.Contains(userMsg, "nothing to compare against") {
+		t.Error("user message says there is nothing to compare when previous figures exist")
+	}
+}
+
+func TestBuildPrompt_NoPreviousPeriod(t *testing.T) {
+	data := minimalSummaryData()
+	data.PreviousPeriod = "January 2026"
+	_, userMsg := BuildPrompt(data)
+
+	if !strings.Contains(userMsg, "PREVIOUS PERIOD (January 2026): no visits recorded, so there is nothing to compare against.") {
+		t.Errorf("user message should say the previous period has nothing to compare; got:\n%s", userMsg)
+	}
+	if strings.Contains(userMsg, "change:") {
+		t.Error("no change values should be printed without a previous period")
+	}
+}
+
+func TestReportPeriod_Previous(t *testing.T) {
+	monthly := PreviousCalendarMonth()
+	prev := monthly.previous()
+	if !prev.End.Equal(monthly.Start) || !prev.Start.Equal(monthly.Start.AddDate(0, -1, 0)) {
+		t.Errorf("monthly previous = %s..%s; want the month before %s", prev.Start, prev.End, monthly.Start)
+	}
+	if prev.Label != prev.Start.Format("January 2006") {
+		t.Errorf("monthly previous label = %q", prev.Label)
+	}
+
+	rolling := RollingDays(30)
+	prev = rolling.previous()
+	if !prev.End.Equal(rolling.Start) || prev.End.Sub(prev.Start) != rolling.End.Sub(rolling.Start) {
+		t.Errorf("rolling previous = %s..%s; want an equal-length window ending at %s", prev.Start, prev.End, rolling.Start)
+	}
+	if !strings.Contains(prev.Label, " – ") {
+		t.Errorf("rolling previous label = %q; want a range", prev.Label)
 	}
 }

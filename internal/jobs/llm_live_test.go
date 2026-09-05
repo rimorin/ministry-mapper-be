@@ -59,7 +59,7 @@ func liveSampleData() SummaryData {
 		HouseholdsReached: 762,
 		Visits:            1519,
 		NotHomeFatigue: []NotHomeFatigue{
-			{TerritoryCode: "W03", MaxedOut: 88, Retrying: 120, Stale: 40, MaxedOutPct: 42.3},
+			{TerritoryCode: "W03", MaxedOut: 88, Retrying: 120, Stale: 40, MaxedOutPct: 42.3, ReviewNeeded: true},
 			{TerritoryCode: "M09", MaxedOut: 10, Retrying: 150, Stale: 3, MaxedOutPct: 6.3},
 		},
 		StalledMaps:   []MapHealthItem{{TerritoryCode: "W11", MapDescription: "Blk 118 Rivervale", NotDone: 96}},

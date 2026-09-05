@@ -38,15 +38,36 @@ type TerritoryMonthlyActivity struct {
 	Done          int
 	NotHome       int
 	DNC           int
+	PrevDone      int // done in the previous period, for a pre-computed comparison
 }
+
+// Thresholds that turn raw counts into something worth an admin's attention.
+// Small territories trip percentage rules on one or two addresses, so every
+// rule also carries a minimum count.
+const (
+	fatigueReviewPct   = 35 // share of not-home addresses at the attempt limit
+	fatigueReviewMin   = 10 // ...and at least this many of them
+	staleMin           = 10 // retrying addresses untouched for over 14 days
+	highDNCMin         = 5  // do-not-call addresses on one map
+	actionItemsPerKind = 3
+)
 
 // NotHomeFatigue summarises not-home retry state per territory.
 type NotHomeFatigue struct {
 	TerritoryCode string
 	MaxedOut      int
 	Retrying      int
-	Stale         int     // not-home addresses not retried in >14 days
+	Stale         int     // retrying addresses not retried in >14 days
 	MaxedOutPct   float64 // maxed_out / total * 100, pre-computed
+	ReviewNeeded  bool    // MaxedOut >= fatigueReviewMin and MaxedOutPct >= fatigueReviewPct
+}
+
+// ActionItem is one line the territory servant should act on. The list is
+// derived from thresholds in Go, shown in the email as a checklist, and handed
+// to the model so the narrative and the list never disagree.
+type ActionItem struct {
+	Category string
+	Text     string
 }
 
 // MapHealthItem represents a single map for health reporting.
@@ -78,12 +99,19 @@ type SummaryData struct {
 	ActiveTerritories int // territories with at least one visit this period
 	HouseholdsReached int // "done" changes this period
 	Visits            int // done + not_home + do_not_call this period (excludes resets/invalid)
-	NotHomeFatigue    []NotHomeFatigue
-	StalledMaps       []MapHealthItem
-	CompletedMaps     []MapHealthItem
-	HighDNCMaps       []MapHealthItem // top 3 by DNC count
-	Coverage          string          // paragraph 1: what was covered this period
-	NeedsAttention    string          // paragraph 2: items for the territory servant to act on
+	// The period of equal length before this one, pre-counted so any comparison
+	// the narrative makes quotes a computed change rather than deriving one.
+	PreviousPeriod        string
+	HasPrevious           bool // false when the earlier window saw no visits
+	PrevHouseholdsReached int
+	PrevVisits            int
+	PrevActiveTerritories int
+	NotHomeFatigue        []NotHomeFatigue
+	StalledMaps           []MapHealthItem
+	CompletedMaps         []MapHealthItem
+	HighDNCMaps           []MapHealthItem // top 3 by DNC count
+	Coverage              string          // paragraph 1: what was covered this period
+	NeedsAttention        string          // paragraph 2: items for the territory servant to act on
 }
 
 // OnDemandReportDays is the default rolling window size for on-demand reports.
@@ -124,6 +152,23 @@ func RollingDays(days int) ReportPeriod {
 		End:        end,
 		Label:      fmt.Sprintf("%s – %s", start.Format("2 Jan 2006"), today.Format("2 Jan 2006")),
 		fileTag:    fmt.Sprintf("%s_%s", start.Format("20060102"), today.Format("20060102")),
+		IsOnDemand: true,
+	}
+}
+
+// previous returns the period of equal length that ends where p starts, labelled
+// in the same style, so the narrative compares like with like.
+func (p ReportPeriod) previous() ReportPeriod {
+	if !p.IsOnDemand {
+		start := p.Start.AddDate(0, -1, 0)
+		return ReportPeriod{Start: start, End: p.Start, Label: start.Format("January 2006")}
+	}
+	start := p.Start.Add(-p.End.Sub(p.Start))
+	last := p.Start.AddDate(0, 0, -1)
+	return ReportPeriod{
+		Start:      start,
+		End:        p.Start,
+		Label:      fmt.Sprintf("%s – %s", start.Format("2 Jan 2006"), last.Format("2 Jan 2006")),
 		IsOnDemand: true,
 	}
 }
@@ -287,7 +332,8 @@ func queryMonthlyActivityByTerritory(app core.App, congregationId string, period
 }
 
 // queryNotHomeFatigue fetches not-home retry counts per territory from analytics_not_home.
-// Stale counts are addresses where the publisher has not re-attempted in more than 14 days.
+// Stale counts retrying addresses that nobody has re-attempted in more than 14 days;
+// maxed-out addresses are excluded because no retry is expected for them.
 func queryNotHomeFatigue(app core.App, congregationId string) ([]NotHomeFatigue, error) {
 	type row struct {
 		TerritoryCode string `db:"territory_code"`
@@ -300,7 +346,8 @@ func queryNotHomeFatigue(app core.App, congregationId string) ([]NotHomeFatigue,
 		SELECT t.code AS territory_code,
 		       SUM(CASE WHEN anh.retry_status = 'maxed_out' THEN 1 ELSE 0 END) AS maxed_out,
 		       SUM(CASE WHEN anh.retry_status = 'retrying'  THEN 1 ELSE 0 END) AS retrying,
-		       SUM(CASE WHEN JULIANDAY('now') - JULIANDAY(anh.updated) > 14 THEN 1 ELSE 0 END) AS stale
+		       SUM(CASE WHEN anh.retry_status = 'retrying'
+		                 AND JULIANDAY('now') - JULIANDAY(anh.updated) > 14 THEN 1 ELSE 0 END) AS stale
 		FROM analytics_not_home anh
 		JOIN territories t ON t.id = anh.territory
 		WHERE anh.congregation = {:congregation}
@@ -323,13 +370,25 @@ func queryNotHomeFatigue(app core.App, congregationId string) ([]NotHomeFatigue,
 			Retrying:      r.Retrying,
 			Stale:         r.Stale,
 			MaxedOutPct:   pct,
+			ReviewNeeded:  r.MaxedOut >= fatigueReviewMin && pct >= fatigueReviewPct,
 		})
 	}
 	return result, nil
 }
 
+// stripTerritorySuffix removes a trailing "(CODE)" from a map description when
+// it repeats the territory code, so the narrative does not say "M04 ... (M04)".
+func stripTerritorySuffix(description, territoryCode string) string {
+	suffix := "(" + territoryCode + ")"
+	if territoryCode != "" && strings.HasSuffix(description, suffix) {
+		return strings.TrimSpace(strings.TrimSuffix(description, suffix))
+	}
+	return description
+}
+
 // queryMapHealth fetches per-map progress from analytics_maps and classifies
-// maps as stalled (0%, work remaining), completed (100%), or high DNC (top 3).
+// maps as stalled (0%, work remaining; the three with most unworked addresses),
+// completed (100%), or high DNC (at least highDNCMin, top three).
 func queryMapHealth(app core.App, congregationId string) (stalled, completed, highDNC []MapHealthItem, err error) {
 	type row struct {
 		TerritoryCode  string  `db:"territory_code"`
@@ -361,7 +420,7 @@ func queryMapHealth(app core.App, congregationId string) (stalled, completed, hi
 		items[i] = MapHealthItem{
 			TerritoryCode:  r.TerritoryCode,
 			MapCode:        r.MapCode,
-			MapDescription: r.MapDescription,
+			MapDescription: stripTerritorySuffix(r.MapDescription, r.TerritoryCode),
 			Progress:       r.Progress,
 			DNC:            r.DNC,
 			NotDone:        r.NotDone,
@@ -374,11 +433,15 @@ func queryMapHealth(app core.App, congregationId string) (stalled, completed, hi
 		}
 	}
 
-	// Top 3 maps by DNC count (minimum 1 DNC to be relevant)
+	sort.SliceStable(stalled, func(i, j int) bool { return stalled[i].NotDone > stalled[j].NotDone })
+	if len(stalled) > actionItemsPerKind {
+		stalled = stalled[:actionItemsPerKind]
+	}
+
 	byDNC := append([]MapHealthItem(nil), items...)
 	sort.SliceStable(byDNC, func(i, j int) bool { return byDNC[i].DNC > byDNC[j].DNC })
 	for i, m := range byDNC {
-		if i >= 3 || m.DNC == 0 {
+		if i >= actionItemsPerKind || m.DNC < highDNCMin {
 			break
 		}
 		highDNC = append(highDNC, m)
@@ -403,6 +466,23 @@ func BuildSummaryData(app core.App, congregation *core.Record, period ReportPeri
 		return SummaryData{}, err
 	}
 
+	prev := period.previous()
+	_, prevReached, prevVisits, err := queryMonthlyActivity(app, cid, prev)
+	if err != nil {
+		return SummaryData{}, err
+	}
+	prevByTerritory, err := queryMonthlyActivityByTerritory(app, cid, prev)
+	if err != nil {
+		return SummaryData{}, err
+	}
+	prevDone := make(map[string]int, len(prevByTerritory))
+	for _, a := range prevByTerritory {
+		prevDone[a.TerritoryCode] = a.Done
+	}
+	for i := range monthlyByTerritory {
+		monthlyByTerritory[i].PrevDone = prevDone[monthlyByTerritory[i].TerritoryCode]
+	}
+
 	territories, err := queryTerritoryProgress(app, cid)
 	if err != nil {
 		return SummaryData{}, err
@@ -419,20 +499,72 @@ func BuildSummaryData(app core.App, congregation *core.Record, period ReportPeri
 	}
 
 	return SummaryData{
-		Available:          false,
-		CongregationName:   name,
-		Period:             period.Label,
-		Territories:        territories,
-		MonthlyByTerritory: monthlyByTerritory,
-		Activity:           activity,
-		ActiveTerritories:  len(monthlyByTerritory),
-		HouseholdsReached:  reached,
-		Visits:             visits,
-		NotHomeFatigue:     fatigue,
-		StalledMaps:        stalled,
-		CompletedMaps:      completed,
-		HighDNCMaps:        highDNC,
+		Available:             false,
+		CongregationName:      name,
+		Period:                period.Label,
+		Territories:           territories,
+		MonthlyByTerritory:    monthlyByTerritory,
+		Activity:              activity,
+		ActiveTerritories:     len(monthlyByTerritory),
+		HouseholdsReached:     reached,
+		Visits:                visits,
+		PreviousPeriod:        prev.Label,
+		HasPrevious:           prevVisits > 0,
+		PrevHouseholdsReached: prevReached,
+		PrevVisits:            prevVisits,
+		PrevActiveTerritories: len(prevByTerritory),
+		NotHomeFatigue:        fatigue,
+		StalledMaps:           stalled,
+		CompletedMaps:         completed,
+		HighDNCMaps:           highDNC,
 	}, nil
+}
+
+// ActionItems derives the prioritised checklist from the thresholded data: the
+// territories needing a not-home review, those with stale retries, stalled maps
+// and DNC-heavy maps, at most actionItemsPerKind of each, most severe first.
+func (d SummaryData) ActionItems() []ActionItem {
+	var items []ActionItem
+
+	review := make([]NotHomeFatigue, 0, len(d.NotHomeFatigue))
+	stale := make([]NotHomeFatigue, 0, len(d.NotHomeFatigue))
+	for _, f := range d.NotHomeFatigue {
+		if f.ReviewNeeded {
+			review = append(review, f)
+		}
+		if f.Stale >= staleMin {
+			stale = append(stale, f)
+		}
+	}
+	sort.SliceStable(review, func(i, j int) bool { return review[i].MaxedOut > review[j].MaxedOut })
+	sort.SliceStable(stale, func(i, j int) bool { return stale[i].Stale > stale[j].Stale })
+
+	// Everyday words, one fact each: the reader is often an elder on a phone.
+	for _, f := range capItems(review) {
+		items = append(items, ActionItem{"Nobody home after all tries", fmt.Sprintf(
+			"%s: %d homes had nobody home on every allowed visit. Decide whether to reset them, mark them invalid, or plan a special visit.",
+			f.TerritoryCode, f.MaxedOut)})
+	}
+	for _, f := range capItems(stale) {
+		items = append(items, ActionItem{"Return visits overdue", fmt.Sprintf(
+			"%s: %d homes are waiting for a return visit and have not been tried for over two weeks.", f.TerritoryCode, f.Stale)})
+	}
+	for _, m := range capItems(d.StalledMaps) {
+		items = append(items, ActionItem{"Map not started", fmt.Sprintf(
+			"%s, map \"%s\": %d homes, none visited yet.", m.TerritoryCode, m.MapDescription, m.NotDone)})
+	}
+	for _, m := range capItems(d.HighDNCMaps) {
+		items = append(items, ActionItem{"Many do-not-call homes", fmt.Sprintf(
+			"%s, map \"%s\": %d homes have asked not to be called again.", m.TerritoryCode, m.MapDescription, m.DNC)})
+	}
+	return items
+}
+
+func capItems[T any](items []T) []T {
+	if len(items) > actionItemsPerKind {
+		return items[:actionItemsPerKind]
+	}
+	return items
 }
 
 // BuildPrompt constructs the system and user messages sent to the LLM.
@@ -468,51 +600,57 @@ REPORT READERS:
 YOUR DATA:
 - VERIFIED FACTS — already counted for you. Quote these figures exactly. Never
   recount them from the tables below and never adjust them.
+- PREVIOUS PERIOD — the same figures for the period of equal length before this
+  one, with the change already computed (this period minus previous). These are
+  verified facts too. When the previous period line says no visits were recorded,
+  there is nothing to compare against.
 - TERRITORY ACTIVITY — one row per territory that saw real visits this period,
   ordered by Done, highest first. Territories with no visits are not listed.
     Done / Not Home / DNC                  = this period's visits only
+    Prev Done                              = done in the previous period, for comparison
     Total / Invalid / Overall% / Remaining = cumulative state as of the report date
     Total     = every address in the territory, all statuses combined
     Invalid   = permanently unreachable; counted in Total but can never be completed,
                 so a high Invalid lowers the maximum achievable progress
     Overall%  = (done + exhausted not-home) / Total x 100, cumulative across all periods
     Remaining = not_done addresses in the territory right now, not just this period
-- NOT-HOME STANDING and MAP HEALTH — current state as of the report date
+- ACTION ITEMS — the concerns the territory servant should act on, already
+  thresholded and ordered most serious first: territories with high not home tries
+  above the review level, stale return visits, stalled maps, and DNC-heavy maps.
+  The reader sees this same list beside your text, so you never need to repeat it all.
+- COMPLETED MAPS — maps that reached 100% as of the report date
 
 WRITE EXACTLY TWO PARAGRAPHS:
 
-Paragraph 1 — COVERAGE (2-4 sentences):
-  What the congregation accomplished in the house-to-house ministry this period.
-  Take the territory count and households reached from VERIFIED FACTS.
-  Name the three highest territories from TERRITORY ACTIVITY with their Done figures.
-  If a map was completed, name it — that is the clearest result worth reporting.
+Paragraph 1 — WHAT WAS DONE (2-3 sentences):
+  How many territories had visits and how many homes were reached, from VERIFIED FACTS.
+  If PREVIOUS PERIOD figures are given, one sentence: "up N from M" or "down N from M",
+  quoting both figures exactly as given.
+  Name the three territories where the most homes were reached, with their Done figures.
+  If a map was finished, name it — that is the clearest result worth reporting.
 
-Paragraph 2 — NEEDS ATTENTION (2-4 sentences):
-  Only what the territory servant should act on, drawn from NOT-HOME STANDING and
-  MAP HEALTH. Name the territory or map, give the figure, and say plainly what the
-  concern is. Cover whichever of these the data shows:
-    - territories flagged "review needed" for high not home tries
-    - not-home addresses gone stale (not retried in over two weeks)
-    - stalled maps sitting at 0% with addresses unworked
-    - maps carrying the heaviest DNC concentration
-  If there is genuinely nothing to act on, say that in one sentence and stop.
+Paragraph 2 — WHAT NEEDS ATTENTION (1-3 sentences):
+  Pick the single most serious item from up to three categories of ACTION ITEMS,
+  at most three items in total. Name the place, give the number, say what it means.
+  Do not list every item; the reader has the full list next to your text.
+  If ACTION ITEMS is empty, say in one sentence that there is nothing to act on.
 
 WRITING RULES:
-- Every sentence must name a territory, a map, or a figure from the data. Delete any
-  sentence that carries no specific fact.
-- Do not judge whether the period was good, busy, strong, slow or encouraging, and do
-  not compare it with any other period — you have no earlier figures to compare against.
-- Do not add general praise or exhortation.
-- One idea per sentence. Short sentences, everyday words, no corporate phrasing.
-- Call done addresses "reached", using that same word every time.
-- A high not-home count is a concern, never a strength — never call one "strong" or "good".
-- State the threshold whenever you rely on one, e.g. "above the 35% review level", so
-  the reader knows what the flag means.
-- Do not recommend which territory to assign next — that is the territory servant's
-  decision, not the report's.
-- Use only the figures given. Do not invent, infer or recompute anything.
-- Name a map by its description as shown, e.g. map "Block 412" in territory M05 —
-  never slash notation like "M05/112 (5)".
+- Write for a busy reader on a phone. Sentences of 15 words or fewer. One fact per sentence.
+- Start each sentence with the place (territory or map), then the number, then what it means.
+- Everyday words only. Say "homes", not households, addresses or units. Say "nobody home",
+  not not_home. Say "do not call", not DNC. Say "finished", not completed or 100%. Say
+  "not started", not stalled or 0%. Call reached homes "reached", every time.
+- Never use these words: attempt limit, threshold, review level, concentration, cumulative,
+  retrying, status, progress percentage.
+- Use only the figures given. Never invent, infer or recompute a number. Compare with the
+  previous period only through the change values given; when none are given, make no
+  comparison at all.
+- Do not judge the period as good, busy, strong, slow or encouraging. No praise, no
+  exhortation. A high nobody-home count is a concern, never a strength.
+- Do not recommend which territory to assign next — that is the territory servant's decision.
+- Name a map by its description as shown, e.g. map "Block 412" in territory M05 — never
+  slash notation like "M05/112 (5)".
 
 Respond only in this exact JSON schema:
 {
@@ -529,6 +667,15 @@ Respond only in this exact JSON schema:
 	fmt.Fprintf(&sb, "  %-37s %d\n", "Households reached (done):", data.HouseholdsReached)
 	fmt.Fprintf(&sb, "  %-37s %d\n", "Total visits (done + not home + DNC):", data.Visits)
 
+	if data.HasPrevious {
+		fmt.Fprintf(&sb, "\nPREVIOUS PERIOD (%s), with change to this period already computed:\n", data.PreviousPeriod)
+		fmt.Fprintf(&sb, "  %-37s %d   change: %+d\n", "Territories with visits:", data.PrevActiveTerritories, data.ActiveTerritories-data.PrevActiveTerritories)
+		fmt.Fprintf(&sb, "  %-37s %d   change: %+d\n", "Households reached (done):", data.PrevHouseholdsReached, data.HouseholdsReached-data.PrevHouseholdsReached)
+		fmt.Fprintf(&sb, "  %-37s %d   change: %+d\n", "Total visits (done + not home + DNC):", data.PrevVisits, data.Visits-data.PrevVisits)
+	} else {
+		fmt.Fprintf(&sb, "\nPREVIOUS PERIOD (%s): no visits recorded, so there is nothing to compare against.\n", data.PreviousPeriod)
+	}
+
 	// Build a lookup map: territory code → TerritoryProgress for enriching the activity table
 	territoryByCode := make(map[string]TerritoryProgress, len(data.Territories))
 	for _, t := range data.Territories {
@@ -538,13 +685,13 @@ Respond only in this exact JSON schema:
 	// ── Per-territory activity, ranked by Done (primary analysis signal) ──
 	fmt.Fprintf(&sb, "\nTERRITORY ACTIVITY — %s (ordered by Done, highest first):\n", data.Period)
 	if len(data.MonthlyByTerritory) > 0 {
-		sb.WriteString("Done/Not Home/DNC = this period | Total/Invalid/Overall%/Remaining = cumulative state\n")
-		sb.WriteString("Territory | Done | Not Home | DNC | Total | Invalid | Overall% | Remaining\n")
+		sb.WriteString("Done/Prev Done/Not Home/DNC = this and previous period | Total/Invalid/Overall%/Remaining = cumulative state\n")
+		sb.WriteString("Territory | Done | Prev Done | Not Home | DNC | Total | Invalid | Overall% | Remaining\n")
 		for _, a := range data.MonthlyByTerritory {
 			t := territoryByCode[a.TerritoryCode]
-			fmt.Fprintf(&sb, "%-10s| %4d | %8d | %3d | %5d | %7d | %7.0f%% | %9d\n",
+			fmt.Fprintf(&sb, "%-10s| %4d | %9d | %8d | %3d | %5d | %7d | %7.0f%% | %9d\n",
 				truncate(a.TerritoryCode, 10),
-				a.Done, a.NotHome, a.DNC,
+				a.Done, a.PrevDone, a.NotHome, a.DNC,
 				t.Total, t.Invalid, t.Progress, t.NotDone)
 		}
 	} else {
@@ -557,45 +704,26 @@ Respond only in this exact JSON schema:
 		fmt.Fprintf(&sb, "  %-24s %4d\n", statusLabel(a.Status)+":", a.Count)
 	}
 
-	// ── Not-home standing (current state) ──
-	if len(data.NotHomeFatigue) > 0 {
-		sb.WriteString("\nNOT-HOME STANDING (current state):\n")
-		sb.WriteString("  retrying             = within retry limit; return visits planned (normal)\n")
-		sb.WriteString("  high not home tries  = max attempts reached; territory servant must decide next step\n")
-		sb.WriteString("  stale (>14 days)     = not-home addresses not retried in over 2 weeks\n")
-		sb.WriteString("  flag (≥35% maxed)    = territory servant review needed\n")
-		for _, f := range data.NotHomeFatigue {
-			flag := ""
-			if f.MaxedOutPct >= 35 {
-				flag = "  ← review needed (≥35% maxed)"
-			}
-			fmt.Fprintf(&sb, "  %-10s %d high not home tries (%.0f%%), %d retrying, %d stale (>14 days)%s\n",
-				f.TerritoryCode+":", f.MaxedOut, f.MaxedOutPct, f.Retrying, f.Stale, flag)
+	// ── Action items (thresholded and prioritised in Go) ──
+	items := data.ActionItems()
+	if len(items) == 0 {
+		sb.WriteString("\nACTION ITEMS: none\n")
+	} else {
+		sb.WriteString("\nACTION ITEMS (most serious first; the reader sees this list too):\n")
+		for _, item := range items {
+			fmt.Fprintf(&sb, "  [%s] %s\n", item.Category, item.Text)
 		}
 	}
 
-	// ── Map health (current state) ──
-	sb.WriteString("\nMAP HEALTH (current state):\n")
-	if len(data.StalledMaps) > 0 {
-		sb.WriteString("Stalled maps (0% progress, work remaining):\n")
-		for _, m := range data.StalledMaps {
-			fmt.Fprintf(&sb, "  territory %s, map \"%s\" — %d addresses unworked\n", m.TerritoryCode, m.MapDescription, m.NotDone)
-		}
-	} else {
-		sb.WriteString("Stalled maps: none\n")
-	}
+	// ── Completed maps ──
 	if len(data.CompletedMaps) > 0 {
 		parts := make([]string, len(data.CompletedMaps))
 		for i, m := range data.CompletedMaps {
 			parts[i] = fmt.Sprintf("territory %s, map \"%s\"", m.TerritoryCode, m.MapDescription)
 		}
-		fmt.Fprintf(&sb, "Completed maps (100%%): %s\n", strings.Join(parts, ", "))
-	}
-	if len(data.HighDNCMaps) > 0 {
-		sb.WriteString("Highest DNC concentration:\n")
-		for _, m := range data.HighDNCMaps {
-			fmt.Fprintf(&sb, "  territory %s, map \"%s\" — %d DNC addresses\n", m.TerritoryCode, m.MapDescription, m.DNC)
-		}
+		fmt.Fprintf(&sb, "\nCOMPLETED MAPS (100%%): %s\n", strings.Join(parts, ", "))
+	} else {
+		sb.WriteString("\nCOMPLETED MAPS (100%): none\n")
 	}
 
 	userMsg = sb.String()

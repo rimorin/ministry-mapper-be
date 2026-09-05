@@ -103,38 +103,42 @@ func GenerateAndSendCongregationReportToUser(app core.App, congregation *core.Re
 		return err
 	}
 
-	if err := sendReportEmailToRecipient(app, congregation, filename, content, recipient, generateAISummary(app, congregation, IsAISummaryEnabled(), period), period); err != nil {
+	if err := sendReportEmailToRecipient(app, congregation, filename, content, recipient, buildEmailSummary(app, congregation, IsAISummaryEnabled(), period), period); err != nil {
 		return fmt.Errorf("failed to send email for congregation %s: %v", congregation.Get("code"), err)
 	}
 
 	return nil
 }
 
-// generateAISummary calls the OpenAI API to produce a narrative for the given period.
-// Returns SummaryData{} with Available=false on any failure so the template gracefully omits the section.
-func generateAISummary(app core.App, congregation *core.Record, aiEnabled bool, period ReportPeriod) SummaryData {
-	if !aiEnabled {
+// buildEmailSummary assembles the figures the email shows and, when the AI
+// summary is enabled, asks the model for the two narrative paragraphs. The
+// figures never depend on the model: Available only gates the narrative, and a
+// narrative that quotes a number or name not in the prompt is dropped.
+func buildEmailSummary(app core.App, congregation *core.Record, aiEnabled bool, period ReportPeriod) SummaryData {
+	data, err := BuildSummaryData(app, congregation, period)
+	if err != nil {
+		log.Printf("Report summary: failed to build data for %s: %v", congregation.Get("code"), err)
 		return SummaryData{}
+	}
+	if !aiEnabled {
+		return data
 	}
 
 	client := newLLMClient()
 	if client == nil {
 		log.Printf("AI summary skipped for %s: OPENAI_API_KEY not set", congregation.Get("code"))
-		return SummaryData{}
-	}
-
-	data, err := BuildSummaryData(app, congregation, period)
-	if err != nil {
-		log.Printf("AI summary: failed to build data for %s: %v", congregation.Get("code"), err)
-		return SummaryData{}
+		return data
 	}
 
 	systemMsg, userMsg := BuildPrompt(data)
-
 	llmResp, err := client.generateSummary(systemMsg, userMsg)
 	if err != nil {
 		log.Printf("AI summary: LLM call failed for %s: %v", congregation.Get("code"), err)
-		return SummaryData{}
+		return data
+	}
+	if err := checkNarrative(llmResp, userMsg); err != nil {
+		log.Printf("AI summary dropped for %s: %v", congregation.Get("code"), err)
+		return data
 	}
 
 	data.Available = true
@@ -180,7 +184,7 @@ func sendReportEmailFromBuffer(app core.App, congregation *core.Record, filename
 		ReportTitle:      "Monthly Report",
 		FileName:         filename,
 		IsOnDemand:       false,
-		Summary:          generateAISummary(app, congregation, aiEnabled, period),
+		Summary:          buildEmailSummary(app, congregation, aiEnabled, period),
 	}
 
 	var body bytes.Buffer

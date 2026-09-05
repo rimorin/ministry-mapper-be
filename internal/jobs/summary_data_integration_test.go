@@ -104,9 +104,18 @@ func TestBuildSummaryData_SeedData(t *testing.T) {
 		t.Errorf("ActiveTerritories = %d; want 2", data.ActiveTerritories)
 	}
 
+	// --- Previous 30-day window: only the 45-day-old T01 "done" row falls in it ---
+	if !data.HasPrevious || data.PrevHouseholdsReached != 1 || data.PrevVisits != 1 || data.PrevActiveTerritories != 1 {
+		t.Errorf("previous period = has=%v reached=%d visits=%d territories=%d; want has=true 1 1 1",
+			data.HasPrevious, data.PrevHouseholdsReached, data.PrevVisits, data.PrevActiveTerritories)
+	}
+	if data.PreviousPeriod == "" || data.PreviousPeriod == data.Period {
+		t.Errorf("PreviousPeriod = %q; want a label distinct from %q", data.PreviousPeriod, data.Period)
+	}
+
 	wantMonthly := []TerritoryMonthlyActivity{
-		{TerritoryCode: "T01", Done: 2, NotHome: 1, DNC: 0},
-		{TerritoryCode: "T02", Done: 0, NotHome: 0, DNC: 1},
+		{TerritoryCode: "T01", Done: 2, NotHome: 1, DNC: 0, PrevDone: 1},
+		{TerritoryCode: "T02", Done: 0, NotHome: 0, DNC: 1, PrevDone: 0},
 	}
 	if len(data.MonthlyByTerritory) != len(wantMonthly) {
 		t.Fatalf("MonthlyByTerritory = %+v; want %+v", data.MonthlyByTerritory, wantMonthly)
@@ -145,6 +154,12 @@ func TestBuildSummaryData_SeedData(t *testing.T) {
 		if data.NotHomeFatigue[i] != want {
 			t.Errorf("NotHomeFatigue[%d] = %+v; want %+v", i, data.NotHomeFatigue[i], want)
 		}
+	}
+
+	// T02's single maxed-out address is below the 10-address review floor, and the
+	// seed has no stale, stalled or DNC-heavy data, so the checklist is empty.
+	if items := data.ActionItems(); len(items) != 0 {
+		t.Errorf("ActionItems = %+v; want none for the seed data", items)
 	}
 
 	// --- Map health (from maps.aggregates) ---

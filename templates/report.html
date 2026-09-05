@@ -134,6 +134,23 @@
             line-height: 1.6;
             margin: 0;
         }
+        .action-list {
+            background: #fff7ed;
+            border-radius: 10px;
+            padding: 14px 18px;
+            margin: 20px 0;
+            border-left: 4px solid #f59e0b;
+        }
+        .action-list ul {
+            margin: 8px 0 0;
+            padding-left: 18px;
+        }
+        .action-list li {
+            font-size: 14px;
+            color: #2c3e50;
+            line-height: 1.5;
+            margin: 6px 0;
+        }
         .attachment-notice {
             background: #f0faf0;
             border: 1px solid #a9dfbf;
@@ -190,52 +207,26 @@
 
             {{if .Summary.Available}}
             <div class="ai-summary">
-                <p class="ai-summary-title">📋 Territory Overview</p>
+                <p class="ai-summary-title">📋 This period at a glance</p>
 
                 {{if .Summary.Coverage}}
                 <div class="ai-section">
-                    <p class="ai-section-label">{{if .IsOnDemand}}Coverage Period{{else}}This Month's Coverage{{end}}</p>
+                    <p class="ai-section-label">What was done</p>
                     <p class="ai-narrative">{{.Summary.Coverage}}</p>
                 </div>
                 {{end}}
 
                 {{if .Summary.NeedsAttention}}
                 <div class="ai-section">
-                    <p class="ai-section-label">Needs Attention</p>
+                    <p class="ai-section-label">What needs your attention</p>
                     <p class="ai-narrative">{{.Summary.NeedsAttention}}</p>
                 </div>
                 {{end}}
 
-                {{if .Summary.Activity}}
-                <div class="ai-stats-row">
-                    <div class="ai-stat">
-                        <div class="ai-stat-value">{{.Summary.Visits}}</div>
-                        <div class="ai-stat-label">All Visits</div>
-                    </div>
-                    {{range .Summary.Activity}}{{if eq .Status "done"}}
-                    <div class="ai-stat">
-                        <div class="ai-stat-value">{{.Count}}</div>
-                        <div class="ai-stat-label">Reached</div>
-                    </div>
-                    {{end}}{{end}}
-                    {{range .Summary.Activity}}{{if eq .Status "not_home"}}
-                    <div class="ai-stat">
-                        <div class="ai-stat-value">{{.Count}}</div>
-                        <div class="ai-stat-label">Not Home</div>
-                    </div>
-                    {{end}}{{end}}
-                    {{range .Summary.Activity}}{{if eq .Status "do_not_call"}}
-                    <div class="ai-stat">
-                        <div class="ai-stat-value">{{.Count}}</div>
-                        <div class="ai-stat-label">DNC</div>
-                    </div>
-                    {{end}}{{end}}
-                </div>
-                {{end}}
 
             </div>
             {{else}}
-            <p>Please find your <strong>{{if .IsOnDemand}}on-demand activity report{{else}}monthly activity report{{end}}</strong> for <strong>{{.ReportDate}}</strong> attached. Open the Excel file for a full breakdown of territory and address activity.</p>
+            <p>Your activity report for <strong>{{.ReportDate}}</strong> is attached. Open the Excel file for the full details.</p>
             <div class="report-details">
                 <div class="report-item">
                     <span class="report-label">{{if .IsOnDemand}}Report Period{{else}}Report Month{{end}}</span>
@@ -245,6 +236,43 @@
                     <span class="report-label">Congregation</span>
                     <span class="report-value">{{.CongregationName}}</span>
                 </div>
+            </div>
+            {{end}}
+
+            {{if .Summary.Activity}}
+            <div class="ai-stats-row">
+                <div class="ai-stat">
+                    <div class="ai-stat-value">{{.Summary.Visits}}</div>
+                    <div class="ai-stat-label">Visits</div>
+                </div>
+                {{range .Summary.Activity}}{{if eq .Status "done"}}
+                <div class="ai-stat">
+                    <div class="ai-stat-value">{{.Count}}</div>
+                    <div class="ai-stat-label">Reached</div>
+                </div>
+                {{end}}{{end}}
+                {{range .Summary.Activity}}{{if eq .Status "not_home"}}
+                <div class="ai-stat">
+                    <div class="ai-stat-value">{{.Count}}</div>
+                    <div class="ai-stat-label">Nobody home</div>
+                </div>
+                {{end}}{{end}}
+                {{range .Summary.Activity}}{{if eq .Status "do_not_call"}}
+                <div class="ai-stat">
+                    <div class="ai-stat-value">{{.Count}}</div>
+                    <div class="ai-stat-label">Do not call</div>
+                </div>
+                {{end}}{{end}}
+            </div>
+            {{end}}
+
+            {{with .Summary.ActionItems}}
+            <div class="action-list">
+                <p class="ai-section-label">To do</p>
+                <ul>
+                    {{range .}}<li><strong>{{.Category | html}}</strong> — {{.Text | html}}</li>
+                    {{end}}
+                </ul>
             </div>
             {{end}}
 
