@@ -3,7 +3,6 @@ package jobs
 import (
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
@@ -162,13 +161,11 @@ func processMessage(congID string, app core.App) error {
 
 	count := len(emailData.Messages)
 	emailData.emailChrome = emailChrome{
-		Preheader:   fmt.Sprintf("%s from publishers about their maps.", pluralize(count, "new message")),
-		Kicker:      congregationName,
-		Title:       fmt.Sprintf("%s from publishers", pluralize(count, "new message")),
-		Subtitle:    "Unread since the last digest",
-		ButtonLabel: "Reply in Ministry Mapper",
-		ButtonURL:   os.Getenv("PB_APP_URL"),
-		Footer:      fmt.Sprintf("Sent to administrators of %s when publishers write in. Messages are marked read once this email is sent.", congregationName),
+		Preheader: fmt.Sprintf("%s from publishers about their maps.", pluralize(count, "new message")),
+		Kicker:    congregationName,
+		Title:     fmt.Sprintf("%s from publishers", pluralize(count, "new message")),
+		Subtitle:  "Unread since the last digest",
+		Footer:    fmt.Sprintf("Sent to administrators of %s when publishers write in. Messages are marked read once this email is sent.", congregationName),
 	}
 	htmlBody, textBody, err := renderEmail("messages.html", emailData)
 	if err != nil {

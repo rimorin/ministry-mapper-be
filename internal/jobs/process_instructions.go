@@ -3,7 +3,6 @@ package jobs
 import (
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
@@ -136,13 +135,11 @@ func processInstruction(mapID string, app core.App) error {
 
 	mapDescription := mapRecord.Get("description").(string)
 	emailData.emailChrome = emailChrome{
-		Preheader:   fmt.Sprintf("%s for %s.", pluralize(len(emailData.Messages), "instruction"), mapDescription),
-		Kicker:      congRecord.Get("name").(string),
-		Title:       "Instructions for your map",
-		Subtitle:    emailData.MapName,
-		ButtonLabel: "Open the map",
-		ButtonURL:   os.Getenv("PB_APP_URL"),
-		Footer:      "Sent to everyone in the congregation when an administrator pins instructions to a map.",
+		Preheader: fmt.Sprintf("%s for %s.", pluralize(len(emailData.Messages), "instruction"), mapDescription),
+		Kicker:    congRecord.Get("name").(string),
+		Title:     "Instructions for your map",
+		Subtitle:  emailData.MapName,
+		Footer:    "Sent to everyone in the congregation when an administrator pins instructions to a map.",
 	}
 	htmlBody, textBody, err := renderEmail("instructions.html", emailData)
 	if err != nil {

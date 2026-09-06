@@ -71,8 +71,12 @@ func TestReportSubjectAndPreheader(t *testing.T) {
 	if got := reportSubject("Woodlands North", period, withVisits); got != "Woodlands North: 339 homes reached, 1 thing to do" {
 		t.Errorf("subject = %q", got)
 	}
-	if got := reportChrome("Woodlands North", period, withVisits).Preheader; got != "339 homes reached, 1 thing to do." {
-		t.Errorf("preheader = %q", got)
+	chrome := reportChrome("Woodlands North", period, withVisits)
+	if chrome.Preheader != "339 homes reached, 1 thing to do." {
+		t.Errorf("preheader = %q", chrome.Preheader)
+	}
+	if chrome.ButtonURL != "" {
+		t.Error("the report carries its action as the attachment; no button")
 	}
 	quiet := reportSubject("Woodlands North", period, SummaryData{})
 	if !strings.HasPrefix(quiet, "Activity report for Woodlands North, ") {

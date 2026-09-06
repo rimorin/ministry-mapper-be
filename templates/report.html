@@ -52,7 +52,7 @@
     {{template "label" "To do"}}
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       {{range .}}<tr>
-        <td class="em-line" width="14" valign="top" style="padding:12px 0;border-top:1px solid #e5e7eb;"><span style="display:inline-block;width:10px;height:10px;border-radius:5px;background-color:{{.Color}};margin-top:6px;"></span></td>
+        <td class="em-line" width="14" valign="top" style="padding:12px 0;border-top:1px solid #e5e7eb;"><span style="display:inline-block;width:10px;height:10px;border-radius:5px;background-color:#{{.Color}};margin-top:6px;"></span></td>
         <td class="em-line" valign="top" style="padding:12px 0 12px 10px;border-top:1px solid #e5e7eb;font-size:15px;line-height:1.5;color:#1f2937;"><span class="em-strong" style="font-weight:600;">{{.Category}}.</span> {{.Text}}</td>
       </tr>{{end}}
     </table>

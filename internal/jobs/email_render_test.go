@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -30,7 +31,7 @@ func TestRenderEmail_AllTemplates(t *testing.T) {
 		"notes.html":                            {NotesTemplateData{emailChrome: chrome, Notes: []notesData{{Publisher: "Sis Tan", Message: "Large dog.", Date: "02 Aug", Address: "Blk 412 #05-12"}}, Summary: OverviewSummary{Available: true, Overview: "One note about a dog."}}, []string{"In short", "One note about a dog.", "Blk 412 #05-12", "Large dog.", "Sis Tan"}},
 		"messages.html":                         {EmailTemplateData{emailChrome: chrome, Messages: messages, Summary: sampleOverview()}, []string{"In short", "To do", "Blk 149: add units", "149, Woodlands Street 13", "Unit 07-03 is missing."}},
 		"instructions.html":                     {EmailTemplateData{emailChrome: chrome, Messages: messages, MapName: "T01 - Blk 412"}, []string{"Instructions", "Unit 07-03 is missing.", "Bro Lim"}},
-		"new_addresses.html":                    {NewAddressesTemplateData{emailChrome: chrome, Count: 2, Maps: []newAddressMapGroup{{MapName: "Blk 412", Territory: "T01", Entries: []newAddressEntry{{Display: "#05 - 12", Date: "09:00 AM", CreatedBy: "Sis Tan", StatusLabel: "Done", StatusColor: "22C55E", Types: []string{"NH"}, Notes: "Corner unit", HasDetails: true}, {Display: "#05 - 13", Date: "09:01 AM"}}}}}, []string{"2 addresses across 1 map", "Blk 412", "T01", "#05 - 12", "Done", "NH", "Corner unit", "#05 - 13"}},
+		"new_addresses.html":                    {NewAddressesTemplateData{emailChrome: chrome, Count: 2, Maps: []newAddressMapGroup{{MapName: "Blk 412", Territory: "T01", Entries: []newAddressEntry{{Display: "#05 - 12", Date: "09:00 AM", CreatedBy: "Sis Tan", StatusLabel: "Done", StatusColor: "22C55E", StatusInk: "FFFFFF", Types: []string{"NH"}, Notes: "Corner unit", HasDetails: true}, {Display: "#05 - 13", Date: "09:01 AM"}}}}}, []string{"2 addresses across 1 map", "Blk 412", "T01", "#05 - 12", "Done", "NH", "Corner unit", "#05 - 13"}},
 		"user_inactive_warning.html":            {inactiveUserTmplData{emailChrome: chrome, UserName: "Ana", LastLogin: "1 May 2026", DeadlineDate: "1 Dec 2026", DaysLeft: 88}, []string{"Hello Ana", "1 May 2026", "1 Dec 2026", "about 88"}},
 		"user_inactive_final_warning.html":      {inactiveUserTmplData{emailChrome: chrome, UserName: "Ana", LastLogin: "1 May 2026", DeadlineDate: "1 Dec 2026", DaysLeft: 30}, []string{"last reminder", "1 Dec 2026", "about 30"}},
 		"user_unprovisioned_warning.html":       {unprovisionedUserTmplData{emailChrome: chrome, UserName: "Ana", DaysRemaining: 4}, []string{"Hello Ana", "4 days", "What to do", "congregation administrator"}},
@@ -51,6 +52,13 @@ func TestRenderEmail_AllTemplates(t *testing.T) {
 		}
 		if strings.Contains(html, "{{") {
 			t.Errorf("%s: unrendered template action in html", name)
+		}
+		// Palette colours are bare hex; a template that forgets the "#" renders an
+		// invisible chip that still takes up space.
+		for _, m := range regexp.MustCompile(`background-color:([^;"]+)`).FindAllStringSubmatch(html, -1) {
+			if !strings.HasPrefix(strings.TrimSpace(m[1]), "#") {
+				t.Errorf("%s: colour without # in %q", name, m[0])
+			}
 		}
 		for _, want := range []string{"Sample title", "Footer line.", "https://example.test/app"} {
 			if !strings.Contains(text, want) {

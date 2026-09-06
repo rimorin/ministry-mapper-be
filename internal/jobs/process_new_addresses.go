@@ -3,7 +3,6 @@ package jobs
 import (
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
@@ -16,7 +15,8 @@ type newAddressEntry struct {
 	Date        string
 	CreatedBy   string
 	StatusLabel string
-	StatusColor string
+	StatusColor string // chip fill, bare hex
+	StatusInk   string // chip text, bare hex
 	Types       []string
 	Notes       string
 	HasDetails  bool
@@ -26,6 +26,16 @@ type newAddressMapGroup struct {
 	MapName   string
 	Territory string
 	Entries   []newAddressEntry
+}
+
+// newAddressStatusLabels match the status names the app shows, so an address
+// reads the same in this email as on screen.
+var newAddressStatusLabels = map[string]string{
+	"not_done":    "Not Done",
+	"done":        "Done",
+	"not_home":    "Not Home",
+	"do_not_call": "Do Not Call",
+	"invalid":     "Invalid",
 }
 
 // NewAddressesTemplateData holds the data passed to the new_addresses.html template.
@@ -169,9 +179,9 @@ func ProcessNewAddress(congID string, app core.App, since time.Time) error {
 		createdBy, _ := addr.Get("created_by").(string)
 
 		status, _ := addr.Get("status").(string)
-		var statusLabel, statusColor string
-		if status != "" && status != "not_done" {
-			statusLabel, statusColor = statusOf(status).Label, statusOf(status).Fill
+		statusLabel, statusColor, statusInk := "", "", ""
+		if label, ok := newAddressStatusLabels[status]; ok {
+			statusLabel, statusColor, statusInk = label, statusOf(status).Fill, statusOf(status).Ink
 		}
 
 		notes, _ := addr.Get("notes").(string)
@@ -183,6 +193,7 @@ func ProcessNewAddress(congID string, app core.App, since time.Time) error {
 			CreatedBy:   createdBy,
 			StatusLabel: statusLabel,
 			StatusColor: statusColor,
+			StatusInk:   statusInk,
 			Types:       types,
 			Notes:       notes,
 			HasDetails:  statusLabel != "" || notes != "" || len(types) > 0,
@@ -220,13 +231,11 @@ func ProcessNewAddress(congID string, app core.App, since time.Time) error {
 
 	congName, _ := congRecord.Get("name").(string)
 	emailData.emailChrome = emailChrome{
-		Preheader:   fmt.Sprintf("%s added across %s in the last 24 hours.", pluralize(emailData.Count, "address"), pluralize(len(emailData.Maps), "map")),
-		Kicker:      congName,
-		Title:       fmt.Sprintf("%s added", pluralize(emailData.Count, "new address")),
-		Subtitle:    since.In(location).Format("2 Jan 2006"),
-		ButtonLabel: "Review in Ministry Mapper",
-		ButtonURL:   os.Getenv("PB_APP_URL"),
-		Footer:      fmt.Sprintf("Sent to administrators of %s each day publishers add addresses from the app.", congName),
+		Preheader: fmt.Sprintf("%s added across %s in the last 24 hours.", pluralize(emailData.Count, "address"), pluralize(len(emailData.Maps), "map")),
+		Kicker:    congName,
+		Title:     fmt.Sprintf("%s added", pluralize(emailData.Count, "new address")),
+		Subtitle:  since.In(location).Format("2 Jan 2006"),
+		Footer:    fmt.Sprintf("Sent to administrators of %s each day publishers add addresses from the app.", congName),
 	}
 	htmlBody, textBody, err := renderEmail("new_addresses.html", emailData)
 	if err != nil {

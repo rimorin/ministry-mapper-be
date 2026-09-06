@@ -3,7 +3,6 @@ package jobs
 import (
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
@@ -152,13 +151,11 @@ func ProcessNote(congID string, app core.App, timeBuffer time.Duration) error {
 
 	count := len(emailData.Notes)
 	emailData.emailChrome = emailChrome{
-		Preheader:   fmt.Sprintf("%s across your maps.", pluralize(count, "note")),
-		Kicker:      congregationName,
-		Title:       "New notes from the field",
-		Subtitle:    fmt.Sprintf("%s updated · %s", pluralize(count, "note"), time.Now().In(location).Format("2 Jan 2006")),
-		ButtonLabel: "Open Ministry Mapper",
-		ButtonURL:   os.Getenv("PB_APP_URL"),
-		Footer:      fmt.Sprintf("Sent to administrators of %s when publishers update notes on their maps.", congregationName),
+		Preheader: fmt.Sprintf("%s across your maps.", pluralize(count, "note")),
+		Kicker:    congregationName,
+		Title:     "New notes from the field",
+		Subtitle:  fmt.Sprintf("%s updated · %s", pluralize(count, "note"), time.Now().In(location).Format("2 Jan 2006")),
+		Footer:    fmt.Sprintf("Sent to administrators of %s when publishers update notes on their maps.", congregationName),
 	}
 	htmlBody, textBody, err := renderEmail("notes.html", emailData)
 	if err != nil {

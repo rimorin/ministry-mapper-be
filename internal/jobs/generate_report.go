@@ -138,13 +138,11 @@ func reportChrome(congregationName string, period ReportPeriod, summary SummaryD
 		preheader = fmt.Sprintf("%d homes reached, %s.", summary.HouseholdsReached, todoPhrase(len(summary.ActionItems())))
 	}
 	return emailChrome{
-		Preheader:   preheader,
-		Kicker:      kicker,
-		Title:       congregationName,
-		Subtitle:    period.Label,
-		ButtonLabel: "Open Ministry Mapper",
-		ButtonURL:   os.Getenv("PB_APP_URL"),
-		Footer:      fmt.Sprintf("Sent to administrators of %s. Reply to this email if a figure looks wrong.", congregationName),
+		Preheader: preheader,
+		Kicker:    kicker,
+		Title:     congregationName,
+		Subtitle:  period.Label,
+		Footer:    fmt.Sprintf("Sent to administrators of %s. Reply to this email if a figure looks wrong.", congregationName),
 	}
 }
 
