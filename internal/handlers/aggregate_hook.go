@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tools/routine"
 )
 
 // HandleAddressAggregateUpdate triggers an async map aggregate recalculation
@@ -33,10 +32,5 @@ func HandleAddressAggregateUpdate(e *core.RecordEvent) {
 		return
 	}
 
-	appRef := e.App
-	routine.FireAndForget(func() {
-		if err := ProcessMapAggregates(mapID, appRef); err != nil {
-			appRef.Logger().Error("aggregate hook failed", "map", mapID, "err", err)
-		}
-	})
+	ScheduleMapAggregates(mapID, e.App)
 }
