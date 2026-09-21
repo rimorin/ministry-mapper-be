@@ -106,7 +106,8 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - Run locally with `./scripts/start.sh` (exports `.env`, serves on :8090).
 
 ## Conventions
-- Conventional Commits (`fix:`, `feat:`, `chore:`). No AI co-author trailers. Keep messages simple.
+- Conventional Commits (`fix:`, `feat:`, `chore:`). No AI co-author trailers. Keep messages simple: a subject plus at most one short paragraph.
+- Comments record what the code cannot show — the constraint that forced this shape — not the investigation that found it, and not a restatement of the diff. Explain a thing once: a general rule belongs in this file, not repeated in every file that obeys it.
 - The README is tracked as `readme.md`; on this case-insensitive filesystem `git add README.md` stages nothing.
 - Migration and jobs conventions live in `.claude/rules/` and load when you touch `migrations/` or `internal/jobs/`.
 
