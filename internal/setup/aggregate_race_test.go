@@ -6,26 +6,26 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"ministry-mapper/internal/handlers"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 )
 
-// raceMapAddresses is large enough that a recalculation takes long enough for
-// two of them to overlap; on a five-address seed map the window is too narrow
-// for the lost update to ever show.
+// raceMapAddresses makes a recalculation slow enough for two to overlap; the
+// five-address seed map is far too small for the lost update to ever show.
 const raceMapAddresses = 2000
 
-// raceRounds is a probability budget, not a constant of nature. A single round
-// reproduces the lost update roughly a third of the time, so the run as a whole
-// fails well over 99% of the time when the recalculation is unsynchronised.
+// raceRounds is a probability budget: one round reproduces the lost update
+// about a third of the time, so ten put the run above 99%.
 const raceRounds = 10
 
-// raceBatch is how many addresses change at once — a busy map worked by several
-// publishers at the same time.
+// raceBatch is a map worked by several publishers at once.
 const raceBatch = 30
 
 func seedRaceMap(t testing.TB, app *tests.TestApp) (mapID string, addressIDs []string) {
@@ -124,12 +124,8 @@ func waitQuiescent(t testing.TB, app *tests.TestApp, mapID string) {
 }
 
 // TestAggregateConcurrency_StoredMatchesActual drives concurrent status changes
-// at one map and checks the stored aggregate against a direct count.
-//
-// ProcessMapAggregates counts the map and then writes the result as two separate
-// steps. Without synchronisation two of them interleave, the slower one writes a
-// count it read before the other's changes landed, and the map keeps a wrong
-// progress figure until the next unrelated update recalculates it.
+// at one map and checks the stored aggregate against a direct count. It fails
+// without aggregateJob.run.
 func TestAggregateConcurrency_StoredMatchesActual(t *testing.T) {
 	app := setupTestApp(t)
 	defer app.Cleanup()
@@ -166,5 +162,85 @@ func TestAggregateConcurrency_StoredMatchesActual(t *testing.T) {
 			t.Fatalf("round %d: stored aggregate is stale — maps.aggregates.done = %d, actual rows with status 'done' = %d (drift %+d)",
 				round, got, want, got-want)
 		}
+	}
+}
+
+// flipConcurrently changes the status of the first raceBatch addresses at the
+// same time, the way several publishers working one map do.
+func flipConcurrently(t testing.TB, app *tests.TestApp, addressIDs []string, status string) {
+	t.Helper()
+	var wg sync.WaitGroup
+	for _, id := range addressIDs[:raceBatch] {
+		wg.Add(1)
+		go func(addressID string) {
+			defer wg.Done()
+			record, err := app.FindRecordById("addresses", addressID)
+			if err != nil {
+				return
+			}
+			record.Set("status", status)
+			if err := app.SaveNoValidate(record); err != nil {
+				t.Errorf("save address %s: %v", addressID, err)
+			}
+		}(id)
+	}
+	wg.Wait()
+}
+
+// TestAggregateCoalescing_CollapsesRedundantRecalculations checks that a burst of
+// status changes on one map does not produce one map write, and one realtime
+// event, per address.
+func TestAggregateCoalescing_CollapsesRedundantRecalculations(t *testing.T) {
+	app := setupTestApp(t)
+	defer app.Cleanup()
+
+	mapID, addressIDs := seedRaceMap(t, app)
+
+	// Prime the stored aggregates so the burst below is measured against a
+	// map that is already up to date.
+	if err := handlers.ProcessMapAggregates(mapID, app); err != nil {
+		t.Fatalf("prime aggregates: %v", err)
+	}
+
+	var mapWrites atomic.Int64
+	app.OnRecordAfterUpdateSuccess("maps").BindFunc(func(e *core.RecordEvent) error {
+		if e.Record.Id == mapID {
+			mapWrites.Add(1)
+		}
+		return e.Next()
+	})
+
+	flipConcurrently(t, app, addressIDs, "done")
+
+	// Settle on write activity rather than on the updated timestamp: a
+	// recalculation that finds nothing changed writes nothing at all.
+	stable := 0
+	last := int64(-1)
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) {
+		current := mapWrites.Load()
+		if current == last {
+			if stable++; stable >= 8 {
+				break
+			}
+		} else {
+			stable = 0
+			last = current
+		}
+		time.Sleep(40 * time.Millisecond)
+	}
+
+	writes := mapWrites.Load()
+	t.Logf("%d address changes produced %d map writes", raceBatch, writes)
+
+	if writes == 0 {
+		t.Fatal("no map write at all — the burst should have moved the aggregate once")
+	}
+	if writes > raceBatch/3 {
+		t.Errorf("recalculations were not collapsed: %d address changes produced %d map writes", raceBatch, writes)
+	}
+
+	if got, want := storedDone(t, app, mapID), actualDone(t, app, mapID); got != want {
+		t.Errorf("stored aggregate wrong after burst: got %d, want %d", got, want)
 	}
 }

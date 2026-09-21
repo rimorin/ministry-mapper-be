@@ -1,13 +1,16 @@
 package handlers
 
 import (
+	"encoding/json"
 	"log"
 	"math"
 	"sync"
+	"sync/atomic"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/routine"
 )
 
 type Aggregates struct {
@@ -19,24 +22,43 @@ type Aggregates struct {
 	Invalid          int `db:"invalid"`
 }
 
-// aggregateLock returns the lock that serialises recalculations of a single map
-// or territory.
+// storedAggregates is the shape written to maps.aggregates. The field names are
+// part of the contract: ProcessTerritoryAggregates reads completed and total out
+// of it with json_extract, and the frontend reads the rest.
+type storedAggregates struct {
+	NotDone   int `json:"notDone"`
+	Done      int `json:"done"`
+	NotHome   int `json:"notHome"`
+	Invalid   int `json:"invalid"`
+	Dnc       int `json:"dnc"`
+	Completed int `json:"completed"`
+	Total     int `json:"total"`
+}
+
+// aggregateJob coordinates recalculations of a single map or territory.
 //
-// Counting and storing are two separate steps: the aggregate query runs against
-// the concurrent read pool, then the result is saved. Two recalculations of the
-// same map therefore interleave, and the one that finishes last stores a count it
-// read before the other's changes landed — leaving a wrong progress figure until
-// some later update happens to recalculate it again.
+// run serialises them. Counting and storing are two separate steps, so two
+// concurrent recalculations interleave and the one that finishes last stores a
+// count it read before the other's changes landed.
 //
-// The locks live in app.Store() rather than a package-level map so they are
-// scoped to the app instance, which matters for tests that build one app per
-// case. RunInTransaction shallow-clones the app, so the transactional clone
-// shares the same store and therefore the same locks. One mutex per map and
-// territory is retained for the process lifetime, which is a few bytes each.
-func aggregateLock(app core.App, key string) *sync.Mutex {
-	return app.Store().GetOrSet("aggregate_lock:"+key, func() any {
-		return &sync.Mutex{}
-	}).(*sync.Mutex)
+// pending collapses the queue. A recalculation counts the map as it is at the
+// moment it runs, so several queued ones would all reach the same answer; at
+// most one waits behind the lock and the rest are dropped. The slot is released
+// on acquiring the lock, before counting starts, so an update arriving during a
+// recalculation still queues the next one.
+//
+// The jobs live in app.Store(), not a package-level map, so they are scoped to
+// the app instance; RunInTransaction shallow-clones the app, so a transactional
+// clone shares them.
+type aggregateJob struct {
+	run     sync.Mutex
+	pending atomic.Int32
+}
+
+func aggregateJobFor(app core.App, key string) *aggregateJob {
+	return app.Store().GetOrSet("aggregate_job:"+key, func() any {
+		return &aggregateJob{}
+	}).(*aggregateJob)
 }
 
 // ProcessMapAggregates recalculates a map's status counts and progress percentage.
@@ -47,10 +69,43 @@ func ProcessMapAggregates(mapID string, app core.App, resetTerritoryAggregates .
 		return apis.NewBadRequestError("Map ID is required", nil)
 	}
 
-	lock := aggregateLock(app, "map:"+mapID)
-	lock.Lock()
-	defer lock.Unlock()
+	job := aggregateJobFor(app, "map:"+mapID)
+	job.run.Lock()
+	defer job.run.Unlock()
 
+	return processMapAggregates(mapID, app, resetTerritoryAggregates...)
+}
+
+// ScheduleMapAggregates recalculates the map in the background and drops the
+// request when one is already queued for it. Used by the per-address hook, where
+// a map worked by several publishers would otherwise trigger one full recount
+// per address updated.
+func ScheduleMapAggregates(mapID string, app core.App) {
+	if mapID == "" {
+		return
+	}
+
+	job := aggregateJobFor(app, "map:"+mapID)
+	if !job.pending.CompareAndSwap(0, 1) {
+		// The queued one has not started counting yet, and the address row is
+		// already committed by the time this hook runs, so it will be included.
+		return
+	}
+
+	routine.FireAndForget(func() {
+		job.run.Lock()
+		job.pending.Store(0)
+		defer job.run.Unlock()
+
+		if err := processMapAggregates(mapID, app); err != nil {
+			app.Logger().Error("aggregate recalculation failed", "map", mapID, "err", err)
+		}
+	})
+}
+
+// processMapAggregates is ProcessMapAggregates without the lock. Callers must
+// already hold the map's job lock.
+func processMapAggregates(mapID string, app core.App, resetTerritoryAggregates ...bool) error {
 	aggregates := Aggregates{}
 	err := app.DB().NewQuery(`
         SELECT
@@ -85,14 +140,14 @@ func ProcessMapAggregates(mapID string, app core.App, resetTerritoryAggregates .
 		donePercentage = int(math.Round(float64(aggregates.Done+aggregates.NotHomeMaxTries) / float64(total) * 100))
 	}
 
-	amap := map[string]interface{}{
-		"notDone":   aggregates.NotDone,
-		"done":      aggregates.Done,
-		"notHome":   aggregates.NotHomeLessTries,
-		"invalid":   aggregates.Invalid,
-		"dnc":       aggregates.Dnc,
-		"completed": aggregates.Done + aggregates.NotHomeMaxTries,
-		"total":     total,
+	next := storedAggregates{
+		NotDone:   aggregates.NotDone,
+		Done:      aggregates.Done,
+		NotHome:   aggregates.NotHomeLessTries,
+		Invalid:   aggregates.Invalid,
+		Dnc:       aggregates.Dnc,
+		Completed: aggregates.Done + aggregates.NotHomeMaxTries,
+		Total:     total,
 	}
 
 	mapRecord, err := app.FindRecordById("maps", mapID)
@@ -101,7 +156,18 @@ func ProcessMapAggregates(mapID string, app core.App, resetTerritoryAggregates .
 		return err
 	}
 
-	mapRecord.Set("aggregates", amap)
+	var current storedAggregates
+	if raw := mapRecord.GetString("aggregates"); raw != "" {
+		// A value that will not parse is treated as different, so it gets rewritten.
+		_ = json.Unmarshal([]byte(raw), &current)
+	}
+	if current == next && mapRecord.GetInt("progress") == donePercentage {
+		// Nothing moved: skip the write, the realtime event it would broadcast,
+		// and the territory rollup that follows it.
+		return nil
+	}
+
+	mapRecord.Set("aggregates", next)
 	mapRecord.Set("progress", donePercentage)
 
 	if err := app.SaveNoValidate(mapRecord); err != nil {
@@ -126,9 +192,9 @@ func ProcessMapAggregates(mapID string, app core.App, resetTerritoryAggregates .
 // ProcessTerritoryAggregates recalculates a territory's progress percentage
 // by summing the completed/total values stored in each map's aggregates.
 func ProcessTerritoryAggregates(territoryID string, app core.App) error {
-	lock := aggregateLock(app, "territory:"+territoryID)
-	lock.Lock()
-	defer lock.Unlock()
+	job := aggregateJobFor(app, "territory:"+territoryID)
+	job.run.Lock()
+	defer job.run.Unlock()
 
 	progress := struct {
 		Completed int `db:"completed"`
@@ -155,6 +221,10 @@ func ProcessTerritoryAggregates(territoryID string, app core.App) error {
 	if err != nil {
 		log.Printf("Error finding territory record by ID %s: %v", territoryID, err)
 		return err
+	}
+
+	if territoryRecord.GetInt("progress") == donePercentage {
+		return nil
 	}
 
 	territoryRecord.Set("progress", donePercentage)
