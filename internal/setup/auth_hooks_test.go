@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -217,6 +218,223 @@ func TestAuthHook_TerritoriesListRequest(t *testing.T) {
 			ExpectedStatus:     200,
 			ExpectedContent:    []string{`"testterralpha01"`},
 			NotExpectedContent: []string{`"testterrbeta001"`},
+		},
+	}
+
+	for _, scenario := range scenarios {
+		scenario.Test(t)
+	}
+}
+
+func TestAuthHook_TerritoriesViewRequest(t *testing.T) {
+	adminToken, err := generateToken("admin@alpha.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	conductorToken, err := generateToken("conductor@alpha.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	readonlyToken, err := generateToken("readonly@alpha.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	betaAdminToken, err := generateToken("admin@beta.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	betaConductorToken, err := generateToken("xcong@beta.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	superuserToken, err := generateSuperuserToken("testing_account@ministry-mapper.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	alphaURL := "/api/collections/territories/records/testterralpha01"
+
+	scenarios := []tests.ApiScenario{
+		{
+			Name:            "unauthenticated request cannot view territory",
+			Method:          http.MethodGet,
+			URL:             alphaURL,
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  404,
+			ExpectedContent: []string{`"status":404`},
+		},
+		{
+			// 404, not the hook's 403: the viewRule filters the row out first.
+			Name:   "admin from another congregation cannot view territory",
+			Method: http.MethodGet,
+			URL:    alphaURL,
+			Headers: map[string]string{
+				"Authorization": betaAdminToken,
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     404,
+			ExpectedContent:    []string{`"status":404`},
+			NotExpectedContent: []string{`"Alpha Territory 01"`},
+		},
+		{
+			Name:   "conductor from another congregation cannot view territory",
+			Method: http.MethodGet,
+			URL:    alphaURL,
+			Headers: map[string]string{
+				"Authorization": betaConductorToken,
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     404,
+			ExpectedContent:    []string{`"status":404`},
+			NotExpectedContent: []string{`"Alpha Territory 01"`},
+		},
+		{
+			Name:   "admin can view own congregation's territory",
+			Method: http.MethodGet,
+			URL:    alphaURL,
+			Headers: map[string]string{
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"testterralpha01"`},
+		},
+		{
+			Name:   "conductor can view own congregation's territory",
+			Method: http.MethodGet,
+			URL:    alphaURL,
+			Headers: map[string]string{
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"testterralpha01"`},
+		},
+		{
+			Name:   "read_only can view own congregation's territory",
+			Method: http.MethodGet,
+			URL:    alphaURL,
+			Headers: map[string]string{
+				"Authorization": readonlyToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"testterralpha01"`},
+		},
+		{
+			Name:   "superuser can view any territory",
+			Method: http.MethodGet,
+			URL:    alphaURL,
+			Headers: map[string]string{
+				"Authorization": superuserToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"testterralpha01"`},
+		},
+		{
+			Name:   "member sending a valid link-id for the congregation still sees it",
+			Method: http.MethodGet,
+			URL:    alphaURL,
+			Headers: map[string]string{
+				"Authorization": adminToken,
+				"link-id":       "testassignalpha01",
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"testterralpha01"`},
+		},
+		{
+			Name:   "link-id for another congregation is rejected with 403",
+			Method: http.MethodGet,
+			URL:    alphaURL,
+			Headers: map[string]string{
+				"Authorization": adminToken,
+				"link-id":       "testassignbeta001",
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     403,
+			ExpectedContent:    []string{`"status":403`},
+			NotExpectedContent: []string{`"Alpha Territory 01"`},
+		},
+		{
+			Name:   "expired link-id is rejected with 403",
+			Method: http.MethodGet,
+			URL:    alphaURL,
+			Headers: map[string]string{
+				"Authorization": adminToken,
+				"link-id":       "testassignexprd01",
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     403,
+			ExpectedContent:    []string{`"status":403`},
+			NotExpectedContent: []string{`"Alpha Territory 01"`},
+		},
+	}
+
+	for _, scenario := range scenarios {
+		scenario.Test(t)
+	}
+}
+
+// Expansion is authorized by the viewRule alone, so it needs its own coverage:
+// assignments lets an admin or conductor read any user's history, and a nested
+// expand rides along on the records that returns.
+func TestAuthHook_TerritoriesExpandScope(t *testing.T) {
+	conductorToken, err := generateToken("conductor@alpha.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	seedAssignment := func(id, mapId, congId, userId string) func(testing.TB, *tests.TestApp, *core.ServeEvent) {
+		return func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+			col, err := app.FindCollectionByNameOrId("assignments")
+			if err != nil {
+				t.Fatal(err)
+			}
+			rec := core.NewRecord(col)
+			rec.Id = id
+			rec.Set("map", mapId)
+			rec.Set("congregation", congId)
+			rec.Set("user", userId)
+			rec.Set("type", "normal")
+			rec.Set("publisher", "Expand Probe")
+			rec.Set("expiry_date", time.Now().UTC().Add(24*time.Hour).Format("2006-01-02 15:04:05.000Z"))
+			if err := app.SaveNoValidate(rec); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	scenarios := []tests.ApiScenario{
+		{
+			Name:   "nested expand cannot reach another congregation's territory",
+			Method: http.MethodGet,
+			URL: "/api/collections/assignments/records?expand=map.territory&fields=id,expand.map.expand.territory.description&filter=" +
+				url.QueryEscape(`user="testuserbeta001"`),
+			Headers: map[string]string{
+				"Authorization": conductorToken,
+			},
+			TestAppFactory: setupTestApp,
+			BeforeTestFunc: seedAssignment("expandprobebeta", "testmapbeta001a", "testcongbeta001", "testuserbeta001"),
+			ExpectedStatus: 200,
+			NotExpectedContent: []string{
+				`"Beta Territory 01"`,
+				`"testterrbeta001"`,
+			},
+		},
+		{
+			Name:   "nested expand still resolves the caller's own territory",
+			Method: http.MethodGet,
+			URL: "/api/collections/assignments/records?expand=map.territory&fields=id,expand.map.expand.territory.description&filter=" +
+				url.QueryEscape(`user="testuseralpha02"`),
+			Headers: map[string]string{
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:  setupTestApp,
+			BeforeTestFunc:  seedAssignment("expandprobealph", "testmapalpha01a", "testcongalpha01", "testuseralpha02"),
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"Alpha Territory 01"`},
 		},
 	}
 
