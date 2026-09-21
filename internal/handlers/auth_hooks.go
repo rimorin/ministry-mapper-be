@@ -386,6 +386,19 @@ func RegisterAuthHooks(app core.App) {
 		return e.Next()
 	})
 
+	// territories VIEW: validate role or link-id for the territory's congregation.
+	app.OnRecordViewRequest("territories").BindFunc(func(e *core.RecordRequestEvent) error {
+		congId := e.Record.GetString("congregation")
+		return authorizeView(e,
+			func() bool {
+				return congId != "" && AuthorizeByRole(app, e.Auth.Id, congId)
+			},
+			func(linkId string) bool {
+				return congId != "" && AuthorizeLinkForCongregation(app, linkId, congId)
+			},
+		)
+	})
+
 	// address_options VIEW: validate role or link-id for the record's map.
 	app.OnRecordViewRequest("address_options").BindFunc(func(e *core.RecordRequestEvent) error {
 		mapId := e.Record.GetString("map")
