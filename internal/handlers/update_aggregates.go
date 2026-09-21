@@ -3,6 +3,7 @@ package handlers
 import (
 	"log"
 	"math"
+	"sync"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
@@ -18,6 +19,26 @@ type Aggregates struct {
 	Invalid          int `db:"invalid"`
 }
 
+// aggregateLock returns the lock that serialises recalculations of a single map
+// or territory.
+//
+// Counting and storing are two separate steps: the aggregate query runs against
+// the concurrent read pool, then the result is saved. Two recalculations of the
+// same map therefore interleave, and the one that finishes last stores a count it
+// read before the other's changes landed — leaving a wrong progress figure until
+// some later update happens to recalculate it again.
+//
+// The locks live in app.Store() rather than a package-level map so they are
+// scoped to the app instance, which matters for tests that build one app per
+// case. RunInTransaction shallow-clones the app, so the transactional clone
+// shares the same store and therefore the same locks. One mutex per map and
+// territory is retained for the process lifetime, which is a few bytes each.
+func aggregateLock(app core.App, key string) *sync.Mutex {
+	return app.Store().GetOrSet("aggregate_lock:"+key, func() any {
+		return &sync.Mutex{}
+	}).(*sync.Mutex)
+}
+
 // ProcessMapAggregates recalculates a map's status counts and progress percentage.
 // resetTerritoryAggregates (default true) controls whether the map's territory
 // aggregates are also recalculated.
@@ -25,6 +46,10 @@ func ProcessMapAggregates(mapID string, app core.App, resetTerritoryAggregates .
 	if mapID == "" {
 		return apis.NewBadRequestError("Map ID is required", nil)
 	}
+
+	lock := aggregateLock(app, "map:"+mapID)
+	lock.Lock()
+	defer lock.Unlock()
 
 	aggregates := Aggregates{}
 	err := app.DB().NewQuery(`
@@ -101,6 +126,10 @@ func ProcessMapAggregates(mapID string, app core.App, resetTerritoryAggregates .
 // ProcessTerritoryAggregates recalculates a territory's progress percentage
 // by summing the completed/total values stored in each map's aggregates.
 func ProcessTerritoryAggregates(territoryID string, app core.App) error {
+	lock := aggregateLock(app, "territory:"+territoryID)
+	lock.Lock()
+	defer lock.Unlock()
+
 	progress := struct {
 		Completed int `db:"completed"`
 		Total     int `db:"total"`
