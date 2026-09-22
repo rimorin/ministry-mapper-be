@@ -73,6 +73,23 @@ func getCongId(e *core.RecordRequestEvent, useOriginal bool) string {
 	return e.Record.GetString("congregation")
 }
 
+// requireTerritoryInCongregation refuses a map whose territory sits in another
+// congregation: ProcessTerritoryAggregates sums maps by territory without
+// looking at the congregation, so a mismatch skews the other congregation's
+// progress. Territory is optional, so a map without one is left alone, and one
+// message covers both missing and foreign so the response cannot be used to
+// probe territory ids. Mirrors the check in /map/territory/update.
+func requireTerritoryInCongregation(app core.App, record *core.Record, congId string) error {
+	territoryId := record.GetString("territory")
+	if territoryId == "" {
+		return nil
+	}
+	if getTerritoryCongregation(app, territoryId) != congId {
+		return apis.NewBadRequestError("Invalid territory", nil)
+	}
+	return nil
+}
+
 var mapIdPattern = regexp.MustCompile(`map\s*=\s*['"]([^'"]+)['"]`)
 var congIdPattern = regexp.MustCompile(`congregation\s*=\s*['"]([^'"]+)['"]`)
 var territoryIdPattern = regexp.MustCompile(`territory\s*=\s*['"]([^'"]+)['"]`)
@@ -606,8 +623,33 @@ func RegisterAuthHooks(app core.App) {
 	})
 
 	// Pattern B: Administrator only
-	// maps update/delete
+	// maps create/update/delete
+	//
+	// createRule only requires a logged-in caller, so without this hook any
+	// account could add maps to another congregation's territory.
+	app.OnRecordCreateRequest("maps").BindFunc(func(e *core.RecordRequestEvent) error {
+		congId := getCongId(e, false)
+		if !e.HasSuperuserAuth() {
+			if err := requireTerritoryInCongregation(app, e.Record, congId); err != nil {
+				return err
+			}
+		}
+		return adminOnly(e, app, congId)
+	})
 	app.OnRecordUpdateRequest("maps").BindFunc(func(e *core.RecordRequestEvent) error {
+		// adminOnly authorises against the congregation the map belongs to now,
+		// so a change of congregation escapes it — and, moved together with the
+		// territory, slips past the check below too. No route moves a map
+		// between congregations.
+		if !e.HasSuperuserAuth() {
+			if original := e.Record.Original(); original != nil &&
+				e.Record.GetString("congregation") != original.GetString("congregation") {
+				return apis.NewBadRequestError("A map cannot be moved to another congregation", nil)
+			}
+			if err := requireTerritoryInCongregation(app, e.Record, e.Record.GetString("congregation")); err != nil {
+				return err
+			}
+		}
 		return adminOnly(e, app, getCongId(e, true))
 	})
 	app.OnRecordDeleteRequest("maps").BindFunc(func(e *core.RecordRequestEvent) error {

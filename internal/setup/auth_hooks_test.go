@@ -1974,6 +1974,176 @@ func TestAuthHook_TerritoriesDeleteRequest(t *testing.T) {
 	}
 }
 
+// TestAuthHook_MapsCreateRequest covers the create path. createRule only asks
+// for a logged-in caller, so the hook is what enforces administrator — an
+// unauthenticated caller is refused by the rule before the hook runs, which
+// surfaces as 400 rather than the hook's 403.
+func TestAuthHook_MapsCreateRequest(t *testing.T) {
+	adminToken, err := generateToken("admin@alpha.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	conductorToken, err := generateToken("conductor@alpha.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	readonlyToken, err := generateToken("readonly@alpha.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	betaAdminToken, err := generateToken("admin@beta.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	superuserToken, err := generateSuperuserToken("testing_account@ministry-mapper.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	alphaMap := func(code string) string {
+		return `{"congregation":"testcongalpha01","territory":"testterralpha01","code":"` + code + `","description":"probe","type":"single"}`
+	}
+
+	forbidden := func(name, code, token string) tests.ApiScenario {
+		return tests.ApiScenario{
+			Name:   name,
+			Method: http.MethodPost,
+			URL:    "/api/collections/maps/records",
+			Body:   strings.NewReader(alphaMap(code)),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": token,
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     403,
+			ExpectedContent:    []string{`"Administrator access required."`},
+			NotExpectedContent: []string{`"` + code + `"`},
+		}
+	}
+
+	scenarios := []tests.ApiScenario{
+		{
+			Name:   "unauthenticated cannot create a map",
+			Method: http.MethodPost,
+			URL:    "/api/collections/maps/records",
+			Body:   strings.NewReader(alphaMap("PROBE1")),
+			Headers: map[string]string{
+				"Content-Type": "application/json",
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     400,
+			NotExpectedContent: []string{`"PROBE1"`},
+		},
+		forbidden("administrator of another congregation cannot create a map", "PROBE2", betaAdminToken),
+		forbidden("read_only cannot create a map", "PROBE3", readonlyToken),
+		forbidden("conductor cannot create a map", "PROBE4", conductorToken),
+		{
+			Name:   "administrator of the congregation can create a map",
+			Method: http.MethodPost,
+			URL:    "/api/collections/maps/records",
+			Body:   strings.NewReader(alphaMap("PROBE5")),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"PROBE5"`},
+		},
+		{
+			Name:   "administrator cannot create a map in another congregation",
+			Method: http.MethodPost,
+			URL:    "/api/collections/maps/records",
+			Body:   strings.NewReader(`{"congregation":"testcongbeta001","territory":"testterrbeta001","code":"PROBE6","description":"probe","type":"single"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     403,
+			ExpectedContent:    []string{`"Administrator access required."`},
+			NotExpectedContent: []string{`"PROBE6"`},
+		},
+		{
+			Name:   "administrator cannot create a map under another congregation's territory",
+			Method: http.MethodPost,
+			URL:    "/api/collections/maps/records",
+			Body:   strings.NewReader(`{"congregation":"testcongalpha01","territory":"testterrbeta001","code":"PROBE10","description":"probe","type":"single"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     400,
+			ExpectedContent:    []string{`"Invalid territory."`},
+			NotExpectedContent: []string{`"PROBE10"`},
+		},
+		{
+			Name:   "administrator cannot create a map under a territory that does not exist",
+			Method: http.MethodPost,
+			URL:    "/api/collections/maps/records",
+			Body:   strings.NewReader(`{"congregation":"testcongalpha01","territory":"doesnotexist12","code":"PROBE11","description":"probe","type":"single"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     400,
+			ExpectedContent:    []string{`"Invalid territory."`},
+			NotExpectedContent: []string{`"PROBE11"`},
+		},
+		// The batch endpoint routes through the same record handlers, so the
+		// hook applies there too — worth pinning, since batch is enabled and a
+		// bypass would reopen the whole path.
+		{
+			Name:   "conductor cannot create a map through the batch endpoint",
+			Method: http.MethodPost,
+			URL:    "/api/batch",
+			Body: strings.NewReader(`{"requests":[{"method":"POST","url":"/api/collections/maps/records","body":` +
+				alphaMap("PROBE8") + `}]}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:     setupTestApp,
+			ExpectedStatus:     400,
+			ExpectedContent:    []string{`"batch_request_failed"`},
+			NotExpectedContent: []string{`"PROBE8"`},
+		},
+		{
+			Name:   "administrator can create a map through the batch endpoint",
+			Method: http.MethodPost,
+			URL:    "/api/batch",
+			Body: strings.NewReader(`{"requests":[{"method":"POST","url":"/api/collections/maps/records","body":` +
+				alphaMap("PROBE9") + `}]}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"PROBE9"`},
+		},
+		{
+			Name:   "superuser can create a map",
+			Method: http.MethodPost,
+			URL:    "/api/collections/maps/records",
+			Body:   strings.NewReader(alphaMap("PROBE7")),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": superuserToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"PROBE7"`},
+		},
+	}
+
+	for _, scenario := range scenarios {
+		scenario.Test(t)
+	}
+}
+
 func TestAuthHook_MapsUpdateRequest(t *testing.T) {
 	adminToken, err := generateToken("admin@alpha.test")
 	if err != nil {
@@ -1987,6 +2157,45 @@ func TestAuthHook_MapsUpdateRequest(t *testing.T) {
 	body := `{"description":"Updated description"}`
 
 	scenarios := []tests.ApiScenario{
+		{
+			Name:   "administrator cannot move a map under another congregation's territory",
+			Method: http.MethodPatch,
+			URL:    "/api/collections/maps/records/testmapalpha01a",
+			Body:   strings.NewReader(`{"territory":"testterrbeta001"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`"Invalid territory."`},
+		},
+		{
+			Name:   "administrator cannot move a map to another congregation",
+			Method: http.MethodPatch,
+			URL:    "/api/collections/maps/records/testmapalpha01a",
+			Body:   strings.NewReader(`{"congregation":"testcongbeta001","territory":"testterrbeta001"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`"A map cannot be moved to another congregation."`},
+		},
+		{
+			Name:   "administrator can move a map within its own congregation",
+			Method: http.MethodPatch,
+			URL:    "/api/collections/maps/records/testmapalpha01a",
+			Body:   strings.NewReader(`{"territory":"testterralpha02"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"testterralpha02"`},
+		},
 		{
 			Name:            "unauthenticated request cannot find map (404)",
 			Method:          http.MethodPatch,
