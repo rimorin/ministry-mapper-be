@@ -489,12 +489,12 @@ func init() {
 						"type": "text"
 					},
 					{
-						"exceptDomains": null,
+						"exceptDomains": [],
 						"help": "",
 						"hidden": false,
 						"id": "email3885137012",
 						"name": "email",
-						"onlyDomains": null,
+						"onlyDomains": [],
 						"presentable": false,
 						"required": true,
 						"system": true,
@@ -667,12 +667,12 @@ func init() {
 						"type": "text"
 					},
 					{
-						"exceptDomains": null,
+						"exceptDomains": [],
 						"help": "",
 						"hidden": false,
 						"id": "email3885137012",
 						"name": "email",
-						"onlyDomains": null,
+						"onlyDomains": [],
 						"presentable": false,
 						"required": false,
 						"system": true,
@@ -1155,7 +1155,6 @@ func init() {
 				],
 				"id": "thnq0jvp13lr8ct",
 				"indexes": [
-					"CREATE INDEX ` + "`" + `idx_7CBdHug` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (` + "`" + `map` + "`" + `)",
 					"CREATE INDEX ` + "`" + `idx_vRAy883` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `code` + "`" + `,\n  ` + "`" + `map` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_20F0iUx` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `floor` + "`" + `,\n  ` + "`" + `map` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_Fx581hd` + "`" + ` ON ` + "`" + `addresses` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `status` + "`" + `\n)",
@@ -1295,7 +1294,6 @@ func init() {
 				],
 				"id": "06zc4itse2ipw9l",
 				"indexes": [
-					"CREATE INDEX ` + "`" + `idx_pI4sxv2` + "`" + ` ON ` + "`" + `assignments` + "`" + ` (` + "`" + `map` + "`" + `)",
 					"CREATE INDEX ` + "`" + `idx_RuF9QNcKE2` + "`" + ` ON ` + "`" + `assignments` + "`" + ` (` + "`" + `expiry_date` + "`" + `)",
 					"CREATE INDEX ` + "`" + `idx_6V9YIvnGqD` + "`" + ` ON ` + "`" + `assignments` + "`" + ` (\n  ` + "`" + `user` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_Su1rP10S5r` + "`" + ` ON ` + "`" + `assignments` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `expiry_date` + "`" + `\n)"
@@ -1472,7 +1470,7 @@ func init() {
 				"viewRule": "@request.auth.id != \"\" || @request.headers.link_id != \"\""
 			},
 			{
-				"createRule": "",
+				"createRule": "@request.auth.id != \"\"",
 				"deleteRule": "@request.auth.id != \"\"",
 				"fields": [
 					{
@@ -1635,7 +1633,6 @@ func init() {
 				"id": "rupq6yj561mghrr",
 				"indexes": [
 					"CREATE INDEX ` + "`" + `idx_QjY4Y2c` + "`" + ` ON ` + "`" + `maps` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `code` + "`" + `\n)",
-					"CREATE INDEX ` + "`" + `idx_O2TlLJr` + "`" + ` ON ` + "`" + `maps` + "`" + ` (` + "`" + `territory` + "`" + `)",
 					"CREATE INDEX ` + "`" + `idx_TzbzxPXi9e` + "`" + ` ON ` + "`" + `maps` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `sequence` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_Vflk3nOhz5` + "`" + ` ON ` + "`" + `maps` + "`" + ` (` + "`" + `congregation` + "`" + `)"
 				],
@@ -2009,8 +2006,6 @@ func init() {
 				"id": "xln2af1in0pdo30",
 				"indexes": [
 					"CREATE INDEX ` + "`" + `idx_u9wr0mg` + "`" + ` ON ` + "`" + `roles` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `role` + "`" + `\n)",
-					"CREATE INDEX ` + "`" + `idx_iPooFW46s8` + "`" + ` ON ` + "`" + `roles` + "`" + ` (` + "`" + `user` + "`" + `)",
-					"CREATE INDEX ` + "`" + `idx_Dya44KEsGS` + "`" + ` ON ` + "`" + `roles` + "`" + ` (\n  ` + "`" + `user` + "`" + `,\n  ` + "`" + `congregation` + "`" + `\n)",
 					"CREATE INDEX ` + "`" + `idx_PUEoaq44d4` + "`" + ` ON ` + "`" + `roles` + "`" + ` (\n  ` + "`" + `user` + "`" + `,\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `role` + "`" + `\n)"
 				],
 				"listRule": "@request.auth.id != \"\" && @request.query.filter:isset = true && (@request.query.filter ~ \"user=\" || @request.query.filter ~ \"congregation=\") && @request.query.fields:isset = true",
@@ -2130,15 +2125,14 @@ func init() {
 				],
 				"id": "kyfdlowtckhj9wm",
 				"indexes": [
-					"CREATE INDEX ` + "`" + `idx_fMh5sfU` + "`" + ` ON ` + "`" + `territories` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `code` + "`" + `\n)",
-					"CREATE INDEX ` + "`" + `idx_Otsl0yR` + "`" + ` ON ` + "`" + `territories` + "`" + ` (` + "`" + `congregation` + "`" + `)"
+					"CREATE INDEX ` + "`" + `idx_fMh5sfU` + "`" + ` ON ` + "`" + `territories` + "`" + ` (\n  ` + "`" + `congregation` + "`" + `,\n  ` + "`" + `code` + "`" + `\n)"
 				],
 				"listRule": "@request.auth.id != \"\" && @request.query.filter:isset = true && @request.query.filter ~ \"congregation=\" && @request.query.fields:isset = true",
 				"name": "territories",
 				"system": false,
 				"type": "base",
 				"updateRule": "@request.auth.id != \"\"",
-				"viewRule": "@request.auth.id != \"\" && @request.query.filter:isset = true && @request.query.filter ~ \"user=\" && @request.query.fields:isset = true"
+				"viewRule": "@request.auth.id != \"\" && congregation.roles_via_congregation.user ?= @request.auth.id"
 			},
 			{
 				"createRule": null,
@@ -2286,7 +2280,8 @@ func init() {
 				"id": "pbc_3761286587",
 				"indexes": [
 					"CREATE INDEX ` + "`" + `idx_RQh6UExsxs` + "`" + ` ON ` + "`" + `addresses_log` + "`" + ` (\n  ` + "`" + `territory` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)",
-					"CREATE INDEX ` + "`" + `idx_BOxiQNfT5i` + "`" + ` ON ` + "`" + `addresses_log` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)"
+					"CREATE INDEX ` + "`" + `idx_BOxiQNfT5i` + "`" + ` ON ` + "`" + `addresses_log` + "`" + ` (\n  ` + "`" + `map` + "`" + `,\n  ` + "`" + `created` + "`" + `\n)",
+					"CREATE INDEX ` + "`" + `idx_addresses_log_congregation_created` + "`" + ` ON ` + "`" + `addresses_log` + "`" + ` (` + "`" + `congregation` + "`" + `, ` + "`" + `created` + "`" + `)"
 				],
 				"listRule": null,
 				"name": "addresses_log",
@@ -2318,7 +2313,7 @@ func init() {
 						"autogeneratePattern": "0",
 						"help": "",
 						"hidden": false,
-						"id": "_clone_UTrD",
+						"id": "_clone_IYAV",
 						"max": 0,
 						"min": 0,
 						"name": "code",
@@ -2332,7 +2327,7 @@ func init() {
 					{
 						"help": "",
 						"hidden": false,
-						"id": "_clone_DT9A",
+						"id": "_clone_IMJN",
 						"maxSelect": 1,
 						"name": "type",
 						"presentable": false,
@@ -2349,7 +2344,7 @@ func init() {
 						"collectionId": "kyfdlowtckhj9wm",
 						"help": "",
 						"hidden": false,
-						"id": "_clone_XHDc",
+						"id": "_clone_yifP",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "territory",
@@ -2363,7 +2358,7 @@ func init() {
 						"collectionId": "zzljam3htisq5tv",
 						"help": "",
 						"hidden": false,
-						"id": "_clone_kWvx",
+						"id": "_clone_SlgF",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2375,7 +2370,7 @@ func init() {
 					{
 						"help": "",
 						"hidden": false,
-						"id": "_clone_VByI",
+						"id": "_clone_8P5A",
 						"max": null,
 						"min": null,
 						"name": "progress",
@@ -2388,7 +2383,7 @@ func init() {
 					{
 						"help": "",
 						"hidden": false,
-						"id": "_clone_P2DC",
+						"id": "_clone_vyFg",
 						"max": null,
 						"min": null,
 						"name": "sequence",
@@ -2400,7 +2395,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_4PdC",
+						"id": "_clone_Cho7",
 						"name": "created",
 						"onCreate": true,
 						"onUpdate": false,
@@ -2410,7 +2405,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_IXSX",
+						"id": "_clone_fBNq",
 						"name": "updated",
 						"onCreate": true,
 						"onUpdate": true,
@@ -2529,7 +2524,7 @@ func init() {
 						"autogeneratePattern": "",
 						"help": "",
 						"hidden": false,
-						"id": "_clone_N6Sf",
+						"id": "_clone_eoCp",
 						"max": 0,
 						"min": 0,
 						"name": "code",
@@ -2544,7 +2539,7 @@ func init() {
 						"autogeneratePattern": "",
 						"help": "",
 						"hidden": false,
-						"id": "_clone_wyfo",
+						"id": "_clone_mhh2",
 						"max": 0,
 						"min": 0,
 						"name": "description",
@@ -2560,7 +2555,7 @@ func init() {
 						"collectionId": "zzljam3htisq5tv",
 						"help": "",
 						"hidden": false,
-						"id": "_clone_a76t",
+						"id": "_clone_xkDm",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2572,7 +2567,7 @@ func init() {
 					{
 						"help": "",
 						"hidden": false,
-						"id": "_clone_SJkl",
+						"id": "_clone_9NbG",
 						"max": 100,
 						"min": 0,
 						"name": "progress",
@@ -2586,7 +2581,7 @@ func init() {
 						"autogeneratePattern": "",
 						"help": "",
 						"hidden": false,
-						"id": "_clone_cS8d",
+						"id": "_clone_DSyx",
 						"max": 0,
 						"min": 0,
 						"name": "congregation_name",
@@ -2673,7 +2668,7 @@ func init() {
 				"system": false,
 				"type": "view",
 				"updateRule": null,
-				"viewQuery": "SELECT\n     t.id,\n     t.code,\n     t.description,\n     t.congregation,\n     t.progress,\n     c.name AS congregation_name,\n     COUNT(a.id) AS total_addresses,\n     SUM(CASE WHEN a.status = 'done' THEN 1 ELSE 0 END) AS done,\n     SUM(CASE WHEN a.status = 'not_done' THEN 1 ELSE 0 END) AS not_done,\n     SUM(CASE WHEN a.status = 'not_home' THEN 1 ELSE 0 END) AS not_home,\n     SUM(CASE WHEN a.status = 'do_not_call' THEN 1 ELSE 0 END) AS dnc,\n     SUM(CASE WHEN a.status = 'invalid' THEN 1 ELSE 0 END) AS invalid\n   FROM territories t\n   LEFT JOIN addresses a ON a.territory = t.id\n   LEFT JOIN congregations c ON t.congregation = c.id\n   GROUP BY t.id;",
+				"viewQuery": "SELECT\n     t.id,\n     t.code,\n     t.description,\n     t.congregation,\n     t.progress,\n     c.name AS congregation_name,\n     COUNT(a.id) AS total_addresses,\n     SUM(CASE WHEN a.status = 'done' THEN 1 ELSE 0 END) AS done,\n     SUM(CASE WHEN a.status = 'not_done' THEN 1 ELSE 0 END) AS not_done,\n     SUM(CASE WHEN a.status = 'not_home' THEN 1 ELSE 0 END) AS not_home,\n     SUM(CASE WHEN a.status = 'do_not_call' THEN 1 ELSE 0 END) AS dnc,\n     SUM(CASE WHEN a.status = 'invalid' THEN 1 ELSE 0 END) AS invalid\n   FROM territories t\n   LEFT JOIN addresses a ON a.territory = t.id\n   LEFT JOIN congregations c ON t.congregation = c.id\n   GROUP BY t.id, t.congregation;",
 				"viewRule": null
 			},
 			{
@@ -2711,7 +2706,7 @@ func init() {
 						"collectionId": "zzljam3htisq5tv",
 						"help": "",
 						"hidden": false,
-						"id": "_clone_n4Nu",
+						"id": "_clone_D4d8",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2724,7 +2719,7 @@ func init() {
 						"autogeneratePattern": "",
 						"help": "",
 						"hidden": false,
-						"id": "_clone_RBbT",
+						"id": "_clone_Y8Bp",
 						"max": 0,
 						"min": 0,
 						"name": "territory",
@@ -2739,7 +2734,7 @@ func init() {
 						"autogeneratePattern": "",
 						"help": "",
 						"hidden": false,
-						"id": "_clone_cZi4",
+						"id": "_clone_9rbo",
 						"max": 0,
 						"min": 0,
 						"name": "new_status",
@@ -2771,7 +2766,7 @@ func init() {
 				"system": false,
 				"type": "view",
 				"updateRule": null,
-				"viewQuery": "SELECT\n     (ROW_NUMBER() OVER()) AS id,\n     strftime('%Y-%m-%d', created) AS day,\n     congregation,\n     territory,\n     new_status,\n     COUNT(*) AS change_count\n   FROM addresses_log\n   GROUP BY day, congregation, territory, new_status",
+				"viewQuery": "SELECT\n     (strftime('%Y-%m-%d', created) || '_' || COALESCE(congregation, '') || '_' || COALESCE(territory, '') || '_' || COALESCE(new_status, '')) AS id,\n     strftime('%Y-%m-%d', created) AS day,\n     congregation,\n     territory,\n     new_status,\n     COUNT(*) AS change_count\n   FROM addresses_log\n   GROUP BY day, congregation, territory, new_status",
 				"viewRule": null
 			},
 			{
@@ -2798,7 +2793,7 @@ func init() {
 						"collectionId": "zzljam3htisq5tv",
 						"help": "",
 						"hidden": false,
-						"id": "_clone_DSLM",
+						"id": "_clone_U5mm",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "congregation",
@@ -2812,7 +2807,7 @@ func init() {
 						"collectionId": "kyfdlowtckhj9wm",
 						"help": "",
 						"hidden": false,
-						"id": "_clone_o4mW",
+						"id": "_clone_ovgj",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "territory",
@@ -2826,7 +2821,7 @@ func init() {
 						"collectionId": "rupq6yj561mghrr",
 						"help": "",
 						"hidden": false,
-						"id": "_clone_RBFG",
+						"id": "_clone_nnME",
 						"maxSelect": 1,
 						"minSelect": 0,
 						"name": "map",
@@ -2838,7 +2833,7 @@ func init() {
 					{
 						"help": "",
 						"hidden": false,
-						"id": "_clone_miQ2",
+						"id": "_clone_H6o9",
 						"max": null,
 						"min": null,
 						"name": "not_home_tries",
@@ -2851,7 +2846,7 @@ func init() {
 					{
 						"help": "",
 						"hidden": false,
-						"id": "_clone_xPxN",
+						"id": "_clone_CZYk",
 						"max": null,
 						"min": null,
 						"name": "max_tries",
@@ -2874,7 +2869,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_GnYW",
+						"id": "_clone_umU5",
 						"name": "updated",
 						"onCreate": true,
 						"onUpdate": true,
@@ -2890,7 +2885,7 @@ func init() {
 				"system": false,
 				"type": "view",
 				"updateRule": null,
-				"viewQuery": "SELECT\n     (ROW_NUMBER() OVER()) AS id,\n     a.congregation,\n     a.territory,\n     a.map,\n     a.not_home_tries,\n     c.max_tries,\n     IIF(a.not_home_tries >= c.max_tries, 'maxed_out', 'retrying') AS retry_status,\n     a.updated\n   FROM addresses a\n   JOIN congregations c ON a.congregation = c.id\n   WHERE a.status = 'not_home'",
+				"viewQuery": "SELECT\n     a.id,\n     a.congregation,\n     a.territory,\n     a.map,\n     a.not_home_tries,\n     c.max_tries,\n     IIF(a.not_home_tries >= c.max_tries, 'maxed_out', 'retrying') AS retry_status,\n     a.updated\n   FROM addresses a\n   JOIN congregations c ON a.congregation = c.id\n   WHERE a.status = 'not_home'",
 				"viewRule": null
 			},
 			{
@@ -2916,7 +2911,7 @@ func init() {
 						"autogeneratePattern": "user[0-9]{5}[A-Za-z]",
 						"help": "",
 						"hidden": false,
-						"id": "_clone_T8Qx",
+						"id": "_clone_i4lT",
 						"max": 50,
 						"min": 2,
 						"name": "name",
@@ -2928,12 +2923,12 @@ func init() {
 						"type": "text"
 					},
 					{
-						"exceptDomains": null,
+						"exceptDomains": [],
 						"help": "",
 						"hidden": false,
-						"id": "_clone_0bFd",
+						"id": "_clone_QG29",
 						"name": "email",
-						"onlyDomains": null,
+						"onlyDomains": [],
 						"presentable": false,
 						"required": false,
 						"system": true,
@@ -2942,7 +2937,7 @@ func init() {
 					{
 						"help": "",
 						"hidden": false,
-						"id": "_clone_NNsX",
+						"id": "_clone_UKmS",
 						"max": "",
 						"min": "",
 						"name": "last_login",
@@ -2967,7 +2962,7 @@ func init() {
 					{
 						"help": "",
 						"hidden": false,
-						"id": "_clone_du4G",
+						"id": "_clone_VoAM",
 						"name": "disabled",
 						"presentable": false,
 						"required": false,
@@ -2977,7 +2972,7 @@ func init() {
 					{
 						"help": "",
 						"hidden": false,
-						"id": "_clone_cciN",
+						"id": "_clone_WASO",
 						"name": "verified",
 						"presentable": false,
 						"required": false,
@@ -2986,7 +2981,7 @@ func init() {
 					},
 					{
 						"hidden": false,
-						"id": "_clone_TDqy",
+						"id": "_clone_Plyb",
 						"name": "created",
 						"onCreate": true,
 						"onUpdate": false,
@@ -3136,6 +3131,325 @@ func init() {
 				"type": "base",
 				"updateRule": null,
 				"viewRule": "@request.auth.id != \"\" || @request.headers.link_id != \"\""
+			},
+			{
+				"createRule": null,
+				"deleteRule": null,
+				"fields": [
+					{
+						"autogeneratePattern": "[a-z0-9]{15}",
+						"help": "",
+						"hidden": false,
+						"id": "text3208210256",
+						"max": 15,
+						"min": 15,
+						"name": "id",
+						"pattern": "^[a-z0-9]+$",
+						"presentable": false,
+						"primaryKey": true,
+						"required": true,
+						"system": true,
+						"type": "text"
+					},
+					{
+						"autogeneratePattern": "",
+						"help": "",
+						"hidden": false,
+						"id": "text818234554",
+						"max": 0,
+						"min": 0,
+						"name": "assignment",
+						"pattern": "",
+						"presentable": false,
+						"primaryKey": false,
+						"required": false,
+						"system": false,
+						"type": "text"
+					},
+					{
+						"cascadeDelete": false,
+						"collectionId": "zzljam3htisq5tv",
+						"help": "",
+						"hidden": false,
+						"id": "relation2104863268",
+						"maxSelect": 0,
+						"minSelect": 0,
+						"name": "congregation",
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "relation"
+					},
+					{
+						"cascadeDelete": false,
+						"collectionId": "rupq6yj561mghrr",
+						"help": "",
+						"hidden": false,
+						"id": "relation2477632187",
+						"maxSelect": 0,
+						"minSelect": 0,
+						"name": "map",
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "relation"
+					},
+					{
+						"cascadeDelete": false,
+						"collectionId": "flm2xtzrt82ltf7",
+						"help": "",
+						"hidden": false,
+						"id": "relation2375276105",
+						"maxSelect": 0,
+						"minSelect": 0,
+						"name": "user",
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "relation"
+					},
+					{
+						"autogeneratePattern": "",
+						"help": "",
+						"hidden": false,
+						"id": "text2632504646",
+						"max": 0,
+						"min": 0,
+						"name": "publisher",
+						"pattern": "",
+						"presentable": false,
+						"primaryKey": false,
+						"required": false,
+						"system": false,
+						"type": "text"
+					},
+					{
+						"autogeneratePattern": "",
+						"help": "",
+						"hidden": false,
+						"id": "text2363381545",
+						"max": 0,
+						"min": 0,
+						"name": "type",
+						"pattern": "",
+						"presentable": false,
+						"primaryKey": false,
+						"required": false,
+						"system": false,
+						"type": "text"
+					},
+					{
+						"autogeneratePattern": "",
+						"help": "",
+						"hidden": false,
+						"id": "text1204587666",
+						"max": 0,
+						"min": 0,
+						"name": "action",
+						"pattern": "",
+						"presentable": false,
+						"primaryKey": false,
+						"required": false,
+						"system": false,
+						"type": "text"
+					},
+					{
+						"help": "",
+						"hidden": false,
+						"id": "date4141751240",
+						"max": "",
+						"min": "",
+						"name": "expiry_date",
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "date"
+					},
+					{
+						"cascadeDelete": false,
+						"collectionId": "flm2xtzrt82ltf7",
+						"help": "",
+						"hidden": false,
+						"id": "relation280784287",
+						"maxSelect": 0,
+						"minSelect": 0,
+						"name": "changed_by",
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "relation"
+					},
+					{
+						"hidden": false,
+						"id": "autodate2990389176",
+						"name": "created",
+						"onCreate": true,
+						"onUpdate": false,
+						"presentable": false,
+						"system": false,
+						"type": "autodate"
+					},
+					{
+						"hidden": false,
+						"id": "autodate3332085495",
+						"name": "updated",
+						"onCreate": true,
+						"onUpdate": true,
+						"presentable": false,
+						"system": false,
+						"type": "autodate"
+					}
+				],
+				"id": "pbc_4079981364",
+				"indexes": [
+					"CREATE INDEX ` + "`" + `idx_assignments_log_map_created` + "`" + ` ON ` + "`" + `assignments_log` + "`" + ` (map, created)",
+					"CREATE INDEX ` + "`" + `idx_assignments_log_user_created` + "`" + ` ON ` + "`" + `assignments_log` + "`" + ` (user, created)"
+				],
+				"listRule": null,
+				"name": "assignments_log",
+				"system": false,
+				"type": "base",
+				"updateRule": null,
+				"viewRule": null
+			},
+			{
+				"createRule": null,
+				"deleteRule": null,
+				"fields": [
+					{
+						"autogeneratePattern": "[a-z0-9]{15}",
+						"help": "",
+						"hidden": false,
+						"id": "text3208210256",
+						"max": 15,
+						"min": 15,
+						"name": "id",
+						"pattern": "^[a-z0-9]+$",
+						"presentable": false,
+						"primaryKey": true,
+						"required": true,
+						"system": true,
+						"type": "text"
+					},
+					{
+						"cascadeDelete": false,
+						"collectionId": "zzljam3htisq5tv",
+						"help": "",
+						"hidden": false,
+						"id": "relation2104863268",
+						"maxSelect": 0,
+						"minSelect": 0,
+						"name": "congregation",
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "relation"
+					},
+					{
+						"cascadeDelete": false,
+						"collectionId": "flm2xtzrt82ltf7",
+						"help": "",
+						"hidden": false,
+						"id": "relation2375276105",
+						"maxSelect": 0,
+						"minSelect": 0,
+						"name": "user",
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "relation"
+					},
+					{
+						"autogeneratePattern": "",
+						"help": "",
+						"hidden": false,
+						"id": "text2146700239",
+						"max": 0,
+						"min": 0,
+						"name": "old_role",
+						"pattern": "",
+						"presentable": false,
+						"primaryKey": false,
+						"required": false,
+						"system": false,
+						"type": "text"
+					},
+					{
+						"autogeneratePattern": "",
+						"help": "",
+						"hidden": false,
+						"id": "text2743353015",
+						"max": 0,
+						"min": 0,
+						"name": "new_role",
+						"pattern": "",
+						"presentable": false,
+						"primaryKey": false,
+						"required": false,
+						"system": false,
+						"type": "text"
+					},
+					{
+						"autogeneratePattern": "",
+						"help": "",
+						"hidden": false,
+						"id": "text1204587666",
+						"max": 0,
+						"min": 0,
+						"name": "action",
+						"pattern": "",
+						"presentable": false,
+						"primaryKey": false,
+						"required": false,
+						"system": false,
+						"type": "text"
+					},
+					{
+						"cascadeDelete": false,
+						"collectionId": "flm2xtzrt82ltf7",
+						"help": "",
+						"hidden": false,
+						"id": "relation280784287",
+						"maxSelect": 0,
+						"minSelect": 0,
+						"name": "changed_by",
+						"presentable": false,
+						"required": false,
+						"system": false,
+						"type": "relation"
+					},
+					{
+						"hidden": false,
+						"id": "autodate2990389176",
+						"name": "created",
+						"onCreate": true,
+						"onUpdate": false,
+						"presentable": false,
+						"system": false,
+						"type": "autodate"
+					},
+					{
+						"hidden": false,
+						"id": "autodate3332085495",
+						"name": "updated",
+						"onCreate": true,
+						"onUpdate": true,
+						"presentable": false,
+						"system": false,
+						"type": "autodate"
+					}
+				],
+				"id": "pbc_485566262",
+				"indexes": [
+					"CREATE INDEX ` + "`" + `idx_roles_log_congregation_created` + "`" + ` ON ` + "`" + `roles_log` + "`" + ` (congregation, created)",
+					"CREATE INDEX ` + "`" + `idx_roles_log_user_created` + "`" + ` ON ` + "`" + `roles_log` + "`" + ` (user, created)"
+				],
+				"listRule": null,
+				"name": "roles_log",
+				"system": false,
+				"type": "base",
+				"updateRule": null,
+				"viewRule": null
 			}
 		]`
 
