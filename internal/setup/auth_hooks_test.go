@@ -264,7 +264,6 @@ func TestAuthHook_TerritoriesViewRequest(t *testing.T) {
 			ExpectedContent: []string{`"status":404`},
 		},
 		{
-			// 404, not the hook's 403: the viewRule filters the row out first.
 			Name:   "admin from another congregation cannot view territory",
 			Method: http.MethodGet,
 			URL:    alphaURL,
@@ -272,8 +271,8 @@ func TestAuthHook_TerritoriesViewRequest(t *testing.T) {
 				"Authorization": betaAdminToken,
 			},
 			TestAppFactory:     setupTestApp,
-			ExpectedStatus:     404,
-			ExpectedContent:    []string{`"status":404`},
+			ExpectedStatus:     403,
+			ExpectedContent:    []string{`"status":403`},
 			NotExpectedContent: []string{`"Alpha Territory 01"`},
 		},
 		{
@@ -284,8 +283,8 @@ func TestAuthHook_TerritoriesViewRequest(t *testing.T) {
 				"Authorization": betaConductorToken,
 			},
 			TestAppFactory:     setupTestApp,
-			ExpectedStatus:     404,
-			ExpectedContent:    []string{`"status":404`},
+			ExpectedStatus:     403,
+			ExpectedContent:    []string{`"status":403`},
 			NotExpectedContent: []string{`"Alpha Territory 01"`},
 		},
 		{
