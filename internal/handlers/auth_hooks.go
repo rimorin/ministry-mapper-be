@@ -220,6 +220,35 @@ func hasRoleAnywhere(app core.App, userId string, roles ...string) bool {
 	return err == nil
 }
 
+// sharesCongregation reports whether two users hold a role in a common congregation.
+func sharesCongregation(app core.App, userA, userB string) bool {
+	var v struct {
+		V int `db:"v"`
+	}
+	err := app.DB().NewQuery(`
+		SELECT 1 AS v FROM roles a
+		JOIN roles b ON b.congregation = a.congregation
+		WHERE a.user = {:a} AND b.user = {:b}
+		LIMIT 1
+	`).Bind(dbx.Params{"a": userA, "b": userB}).One(&v)
+	return err == nil
+}
+
+// userInLinkCongregation reports whether userId holds a role in the congregation of
+// the unexpired assignment linkId.
+func userInLinkCongregation(app core.App, linkId, userId string) bool {
+	var v struct {
+		V int `db:"v"`
+	}
+	err := app.DB().NewQuery(`
+		SELECT 1 AS v FROM assignments a
+		JOIN roles r ON r.congregation = a.congregation
+		WHERE a.id = {:link} AND a.expiry_date > datetime('now') AND r.user = {:user}
+		LIMIT 1
+	`).Bind(dbx.Params{"link": linkId, "user": userId}).One(&v)
+	return err == nil
+}
+
 // authorizedForAllCongregations checks that the user has a role in every congregation listed.
 // Returns false for an empty list.
 func authorizedForAllCongregations(app core.App, userId string, congIds []string) bool {
@@ -513,6 +542,19 @@ func RegisterAuthHooks(app core.App) {
 		return scopeEnrich(e,
 			func(auth *core.Record) bool { return AuthorizeByRole(app, auth.Id, e.Record.Id) },
 			func(linkId string) bool { return AuthorizeLinkForCongregation(app, linkId, e.Record.Id) },
+		)
+	})
+
+	// users: any administrator may see the whole directory, since adding a member
+	// means finding someone outside the congregation; anyone else sees themselves
+	// and the people they share a congregation with, which the roster relies on.
+	app.OnRecordEnrich("users").BindFunc(func(e *core.RecordEnrichEvent) error {
+		userId := e.Record.Id
+		return scopeEnrich(e,
+			func(auth *core.Record) bool {
+				return auth.Id == userId || sharesCongregation(app, auth.Id, userId) || hasRoleAnywhere(app, auth.Id, "administrator")
+			},
+			func(linkId string) bool { return userInLinkCongregation(app, linkId, userId) },
 		)
 	})
 
