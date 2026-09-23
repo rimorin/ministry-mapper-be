@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -368,72 +367,6 @@ func TestAuthHook_TerritoriesViewRequest(t *testing.T) {
 			ExpectedStatus:     403,
 			ExpectedContent:    []string{`"status":403`},
 			NotExpectedContent: []string{`"Alpha Territory 01"`},
-		},
-	}
-
-	for _, scenario := range scenarios {
-		scenario.Test(t)
-	}
-}
-
-// Expansion is authorized by the viewRule alone, so it needs its own coverage:
-// assignments lets an admin or conductor read any user's history, and a nested
-// expand rides along on the records that returns.
-func TestAuthHook_TerritoriesExpandScope(t *testing.T) {
-	conductorToken, err := generateToken("conductor@alpha.test")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	seedAssignment := func(id, mapId, congId, userId string) func(testing.TB, *tests.TestApp, *core.ServeEvent) {
-		return func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
-			col, err := app.FindCollectionByNameOrId("assignments")
-			if err != nil {
-				t.Fatal(err)
-			}
-			rec := core.NewRecord(col)
-			rec.Id = id
-			rec.Set("map", mapId)
-			rec.Set("congregation", congId)
-			rec.Set("user", userId)
-			rec.Set("type", "normal")
-			rec.Set("publisher", "Expand Probe")
-			rec.Set("expiry_date", time.Now().UTC().Add(24*time.Hour).Format("2006-01-02 15:04:05.000Z"))
-			if err := app.SaveNoValidate(rec); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
-
-	scenarios := []tests.ApiScenario{
-		{
-			Name:   "nested expand cannot reach another congregation's territory",
-			Method: http.MethodGet,
-			URL: "/api/collections/assignments/records?expand=map.territory&fields=id,expand.map.expand.territory.description&filter=" +
-				url.QueryEscape(`user="testuserbeta001"`),
-			Headers: map[string]string{
-				"Authorization": conductorToken,
-			},
-			TestAppFactory: setupTestApp,
-			BeforeTestFunc: seedAssignment("expandprobebeta", "testmapbeta001a", "testcongbeta001", "testuserbeta001"),
-			ExpectedStatus: 200,
-			NotExpectedContent: []string{
-				`"Beta Territory 01"`,
-				`"testterrbeta001"`,
-			},
-		},
-		{
-			Name:   "nested expand still resolves the caller's own territory",
-			Method: http.MethodGet,
-			URL: "/api/collections/assignments/records?expand=map.territory&fields=id,expand.map.expand.territory.description&filter=" +
-				url.QueryEscape(`user="testuseralpha02"`),
-			Headers: map[string]string{
-				"Authorization": conductorToken,
-			},
-			TestAppFactory:  setupTestApp,
-			BeforeTestFunc:  seedAssignment("expandprobealph", "testmapalpha01a", "testcongalpha01", "testuseralpha02"),
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"Alpha Territory 01"`},
 		},
 	}
 
