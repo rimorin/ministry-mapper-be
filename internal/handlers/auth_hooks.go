@@ -275,6 +275,32 @@ func authorizeView(e *core.RecordRequestEvent, authCheck func() bool, linkCheck 
 	return e.Next()
 }
 
+// scopeEnrich applies a record's view scope to ?expand= and realtime, which the
+// request hooks never see.
+//
+// An expanded record out of scope has its fields hidden rather than an error
+// returned: expandFetch loads a relation for every row at once and only logs
+// the error, so refusing one record would drop the expand for all of them. A
+// realtime broadcast can be refused outright; PocketBase skips just that
+// client's message.
+func scopeEnrich(e *core.RecordEnrichEvent, authCheck func(auth *core.Record) bool, linkCheck func(linkId string) bool) error {
+	info := e.RequestInfo
+	if info == nil || (info.Context != core.RequestInfoContextExpand && info.Context != core.RequestInfoContextRealtime) {
+		return e.Next()
+	}
+
+	check := func() bool { return authCheck(info.Auth) }
+	if authorized(info.HasSuperuserAuth(), info.Headers["link_id"], info.Auth, check, linkCheck, "Unauthorized") == "" {
+		return e.Next()
+	}
+
+	if info.Context == core.RequestInfoContextRealtime {
+		return apis.NewForbiddenError("Unauthorized", nil)
+	}
+	e.Record.Hide(e.Record.Collection().Fields.FieldNames()...)
+	return e.Next()
+}
+
 // linkMapListAuth validates map access for LIST requests.
 // If link-id is present it takes precedence and must be valid; otherwise role check is used.
 // All map IDs present in the filter must be authorized.
@@ -465,6 +491,28 @@ func RegisterAuthHooks(app core.App) {
 			func(linkId string) bool {
 				return AuthorizeLinkForCongregation(app, linkId, e.Record.Id)
 			},
+		)
+	})
+
+	// maps, territories and congregations: the same scope as their view hooks.
+	app.OnRecordEnrich("maps").BindFunc(func(e *core.RecordEnrichEvent) error {
+		congId := e.Record.GetString("congregation")
+		return scopeEnrich(e,
+			func(auth *core.Record) bool { return congId != "" && AuthorizeByRole(app, auth.Id, congId) },
+			func(linkId string) bool { return AuthorizeLinkAccess(app, linkId, e.Record.Id) },
+		)
+	})
+	app.OnRecordEnrich("territories").BindFunc(func(e *core.RecordEnrichEvent) error {
+		congId := e.Record.GetString("congregation")
+		return scopeEnrich(e,
+			func(auth *core.Record) bool { return congId != "" && AuthorizeByRole(app, auth.Id, congId) },
+			func(linkId string) bool { return congId != "" && AuthorizeLinkForCongregation(app, linkId, congId) },
+		)
+	})
+	app.OnRecordEnrich("congregations").BindFunc(func(e *core.RecordEnrichEvent) error {
+		return scopeEnrich(e,
+			func(auth *core.Record) bool { return AuthorizeByRole(app, auth.Id, e.Record.Id) },
+			func(linkId string) bool { return AuthorizeLinkForCongregation(app, linkId, e.Record.Id) },
 		)
 	})
 
