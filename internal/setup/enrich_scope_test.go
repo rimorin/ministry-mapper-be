@@ -44,6 +44,10 @@ func seedCrossAssignments(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) 
 }
 
 func TestEnrichScope_Expand(t *testing.T) {
+	adminToken, err := generateToken("admin@alpha.test")
+	if err != nil {
+		t.Fatal(err)
+	}
 	conductorToken, err := generateToken("conductor@alpha.test")
 	if err != nil {
 		t.Fatal(err)
@@ -91,6 +95,37 @@ func TestEnrichScope_Expand(t *testing.T) {
 			ExpectedStatus:     200,
 			ExpectedContent:    []string{`"Alpha Territory 01"`},
 			NotExpectedContent: []string{`"Beta Territory 01"`},
+		},
+		{
+			Name:               "user expand hides another congregation's user from a conductor",
+			Method:             http.MethodGet,
+			URL:                listURL("user", "id,expand.user.email"),
+			Headers:            map[string]string{"Authorization": conductorToken},
+			TestAppFactory:     setupTestApp,
+			BeforeTestFunc:     seedCrossAssignments,
+			ExpectedStatus:     200,
+			ExpectedContent:    []string{`"crossassignalph"`},
+			NotExpectedContent: []string{`"admin@beta.test"`},
+		},
+		{
+			Name:            "an administrator may see users across congregations",
+			Method:          http.MethodGet,
+			URL:             listURL("user", "id,expand.user.email"),
+			Headers:         map[string]string{"Authorization": adminToken},
+			TestAppFactory:  setupTestApp,
+			BeforeTestFunc:  seedCrossAssignments,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"admin@beta.test"`},
+		},
+		{
+			Name:   "the roster still shows co-members to a conductor",
+			Method: http.MethodGet,
+			URL: "/api/collections/roles/records?expand=user&fields=" + url.QueryEscape("id,expand.user.email") +
+				"&filter=" + url.QueryEscape(`congregation="testcongalpha01"`),
+			Headers:         map[string]string{"Authorization": conductorToken},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"admin@alpha.test"`, `"readonly@alpha.test"`},
 		},
 		{
 			Name:   "a publisher's link still expands its own map",
@@ -153,7 +188,9 @@ func TestEnrichScope_Realtime(t *testing.T) {
 	alphaTerritory := find("territories", "testterralpha01")
 	alphaCong := find("congregations", "testcongalpha01")
 	member := user("users", "conductor@alpha.test")
+	alphaReadonly := user("users", "readonly@alpha.test")
 	foreign := user("users", "admin@beta.test")
+	foreignConductor := user("users", "xcong@beta.test")
 	superuser := user(core.CollectionNameSuperusers, "testing_account@ministry-mapper.com")
 	rt := core.RequestInfoContextRealtime
 
@@ -175,6 +212,12 @@ func TestEnrichScope_Realtime(t *testing.T) {
 		{"other congregation does not receive the territory", alphaTerritory, foreign, rt, nil, false},
 		{"member receives their congregation", alphaCong, member, rt, nil, true},
 		{"other congregation does not receive the congregation", alphaCong, foreign, rt, nil, false},
+		{"a user receives their own record", alphaReadonly, alphaReadonly, rt, nil, true},
+		{"a co-member receives the user", alphaReadonly, member, rt, nil, true},
+		{"a conductor elsewhere does not receive the user", alphaReadonly, foreignConductor, rt, nil, false},
+		{"an administrator anywhere receives the user", alphaReadonly, foreign, rt, nil, true},
+		{"a link for the user's congregation receives the user", alphaReadonly, nil, rt, map[string]string{"link_id": "testassignalpha01"}, true},
+		{"a link for another congregation does not receive the user", alphaReadonly, nil, rt, map[string]string{"link_id": "testassignbeta001"}, false},
 		// Plain list and view responses are left to the request hooks.
 		{"a default-context response is not touched", alphaMap, foreign, core.RequestInfoContextDefault, nil, true},
 	}
@@ -215,7 +258,9 @@ func TestEnrichScope_Broadcast(t *testing.T) {
 		return rec
 	}
 	member := user("users", "conductor@alpha.test")
+	alphaReadonly := user("users", "readonly@alpha.test")
 	foreign := user("users", "admin@beta.test")
+	foreignConductor := user("users", "xcong@beta.test")
 	superuser := user(core.CollectionNameSuperusers, "testing_account@ministry-mapper.com")
 
 	type subscriber struct {
@@ -243,6 +288,12 @@ func TestEnrichScope_Broadcast(t *testing.T) {
 		{"congregations", "testcongalpha01", "name", []subscriber{
 			{"member", member, "", true},
 			{"other congregation", foreign, "", false},
+		}},
+		{"users", "testuseralpha03", "name", []subscriber{
+			{"the user", alphaReadonly, "", true},
+			{"co-member", member, "", true},
+			{"conductor elsewhere", foreignConductor, "", false},
+			{"administrator elsewhere", foreign, "", true},
 		}},
 	} {
 		t.Run(c.collection, func(t *testing.T) {

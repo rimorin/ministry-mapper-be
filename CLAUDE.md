@@ -76,7 +76,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - When both JWT and link-id are present, link-id takes precedence and must be valid (`AuthorizeMapAccess`, `internal/handlers/common.go`).
 - Header naming: Go reads `link-id` (hyphen); PocketBase API-rule strings see `@request.headers.link_id` (underscore).
 - List/view authorization is post-query filtering: `OnRecordsListRequest` hooks extract ids from the client filter, authorize, then prune results via `filterListResults` (`scope_filters.go`). New list endpoints follow this pattern.
-- IMPORTANT: API rules stay basic (logged in, link-id present); any scope that needs a join lives in Go hooks. Request hooks never see `?expand=` or realtime broadcasts, so a scoped collection also needs an `OnRecordEnrich` hook built on `scopeEnrich`. `maps`, `territories` and `congregations` have one; `users` does not yet.
+- IMPORTANT: API rules stay basic (logged in, link-id present); any scope that needs a join lives in Go hooks. Request hooks never see `?expand=` or realtime broadcasts, so a scoped collection also needs an `OnRecordEnrich` hook built on `scopeEnrich`. `maps`, `territories`, `congregations` and `users` have one.
 
 ## Writes
 - `addresses`, `address_options` and `messages` have superuser-only create/update/delete API rules by design; every mutation goes through a custom route (`/address/update`, `/address/add`, ...). A hook on `OnRecordUpdateRequest("addresses")` never fires. Find the route that owns a write path before designing a mutation.
