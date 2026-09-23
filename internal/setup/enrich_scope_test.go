@@ -154,87 +154,6 @@ func TestEnrichScope_Expand(t *testing.T) {
 	}
 }
 
-// TestEnrichScope_Realtime drives the enrich hooks with a realtime request, as
-// the broadcaster does for each subscriber.
-func TestEnrichScope_Realtime(t *testing.T) {
-	app := setupTestApp(t)
-	defer app.Cleanup()
-
-	find := func(collection, id string) *core.Record {
-		t.Helper()
-		rec, err := app.FindRecordById(collection, id)
-		if err != nil {
-			t.Fatalf("find %s %s: %v", collection, id, err)
-		}
-		return rec
-	}
-	user := func(collection, email string) *core.Record {
-		t.Helper()
-		rec, err := app.FindAuthRecordByEmail(collection, email)
-		if err != nil {
-			t.Fatalf("find %s: %v", email, err)
-		}
-		return rec
-	}
-	enrich := func(record, auth *core.Record, context string, headers map[string]string) error {
-		e := new(core.RecordEnrichEvent)
-		e.App = app
-		e.Record = record
-		e.RequestInfo = &core.RequestInfo{Context: context, Auth: auth, Headers: headers}
-		return app.OnRecordEnrich().Trigger(e)
-	}
-
-	alphaMap := find("maps", "testmapalpha01a")
-	alphaTerritory := find("territories", "testterralpha01")
-	alphaCong := find("congregations", "testcongalpha01")
-	member := user("users", "conductor@alpha.test")
-	alphaReadonly := user("users", "readonly@alpha.test")
-	foreign := user("users", "admin@beta.test")
-	foreignConductor := user("users", "xcong@beta.test")
-	superuser := user(core.CollectionNameSuperusers, "testing_account@ministry-mapper.com")
-	rt := core.RequestInfoContextRealtime
-
-	cases := []struct {
-		name    string
-		record  *core.Record
-		auth    *core.Record
-		context string
-		headers map[string]string
-		allowed bool
-	}{
-		{"member receives their map", alphaMap, member, rt, nil, true},
-		{"other congregation does not receive the map", alphaMap, foreign, rt, nil, false},
-		{"valid link receives its map", alphaMap, nil, rt, map[string]string{"link_id": "testassignalpha01"}, true},
-		{"expired link does not receive the map", alphaMap, nil, rt, map[string]string{"link_id": "testassignexprd01"}, false},
-		{"link for another map does not receive it", alphaMap, nil, rt, map[string]string{"link_id": "testassignbeta001"}, false},
-		{"superuser receives the map", alphaMap, superuser, rt, nil, true},
-		{"member receives their territory", alphaTerritory, member, rt, nil, true},
-		{"other congregation does not receive the territory", alphaTerritory, foreign, rt, nil, false},
-		{"member receives their congregation", alphaCong, member, rt, nil, true},
-		{"other congregation does not receive the congregation", alphaCong, foreign, rt, nil, false},
-		{"a user receives their own record", alphaReadonly, alphaReadonly, rt, nil, true},
-		{"a co-member receives the user", alphaReadonly, member, rt, nil, true},
-		{"a conductor elsewhere does not receive the user", alphaReadonly, foreignConductor, rt, nil, false},
-		{"an administrator anywhere receives the user", alphaReadonly, foreign, rt, nil, true},
-		{"a link for the user's congregation receives the user", alphaReadonly, nil, rt, map[string]string{"link_id": "testassignalpha01"}, true},
-		{"a link for another congregation does not receive the user", alphaReadonly, nil, rt, map[string]string{"link_id": "testassignbeta001"}, false},
-		// Plain list and view responses are left to the request hooks.
-		{"a default-context response is not touched", alphaMap, foreign, core.RequestInfoContextDefault, nil, true},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			err := enrich(c.record, c.auth, c.context, c.headers)
-			if c.allowed && err != nil {
-				t.Fatalf("expected the record to go out, got %v", err)
-			}
-			if !c.allowed && err == nil {
-				t.Fatal("expected the record to be refused")
-			}
-		})
-	}
-}
-
 // TestEnrichScope_Broadcast saves a record and counts what PocketBase's realtime
 // broadcaster actually delivers to each subscriber.
 //
@@ -278,6 +197,7 @@ func TestEnrichScope_Broadcast(t *testing.T) {
 			{"member", member, "", true},
 			{"other congregation", foreign, "", false},
 			{"valid link", nil, "testassignalpha01", true},
+			{"expired link", nil, "testassignexprd01", false},
 			{"link for another map", nil, "testassignbeta001", false},
 			{"superuser", superuser, "", true},
 		}},
@@ -294,6 +214,9 @@ func TestEnrichScope_Broadcast(t *testing.T) {
 			{"co-member", member, "", true},
 			{"conductor elsewhere", foreignConductor, "", false},
 			{"administrator elsewhere", foreign, "", true},
+			// A link takes precedence over the token it is sent with.
+			{"link for the user's congregation", foreignConductor, "testassignalpha01", true},
+			{"link for another congregation", member, "testassignbeta001", false},
 		}},
 	} {
 		t.Run(c.collection, func(t *testing.T) {
