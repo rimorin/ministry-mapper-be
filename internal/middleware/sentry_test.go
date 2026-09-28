@@ -1,7 +1,12 @@
 package middleware
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"net"
+	"os"
+	"syscall"
 	"testing"
 
 	"github.com/pocketbase/pocketbase/tools/router"
@@ -82,5 +87,36 @@ func TestIsBusinessErrorForWrappedServerError(t *testing.T) {
 	wrapper := &mockCauser{cause: errors.New("sql: connection refused")}
 	if isBusinessError(wrapper) {
 		t.Error("wrapped infra errors should not be classified as business errors")
+	}
+}
+
+// brokenConn fails every write the way a socket does once the client has hung up.
+type brokenConn struct{ errno syscall.Errno }
+
+func (b brokenConn) Write([]byte) (int, error) {
+	return 0, &net.OpError{Op: "write", Net: "tcp", Err: os.NewSyscallError("write", b.errno)}
+}
+
+func TestIsClientDisconnectThroughJSONEncoder(t *testing.T) {
+	for _, errno := range []syscall.Errno{syscall.EPIPE, syscall.ECONNRESET} {
+		err := json.NewEncoder(brokenConn{errno}).Encode(map[string]string{"k": "v"})
+		if err == nil {
+			t.Fatalf("%v: expected a write error", errno)
+		}
+		if !isClientDisconnect(err) {
+			t.Errorf("%v: expected %T to be classified as a client disconnect", errno, err)
+		}
+	}
+}
+
+func TestIsClientDisconnectForOtherErrors(t *testing.T) {
+	for _, err := range []error{
+		errors.New("database is locked"),
+		&net.OpError{Op: "dial", Net: "tcp", Err: os.NewSyscallError("connect", syscall.ECONNREFUSED)},
+		context.DeadlineExceeded,
+	} {
+		if isClientDisconnect(err) {
+			t.Errorf("expected %v not to be classified as a client disconnect", err)
+		}
 	}
 }

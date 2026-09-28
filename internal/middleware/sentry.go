@@ -1,9 +1,11 @@
 package middleware
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"runtime/debug"
+	"syscall"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -51,7 +53,7 @@ func WrapHandler(handler func(*core.RequestEvent) error) func(*core.RequestEvent
 		})
 
 		err := handler(c)
-		if err != nil && !isBusinessError(err) {
+		if err != nil && !isBusinessError(err) && !isClientDisconnect(err) {
 			hub.WithScope(func(scope *sentry.Scope) {
 				scope.SetLevel(sentry.LevelError)
 				captureErr := err
@@ -80,6 +82,12 @@ type causer interface{ Cause() error }
 func isBusinessError(err error) bool {
 	apiErr, ok := err.(*router.ApiError)
 	return ok && apiErr.Status < 500
+}
+
+// isClientDisconnect reports whether err comes from writing to a client that
+// has already gone away; nothing on the server side is wrong.
+func isClientDisconnect(err error) bool {
+	return errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET)
 }
 
 func enrichScopeWithRequest(scope *sentry.Scope, c *core.RequestEvent) {
