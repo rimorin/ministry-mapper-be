@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tests"
 )
 
@@ -682,6 +683,41 @@ func TestHandleMapUpdateSequence(t *testing.T) {
 			TestAppFactory:  setupTestApp,
 			ExpectedStatus:  400,
 			ExpectedContent: []string{`is missing from the request`},
+		},
+		{
+			// Codes stored before the pattern was enforced must still be reorderable.
+			Name:   "reorder succeeds when a stored code fails the field pattern",
+			Method: http.MethodPost,
+			URL:    "/map/codes/update",
+			Body:   strings.NewReader(`{"map":"testmapalpha01a","codes":[{"code":"#10","sequence":5},{"code":"11","sequence":4},{"code":"12","sequence":3},{"code":"13","sequence":2},{"code":"14","sequence":1}]}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				if _, err := app.DB().NewQuery(`UPDATE addresses SET code = '#10' WHERE map = 'testmapalpha01a' AND code = '10'`).Execute(); err != nil {
+					t.Fatal(err)
+				}
+			},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, _ *http.Response) {
+				rows := []struct {
+					Sequence int `db:"sequence"`
+				}{}
+				if err := app.DB().NewQuery(`SELECT sequence FROM addresses WHERE map = 'testmapalpha01a' AND code = '#10'`).All(&rows); err != nil {
+					t.Fatal(err)
+				}
+				if len(rows) == 0 {
+					t.Fatal("expected addresses with code #10")
+				}
+				for _, r := range rows {
+					if r.Sequence != 5 {
+						t.Errorf("expected sequence 5 for code #10, got %d", r.Sequence)
+					}
+				}
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`Address sequences updated successfully`},
 		},
 	}
 

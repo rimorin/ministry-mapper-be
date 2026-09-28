@@ -160,7 +160,7 @@ func HandleMapUpdateSequence(e *core.RequestEvent, app core.App) error {
 
 			for _, record := range records {
 				record.Set("sequence", codeSeq.Sequence)
-				if err := txApp.Save(record); err != nil {
+				if err := txApp.SaveNoValidate(record); err != nil {
 					return err
 				}
 			}
