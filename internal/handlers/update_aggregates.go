@@ -170,7 +170,9 @@ func processMapAggregates(mapID string, app core.App, resetTerritoryAggregates .
 	mapRecord.Set("aggregates", next)
 	mapRecord.Set("progress", donePercentage)
 
-	if err := app.SaveNoValidate(mapRecord); err != nil {
+	// Write only what changed, so a reset_at stamped by a reset while this was
+	// counting is not overwritten with the value read above.
+	if err := app.SaveNoValidate(mapRecord.IgnoreUnchangedFields(true)); err != nil {
 		log.Printf("Error saving map record for mapID %s: %v", mapID, err)
 		return err
 	}
@@ -223,14 +225,19 @@ func ProcessTerritoryAggregates(territoryID string, app core.App) error {
 		return err
 	}
 
-	if territoryRecord.GetInt("progress") == donePercentage {
-		return nil
+	if territoryRecord.GetInt("progress") != donePercentage {
+		territoryRecord.Set("progress", donePercentage)
+
+		if err := app.SaveNoValidate(territoryRecord.IgnoreUnchangedFields(true)); err != nil {
+			log.Printf("Error saving territory record for territoryID %s: %v", territoryID, err)
+			return err
+		}
 	}
 
-	territoryRecord.Set("progress", donePercentage)
-
-	if err := app.SaveNoValidate(territoryRecord); err != nil {
-		log.Printf("Error saving territory record for territoryID %s: %v", territoryID, err)
+	// Runs even when progress is unchanged: a threshold change can complete a
+	// round without moving it.
+	if err := checkTerritoryCompletion(app, territoryRecord, donePercentage); err != nil {
+		log.Printf("Error checking completion for territoryID %s: %v", territoryID, err)
 		return err
 	}
 

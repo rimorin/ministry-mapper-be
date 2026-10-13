@@ -49,16 +49,23 @@ func HandleResetMap(e *core.RequestEvent, app core.App) error {
 	app.Store().Set(flagKey, true)
 	defer app.Store().Remove(flagKey)
 
-	err = app.RunInTransaction(func(txApp core.App) error {
-		for _, record := range records {
-			record.Set("status", "not_done")
-			record.Set("not_home_tries", 0)
-			record.Set("updated_by", userName)
-			if err := txApp.SaveNoValidate(record); err != nil {
+	territoryID := mapData.GetString("territory")
+	err = withTerritoryLock(app, territoryID, func() error {
+		return app.RunInTransaction(func(txApp core.App) error {
+			for _, record := range records {
+				record.Set("status", "not_done")
+				record.Set("not_home_tries", 0)
+				record.Set("updated_by", userName)
+				if err := txApp.SaveNoValidate(record); err != nil {
+					return err
+				}
+			}
+			territory, err := txApp.FindRecordById("territories", territoryID)
+			if err != nil {
 				return err
 			}
-		}
-		return nil
+			return recordMapReset(txApp, territory, mapId, authID(e.Auth))
+		})
 	})
 
 	if err != nil {
@@ -132,16 +139,22 @@ func HandleResetTerritory(c *core.RequestEvent, app core.App) error {
 		}
 	}()
 
-	err = app.RunInTransaction(func(txApp core.App) error {
-		for _, record := range records {
-			record.Set("status", "not_done")
-			record.Set("not_home_tries", 0)
-			record.Set("updated_by", userName)
-			if err := txApp.SaveNoValidate(record); err != nil {
+	err = withTerritoryLock(app, territoryId, func() error {
+		return app.RunInTransaction(func(txApp core.App) error {
+			for _, record := range records {
+				record.Set("status", "not_done")
+				record.Set("not_home_tries", 0)
+				record.Set("updated_by", userName)
+				if err := txApp.SaveNoValidate(record); err != nil {
+					return err
+				}
+			}
+			current, err := txApp.FindRecordById("territories", territoryId)
+			if err != nil {
 				return err
 			}
-		}
-		return nil
+			return startTerritoryRound(txApp, current, authID(c.Auth))
+		})
 	})
 
 	if err != nil {

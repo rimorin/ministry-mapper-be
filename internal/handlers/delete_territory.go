@@ -6,6 +6,7 @@ import (
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/types"
 )
 
 // HandleDeleteTerritory deletes a territory and all its child records atomically.
@@ -42,6 +43,9 @@ func HandleDeleteTerritory(e *core.RequestEvent, app core.App) error {
 			if _, err := txApp.DB().NewQuery(q).Bind(params).Execute(); err != nil {
 				return err
 			}
+		}
+		if err := logTerritoryEvent(txApp, territory, "deleted", nil, authID(e.Auth), types.NowDateTime()); err != nil {
+			return err
 		}
 		return txApp.Delete(territory)
 	})

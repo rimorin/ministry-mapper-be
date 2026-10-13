@@ -43,6 +43,19 @@ func RegisterDomainHooks(app core.App) {
 		return e.Next()
 	})
 
+	app.OnRecordAfterUpdateSuccess("congregations").BindFunc(func(e *core.RecordEvent) error {
+		handlers.HandleCongregationSettingsChange(e)
+		return e.Next()
+	})
+
+	// A new territory's first round starts when it is created.
+	app.OnRecordCreate("territories").BindFunc(func(e *core.RecordEvent) error {
+		if e.Record.GetDateTime("round_started_at").IsZero() {
+			e.Record.Set("round_started_at", time.Now())
+		}
+		return e.Next()
+	})
+
 	// Track last login and reset inactive warnings
 	app.OnRecordAuthRequest("users").BindFunc(func(e *core.RecordAuthRequestEvent) error {
 		e.Record.Set("last_login", time.Now())

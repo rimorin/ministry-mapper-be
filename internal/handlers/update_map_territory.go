@@ -5,6 +5,7 @@ import (
 
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/tools/types"
 )
 
 type UpdateMapTerritoryRequest struct {
@@ -66,6 +67,9 @@ func HandleMapTerritoryUpdate(e *core.RequestEvent, app core.App) error {
 			}
 		}
 		mapDetails.Set("territory", newTerritory)
+		// Counts as reset in the destination's current round, so the move can't
+		// leave that round waiting on a map it never reset.
+		mapDetails.Set("reset_at", types.NowDateTime())
 		if err := txApp.Save(mapDetails); err != nil {
 			return err
 		}
