@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
 )
 
 // HandleRoleDelete stamps unprovisioned_since on a user when their last role is removed.

@@ -6,9 +6,9 @@ import (
 	"os"
 	"time"
 
+	"ganigeorgiev.com/pocketbase/dbx"
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
 	"github.com/mailersend/mailersend-go"
-	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase/core"
 )
 
 // Recipient holds the name and email of an email recipient.

@@ -7,8 +7,8 @@ import (
 
 	"ministry-mapper/internal/handlers"
 
-	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tests"
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/tests"
 )
 
 const testDataDir = "../../test_pb_data"

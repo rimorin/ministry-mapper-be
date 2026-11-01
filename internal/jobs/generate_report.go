@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
 	"github.com/mailersend/mailersend-go"
-	"github.com/pocketbase/pocketbase/core"
 )
 
 // sendEmailWithRetry retries a MailerSend send call up to 3 times with exponential backoff.

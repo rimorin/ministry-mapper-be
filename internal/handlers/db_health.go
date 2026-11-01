@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
 	"github.com/getsentry/sentry-go"
-	"github.com/pocketbase/pocketbase/core"
 )
 
 func healthResponse(code int, message string) map[string]any {

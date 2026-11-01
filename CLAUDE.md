@@ -67,7 +67,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 ## Layout and bootstrap
-- PocketBase v0.40.x (`core.App`, `*core.RequestEvent`, `e.Next()` chains). Bootstrap order in `main.go` matters: `RegisterAuthHooks` → `RegisterRoutes` → `RegisterDomainHooks` → `ConfigureScheduler`.
+- PocketBase v0.41.x (`core.App`, `*core.RequestEvent`, `e.Next()` chains). Bootstrap order in `main.go` matters: `RegisterAuthHooks` → `RegisterRoutes` → `RegisterDomainHooks` → `ConfigureScheduler`.
 - Routes: `internal/setup/routes.go`. One handler file per endpoint in `internal/handlers/`. Cron jobs, email and the Excel report in `internal/jobs/`.
 - `serve` applies pending migrations at startup in every environment. Only `Automigrate`, which generates migration files from admin-UI edits, is limited to `go run`.
 

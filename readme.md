@@ -482,7 +482,7 @@ Maps with unparseable coordinates are skipped. On a successful match an assignme
 | **[Official Docs](https://doc.ministry-mapper.com)** | Complete user and developer guides |
 | **[Frontend Repo](https://github.com/rimorin/ministry-mapper-v2)** | Ministry Mapper v2 — React 19 + TypeScript PWA |
 | [PocketBase Docs](https://pocketbase.io/docs/) | PocketBase platform documentation |
-| [Go API Reference](https://pkg.go.dev/github.com/pocketbase/pocketbase) | Go package reference |
+| [Go API Reference](https://pkg.go.dev/ganigeorgiev.com/pocketbase/pocketbase) | Go package reference |
 
 ---
 

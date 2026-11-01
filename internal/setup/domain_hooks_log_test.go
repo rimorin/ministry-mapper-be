@@ -9,7 +9,7 @@ import (
 
 	"ministry-mapper/internal/jobs"
 
-	"github.com/pocketbase/pocketbase/tests"
+	"ganigeorgiev.com/pocketbase/pocketbase/tests"
 )
 
 func TestDomainHook_LogAssignmentCreatedDeleted(t *testing.T) {

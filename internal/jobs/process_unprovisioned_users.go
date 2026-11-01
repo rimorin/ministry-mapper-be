@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
 )
 
 // unprovisionedUser holds the database row fields needed to process an unprovisioned user.

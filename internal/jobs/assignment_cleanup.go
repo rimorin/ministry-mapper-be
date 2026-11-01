@@ -6,7 +6,7 @@ import (
 
 	"ministry-mapper/internal/handlers"
 
-	"github.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
 )
 
 // RunAssignmentsCleanup is the exported entry point used by tests.

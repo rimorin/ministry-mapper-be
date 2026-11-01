@@ -3,8 +3,8 @@ package handlers
 import (
 	"testing"
 
-	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tools/search"
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/tools/search"
 )
 
 // Auth scenario matrix — covers all link-aware hooks (authorizeView, authorizeList,

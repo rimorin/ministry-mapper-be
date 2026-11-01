@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
 )
 
 // realtimeSub builds a subscription string the way the JS SDK does:

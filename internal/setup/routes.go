@@ -8,8 +8,8 @@ import (
 	"ministry-mapper/internal/jobs"
 	"ministry-mapper/internal/middleware"
 
-	"github.com/pocketbase/pocketbase/apis"
-	"github.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/apis"
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
 )
 
 func RegisterRoutes(app core.App) {

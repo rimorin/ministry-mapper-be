@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/pocketbase/pocketbase/tools/router"
+	"ganigeorgiev.com/pocketbase/pocketbase/tools/router"
 )
 
 // mockCauser implements the causer interface for testing.

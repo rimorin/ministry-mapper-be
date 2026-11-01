@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pocketbase/pocketbase/tests"
+	"ganigeorgiev.com/pocketbase/pocketbase/tests"
 )
 
 // Every case below used to reach an unchecked type assertion on the request

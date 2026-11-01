@@ -3,8 +3,8 @@ package handlers
 import (
 	"log"
 
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
 	"github.com/getsentry/sentry-go"
-	"github.com/pocketbase/pocketbase/core"
 )
 
 func LogRoleGranted(e *core.RecordRequestEvent) {

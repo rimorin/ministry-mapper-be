@@ -13,10 +13,10 @@ import (
 	"ministry-mapper/internal/setup"
 	_ "ministry-mapper/migrations"
 
+	"ganigeorgiev.com/pocketbase/pocketbase"
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/plugins/migratecmd"
 	"github.com/getsentry/sentry-go"
-	"github.com/pocketbase/pocketbase"
-	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/plugins/migratecmd"
 )
 
 func main() {

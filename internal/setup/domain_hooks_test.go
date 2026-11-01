@@ -11,8 +11,8 @@ import (
 
 	"ministry-mapper/internal/handlers"
 
-	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tests"
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/tests"
 )
 
 func waitForMapAggregates(t testing.TB, app *tests.TestApp, mapID string, wantProgress int, wantAggs map[string]int) *core.Record {

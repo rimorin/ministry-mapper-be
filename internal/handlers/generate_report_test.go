@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
 )
 
 func TestGenerateReportRequest_JsonParsing(t *testing.T) {
@@ -129,4 +129,3 @@ func TestHandleGenerateReport_GeneratorSuccess(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
-

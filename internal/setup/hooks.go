@@ -7,7 +7,7 @@ import (
 
 	"ministry-mapper/internal/handlers"
 
-	"github.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
 )
 
 func RegisterDomainHooks(app core.App) {

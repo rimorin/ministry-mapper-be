@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"github.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
 )
 
 // HandleAddressAggregateUpdate triggers an async map aggregate recalculation

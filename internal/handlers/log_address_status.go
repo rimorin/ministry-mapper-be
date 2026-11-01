@@ -3,8 +3,8 @@ package handlers
 import (
 	"log"
 
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
 	"github.com/getsentry/sentry-go"
-	"github.com/pocketbase/pocketbase/core"
 )
 
 // LogAddressStatusChange records a status change event in the addresses_log collection.

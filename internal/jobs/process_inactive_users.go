@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
 )
 
 // inactiveUser holds the database row fields needed to process an inactive user.
