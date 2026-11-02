@@ -300,6 +300,7 @@ func createAssignment(app core.App, mapId, userId, publisher, congId string, exp
 	if err := app.Save(assignment); err != nil {
 		return "", err
 	}
+	writeAssignmentLog(app, assignment, userId, "assigned")
 
 	return assignment.Id, nil
 }

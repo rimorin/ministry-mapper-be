@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"ganigeorgiev.com/pocketbase/dbx"
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
 	"ganigeorgiev.com/pocketbase/pocketbase/tests"
 )
@@ -265,6 +266,29 @@ func TestHandleTerritoryQuicklink(t *testing.T) {
 			TestAppFactory:  setupTestApp,
 			ExpectedStatus:  200,
 			ExpectedContent: []string{`"linkId"`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				assignment, err := app.FindFirstRecordByFilter("assignments", "user = 'testuseralpha03'")
+				if err != nil {
+					t.Fatalf("expected the quicklink assignment: %v", err)
+				}
+				logs, err := app.FindRecordsByFilter("assignments_log",
+					"assignment = {:id}", "", 0, 0, dbx.Params{"id": assignment.Id})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(logs) != 1 {
+					t.Fatalf("expected 1 assignments_log entry for the quicklink, got %d", len(logs))
+				}
+				if got := logs[0].GetString("action"); got != "assigned" {
+					t.Errorf("action: want assigned, got %q", got)
+				}
+				if got := logs[0].GetString("changed_by"); got != "testuseralpha03" {
+					t.Errorf("changed_by: want testuseralpha03, got %q", got)
+				}
+				if got := logs[0].GetString("publisher"); got != "Test Publisher" {
+					t.Errorf("publisher: want Test Publisher, got %q", got)
+				}
+			},
 		},
 		{
 			// A minted link-id is a bearer credential for the map: it authorizes
