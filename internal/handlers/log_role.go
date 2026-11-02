@@ -36,10 +36,12 @@ func writeRoleLog(e *core.RecordRequestEvent, action, oldRole, newRole string) {
 	logRecord := core.NewRecord(collection)
 	logRecord.Set("congregation", e.Record.Get("congregation"))
 	logRecord.Set("user", e.Record.Get("user"))
+	logRecord.Set("user_email", userEmail(e.App, e.Record.GetString("user")))
 	logRecord.Set("old_role", oldRole)
 	logRecord.Set("new_role", newRole)
 	logRecord.Set("action", action)
 	logRecord.Set("changed_by", authID(e.Auth))
+	logRecord.Set("changed_by_email", authEmail(e.Auth))
 
 	if err := e.App.Save(logRecord); err != nil {
 		sentry.CaptureException(err)

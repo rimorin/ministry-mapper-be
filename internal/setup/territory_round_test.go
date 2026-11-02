@@ -20,6 +20,7 @@ import (
 const (
 	roundTerritory = "testterralpha01"
 	roundAdminID   = "testuseralpha01"
+	roundAdminMail = "admin@alpha.test"
 )
 
 var roundMaps = []string{"testmapalpha01a", "testmapalpha01b", "testmapalphsc01", "testmapalphcf01"}
@@ -201,6 +202,9 @@ func TestTerritoryRound_CompletesAtDefaultThresholdDatedByLastWork(t *testing.T)
 	if got := rows[0].GetDateTime("created"); got.String() != lastWork.String() {
 		t.Errorf("completion dated %s, want the last work at %s", got, lastWork)
 	}
+	if got := rows[0].GetString("changed_by_email"); got != "" {
+		t.Errorf("completion changed_by_email = %q, want empty for the system", got)
+	}
 	if got := f.territory(t).GetDateTime("last_completed_at"); got.String() != lastWork.String() {
 		t.Errorf("last_completed_at = %s, want %s", got, lastWork)
 	}
@@ -318,6 +322,9 @@ func TestTerritoryRound_CompletesTwiceInOneYear(t *testing.T) {
 	if got := resets[0].GetString("changed_by"); got != roundAdminID {
 		t.Errorf("reset changed_by = %q, want %q", got, roundAdminID)
 	}
+	if got := resets[0].GetString("changed_by_email"); got != roundAdminMail {
+		t.Errorf("reset changed_by_email = %q, want %q", got, roundAdminMail)
+	}
 
 	f.setStatus(t, "done")
 	f.work(t, "testmapalpha01b", ago(0))
@@ -383,6 +390,9 @@ func TestTerritoryRound_MapByMapReset(t *testing.T) {
 	}
 	if details["map"] != "testmapalpha01a" || details["new_round"] != true {
 		t.Errorf("map_reset details = %v, want map testmapalpha01a and new_round true", details)
+	}
+	if got := mapResets[0].GetString("changed_by_email"); got != roundAdminMail {
+		t.Errorf("map_reset changed_by_email = %q, want %q", got, roundAdminMail)
 	}
 	untouched, err := f.app.FindRecordById("maps", "testmapalpha01b")
 	if err != nil {
@@ -462,6 +472,9 @@ func TestTerritoryRound_DeleteIsLogged(t *testing.T) {
 	}
 	if got := rows[0].GetString("changed_by"); got != roundAdminID {
 		t.Errorf("changed_by = %q, want %q", got, roundAdminID)
+	}
+	if got := rows[0].GetString("changed_by_email"); got != roundAdminMail {
+		t.Errorf("changed_by_email = %q, want %q", got, roundAdminMail)
 	}
 }
 

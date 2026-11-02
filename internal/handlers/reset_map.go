@@ -64,7 +64,7 @@ func HandleResetMap(e *core.RequestEvent, app core.App) error {
 			if err != nil {
 				return err
 			}
-			return recordMapReset(txApp, territory, mapId, authID(e.Auth))
+			return recordMapReset(txApp, territory, mapId, e.Auth)
 		})
 	})
 
@@ -153,7 +153,7 @@ func HandleResetTerritory(c *core.RequestEvent, app core.App) error {
 			if err != nil {
 				return err
 			}
-			return startTerritoryRound(txApp, current, authID(c.Auth))
+			return startTerritoryRound(txApp, current, c.Auth)
 		})
 	})
 

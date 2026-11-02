@@ -48,6 +48,9 @@ func TestDomainHook_LogAssignmentCreatedDeleted(t *testing.T) {
 				if got := logs[0].GetString("changed_by"); got != "testuseralpha01" {
 					t.Errorf("expected changed_by 'testuseralpha01', got %q", got)
 				}
+				if got := logs[0].GetString("changed_by_email"); got != "admin@alpha.test" {
+					t.Errorf("expected changed_by_email 'admin@alpha.test', got %q", got)
+				}
 				if got := logs[0].GetString("congregation"); got != "testcongalpha01" {
 					t.Errorf("expected congregation 'testcongalpha01', got %q", got)
 				}
@@ -75,6 +78,9 @@ func TestDomainHook_LogAssignmentCreatedDeleted(t *testing.T) {
 				}
 				if got := logs[0].GetString("changed_by"); got != "testuseralpha01" {
 					t.Errorf("expected changed_by 'testuseralpha01', got %q", got)
+				}
+				if got := logs[0].GetString("changed_by_email"); got != "admin@alpha.test" {
+					t.Errorf("expected changed_by_email 'admin@alpha.test', got %q", got)
 				}
 				if got := logs[0].GetString("map"); got != "testmapalpha01a" {
 					t.Errorf("expected map 'testmapalpha01a', got %q", got)
@@ -107,6 +113,9 @@ func TestDomainHook_LogAssignmentExpired(t *testing.T) {
 	}
 	if got := logs[0].GetString("changed_by"); got != "" {
 		t.Errorf("expected empty changed_by for cron expiry, got %q", got)
+	}
+	if got := logs[0].GetString("changed_by_email"); got != "" {
+		t.Errorf("expected empty changed_by_email for cron expiry, got %q", got)
 	}
 	if got := logs[0].GetString("map"); got != "testmapalpha01a" {
 		t.Errorf("expected map 'testmapalpha01a', got %q", got)
@@ -149,6 +158,9 @@ func TestDomainHook_LogBySuperuserOmitsChangedBy(t *testing.T) {
 				if got := logs[0].GetString("changed_by"); got != "" {
 					t.Errorf("expected empty changed_by for superuser action, got %q", got)
 				}
+				if got := logs[0].GetString("changed_by_email"); got != "testing_account@ministry-mapper.com" {
+					t.Errorf("expected changed_by_email 'testing_account@ministry-mapper.com', got %q", got)
+				}
 			},
 		},
 		{
@@ -179,6 +191,9 @@ func TestDomainHook_LogBySuperuserOmitsChangedBy(t *testing.T) {
 				}
 				if got := logs[0].GetString("changed_by"); got != "" {
 					t.Errorf("expected empty changed_by for superuser action, got %q", got)
+				}
+				if got := logs[0].GetString("changed_by_email"); got != "testing_account@ministry-mapper.com" {
+					t.Errorf("expected changed_by_email 'testing_account@ministry-mapper.com', got %q", got)
 				}
 			},
 		},
@@ -226,8 +241,14 @@ func TestDomainHook_LogRole(t *testing.T) {
 				if got := logs[0].GetString("old_role"); got != "" {
 					t.Errorf("expected empty old_role for grant, got %q", got)
 				}
+				if got := logs[0].GetString("user_email"); got != "readonly@alpha.test" {
+					t.Errorf("expected user_email 'readonly@alpha.test', got %q", got)
+				}
 				if got := logs[0].GetString("changed_by"); got != "testuseralpha01" {
 					t.Errorf("expected changed_by 'testuseralpha01', got %q", got)
+				}
+				if got := logs[0].GetString("changed_by_email"); got != "admin@alpha.test" {
+					t.Errorf("expected changed_by_email 'admin@alpha.test', got %q", got)
 				}
 			},
 		},
@@ -309,6 +330,9 @@ func TestDomainHook_LogRole(t *testing.T) {
 				}
 				if got := logs[0].GetString("changed_by"); got != "testuseralpha01" {
 					t.Errorf("expected changed_by 'testuseralpha01', got %q", got)
+				}
+				if got := logs[0].GetString("changed_by_email"); got != "admin@alpha.test" {
+					t.Errorf("expected changed_by_email 'admin@alpha.test', got %q", got)
 				}
 			},
 		},

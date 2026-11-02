@@ -288,6 +288,11 @@ func TestHandleTerritoryQuicklink(t *testing.T) {
 				if got := logs[0].GetString("publisher"); got != "Test Publisher" {
 					t.Errorf("publisher: want Test Publisher, got %q", got)
 				}
+				for _, field := range []string{"user_email", "changed_by_email"} {
+					if got := logs[0].GetString(field); got != "readonly@alpha.test" {
+						t.Errorf("%s: want readonly@alpha.test, got %q", field, got)
+					}
+				}
 			},
 		},
 		{

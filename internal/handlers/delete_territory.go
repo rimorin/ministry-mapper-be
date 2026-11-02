@@ -44,7 +44,7 @@ func HandleDeleteTerritory(e *core.RequestEvent, app core.App) error {
 				return err
 			}
 		}
-		if err := logTerritoryEvent(txApp, territory, "deleted", nil, authID(e.Auth), types.NowDateTime()); err != nil {
+		if err := logTerritoryEvent(txApp, territory, "deleted", nil, e.Auth, types.NowDateTime()); err != nil {
 			return err
 		}
 		return txApp.Delete(territory)

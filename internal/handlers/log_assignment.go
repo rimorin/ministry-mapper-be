@@ -8,20 +8,20 @@ import (
 )
 
 func LogAssignmentCreated(e *core.RecordRequestEvent) {
-	writeAssignmentLog(e.App, e.Record, authID(e.Auth), "assigned")
+	writeAssignmentLog(e.App, e.Record, e.Auth, "assigned")
 }
 
 func LogAssignmentDeleted(e *core.RecordRequestEvent) {
-	writeAssignmentLog(e.App, e.Record, authID(e.Auth), "unassigned")
+	writeAssignmentLog(e.App, e.Record, e.Auth, "unassigned")
 }
 
 // LogAssignmentExpired logs an expiry-driven deletion triggered by the cleanup cron job.
 // changed_by is empty since there is no authenticated user in this context.
 func LogAssignmentExpired(app core.App, record *core.Record) {
-	writeAssignmentLog(app, record, "", "expired")
+	writeAssignmentLog(app, record, nil, "expired")
 }
 
-func writeAssignmentLog(app core.App, record *core.Record, changedBy, action string) {
+func writeAssignmentLog(app core.App, record *core.Record, actor *core.Record, action string) {
 	collection, err := app.FindCollectionByNameOrId("assignments_log")
 	if err != nil {
 		sentry.CaptureException(err)
@@ -34,11 +34,13 @@ func writeAssignmentLog(app core.App, record *core.Record, changedBy, action str
 	logRecord.Set("congregation", record.Get("congregation"))
 	logRecord.Set("map", record.Get("map"))
 	logRecord.Set("user", record.Get("user"))
+	logRecord.Set("user_email", userEmail(app, record.GetString("user")))
 	logRecord.Set("publisher", record.Get("publisher"))
 	logRecord.Set("type", record.Get("type"))
 	logRecord.Set("action", action)
 	logRecord.Set("expiry_date", record.Get("expiry_date"))
-	logRecord.Set("changed_by", changedBy)
+	logRecord.Set("changed_by", authID(actor))
+	logRecord.Set("changed_by_email", authEmail(actor))
 
 	if err := app.Save(logRecord); err != nil {
 		sentry.CaptureException(err)

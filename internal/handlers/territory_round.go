@@ -137,14 +137,14 @@ func checkTerritoryCompletion(app core.App, territory *core.Record, progress int
 		return logTerritoryEvent(txApp, current, "completed", map[string]any{
 			"threshold": threshold,
 			"progress":  progress,
-		}, "", completedAt)
+		}, nil, completedAt)
 	})
 }
 
 // startTerritoryRound records a territory reset: a new round starts now and every
 // map counts as reset in it. Runs inside the reset's transaction, under the
 // territory lock.
-func startTerritoryRound(txApp core.App, territory *core.Record, actor string) error {
+func startTerritoryRound(txApp core.App, territory *core.Record, actor *core.Record) error {
 	now := types.NowDateTime()
 	if _, err := txApp.DB().NewQuery(
 		"UPDATE maps SET reset_at = {:now} WHERE territory = {:territory}",
@@ -162,7 +162,7 @@ func startTerritoryRound(txApp core.App, territory *core.Record, actor string) e
 // already complete, or the territory has never had one, the reset is the start of
 // the next round instead; maps nobody has worked yet need no reset of their own to
 // count in it. Runs inside the reset's transaction, under the territory lock.
-func recordMapReset(txApp core.App, territory *core.Record, mapID string, actor string) error {
+func recordMapReset(txApp core.App, territory *core.Record, mapID string, actor *core.Record) error {
 	now := types.NowDateTime()
 	newRound := !roundOpen(territory) || territory.GetDateTime("round_started_at").IsZero()
 
@@ -195,7 +195,7 @@ func recordMapReset(txApp core.App, territory *core.Record, mapID string, actor 
 
 // logTerritoryEvent writes a territories_log row dated at. The code is copied so
 // the S-13 report can still name a territory after it is deleted.
-func logTerritoryEvent(app core.App, territory *core.Record, action string, details map[string]any, actor string, at types.DateTime) error {
+func logTerritoryEvent(app core.App, territory *core.Record, action string, details map[string]any, actor *core.Record, at types.DateTime) error {
 	collection, err := app.FindCachedCollectionByNameOrId("territories_log")
 	if err != nil {
 		return err
@@ -206,7 +206,8 @@ func logTerritoryEvent(app core.App, territory *core.Record, action string, deta
 	record.Set("territory_code", territory.GetString("code"))
 	record.Set("action", action)
 	record.Set("details", details)
-	record.Set("changed_by", actor)
+	record.Set("changed_by", authID(actor))
+	record.Set("changed_by_email", authEmail(actor))
 	record.SetRaw("created", at)
 	return app.SaveNoValidate(record)
 }

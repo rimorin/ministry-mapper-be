@@ -42,6 +42,26 @@ func authID(auth *core.Record) string {
 	return auth.Id
 }
 
+// authEmail is the actor's email for audit logs, superusers included.
+func authEmail(auth *core.Record) string {
+	if auth == nil {
+		return ""
+	}
+	return auth.Email()
+}
+
+// userEmail is a user's email for audit logs, or "" if there is no such user.
+func userEmail(app core.App, id string) string {
+	if id == "" {
+		return ""
+	}
+	user, err := app.FindRecordById("users", id)
+	if err != nil {
+		return ""
+	}
+	return user.Email()
+}
+
 func fetchAddressByCode(app core.App, code string, mapId string) (*core.Record, error) {
 	return app.FindFirstRecordByFilter("addresses", "code = {:code} && map = {:map}", dbx.Params{"code": code, "map": mapId})
 }

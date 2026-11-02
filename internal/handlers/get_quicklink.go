@@ -117,7 +117,7 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 		return apis.NewNotFoundError("Error fetching expiry hours", nil)
 	}
 
-	assignmentId, err := createAssignment(app, bestMap.ID, userId, publisher, congregationId, expiryHours)
+	assignmentId, err := createAssignment(app, bestMap.ID, c.Auth, publisher, congregationId, expiryHours)
 	if err != nil {
 		return apis.NewBadRequestError("Error creating assignment", nil)
 	}
@@ -280,7 +280,7 @@ func getCongregationExpiryHours(app core.App, congregationId string) (float64, e
 }
 
 // createAssignment creates a new assignment record linking a user to a map with expiry.
-func createAssignment(app core.App, mapId, userId, publisher, congId string, expiryHours float64) (string, error) {
+func createAssignment(app core.App, mapId string, user *core.Record, publisher, congId string, expiryHours float64) (string, error) {
 	collection, err := app.FindCollectionByNameOrId("assignments")
 	if err != nil {
 		return "", err
@@ -288,7 +288,7 @@ func createAssignment(app core.App, mapId, userId, publisher, congId string, exp
 
 	assignment := core.NewRecord(collection)
 	assignment.Set("map", mapId)
-	assignment.Set("user", userId)
+	assignment.Set("user", user.Id)
 	assignment.Set("type", "normal")
 	assignment.Set("publisher", publisher)
 	assignment.Set("congregation", congId)
@@ -300,7 +300,7 @@ func createAssignment(app core.App, mapId, userId, publisher, congId string, exp
 	if err := app.Save(assignment); err != nil {
 		return "", err
 	}
-	writeAssignmentLog(app, assignment, userId, "assigned")
+	writeAssignmentLog(app, assignment, user, "assigned")
 
 	return assignment.Id, nil
 }
