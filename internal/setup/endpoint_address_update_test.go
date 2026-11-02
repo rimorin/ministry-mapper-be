@@ -561,6 +561,7 @@ func TestHandleUpdateAddress_StatusTransitions(t *testing.T) {
 		wantOld   string // expected old_status in log (only checked when wantLog=true)
 		wantNew   string // expected new_status in log
 		wantLogBy string // expected changed_by in log
+		wantOldTries, wantNewTries int
 	}
 
 	// All scenarios below authenticate as adminToken (admin@alpha.test, name
@@ -575,6 +576,7 @@ func TestHandleUpdateAddress_StatusTransitions(t *testing.T) {
 			addrID:  "testalpha01a001",
 			body:    `{"address_id":"testalpha01a001","map_id":"testmapalpha01a","status":"not_home","not_home_tries":1}`,
 			wantLog: true, wantOld: "not_done", wantNew: "not_home", wantLogBy: wantActor,
+			wantOldTries: 0, wantNewTries: 1,
 		},
 		{
 			name:    "not_done → done produces log",
@@ -638,6 +640,15 @@ func TestHandleUpdateAddress_StatusTransitions(t *testing.T) {
 			addrID:  "testalpha01a003",
 			body:    `{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_home","not_home_tries":2}`,
 			wantLog: true, wantOld: "not_home", wantNew: "not_home", wantLogBy: wantActor,
+			wantOldTries: 0, wantNewTries: 2,
+		},
+		{
+			name:    "not_home + tries decrement (2→1) logs both tries",
+			factory: preSet("testalpha01a003", map[string]any{"not_home_tries": 2}),
+			addrID:  "testalpha01a003",
+			body:    `{"address_id":"testalpha01a003","map_id":"testmapalpha01a","status":"not_home","not_home_tries":1}`,
+			wantLog: true, wantOld: "not_home", wantNew: "not_home", wantLogBy: wantActor,
+			wantOldTries: 2, wantNewTries: 1,
 		},
 
 		// ── Transitions that must NOT produce a log entry ────────────────────────
@@ -695,6 +706,12 @@ func TestHandleUpdateAddress_StatusTransitions(t *testing.T) {
 						}
 						if got := entry.GetString("new_status"); got != tc.wantNew {
 							tb.Errorf("new_status: want %q, got %q", tc.wantNew, got)
+						}
+						if got := entry.GetInt("old_tries"); got != tc.wantOldTries {
+							tb.Errorf("old_tries: want %d, got %d", tc.wantOldTries, got)
+						}
+						if got := entry.GetInt("new_tries"); got != tc.wantNewTries {
+							tb.Errorf("new_tries: want %d, got %d", tc.wantNewTries, got)
 						}
 						if got := entry.GetString("changed_by"); got != tc.wantLogBy {
 							tb.Errorf("changed_by: want %q, got %q", tc.wantLogBy, got)

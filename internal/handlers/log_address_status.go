@@ -41,6 +41,8 @@ func LogAddressStatusChange(e *core.RecordEvent) {
 	logRecord.Set("map", e.Record.Get("map"))
 	logRecord.Set("old_status", oldStatus)
 	logRecord.Set("new_status", newStatus)
+	logRecord.Set("old_tries", oldTries)
+	logRecord.Set("new_tries", newTries)
 	logRecord.Set("changed_by", e.Record.Get("updated_by"))
 
 	if err := e.App.Save(logRecord); err != nil {
