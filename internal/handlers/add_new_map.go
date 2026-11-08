@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"log"
 	"regexp"
 	"strings"
@@ -18,6 +19,32 @@ type NewMapRequest struct {
 	Congregation string `json:"congregation"`
 	Coordinates  string `json:"coordinates"`
 	Sequence     string `json:"sequence"`
+	// StartFloor is a building's lowest floor (default 1): many blocks have
+	// homes only from the 2nd floor up. Floor 0 is skipped, as when a floor
+	// is added below floor 1.
+	StartFloor *int `json:"start_floor"`
+}
+
+// Limits well above the largest real maps (48 floors, 322 units on one
+// floor, 875 homes), so a typing slip cannot create a runaway map.
+const (
+	maxMapFloors     = 100
+	maxUnitsPerFloor = 500
+	maxMapHomes      = 5000
+	minStartFloor    = -10
+	maxStartFloor    = 100
+)
+
+// mapFloors lists the floors of a new map: count floors from start upwards,
+// with no floor 0.
+func mapFloors(start, count int) []int {
+	floors := make([]int, 0, count)
+	for f := start; len(floors) < count; f++ {
+		if f != 0 {
+			floors = append(floors, f)
+		}
+	}
+	return floors
 }
 
 func HandleNewMap(c *core.RequestEvent, app core.App) error {
@@ -61,6 +88,36 @@ func HandleNewMap(c *core.RequestEvent, app core.App) error {
 		return apis.NewBadRequestError("Invalid floor for single map", nil)
 	}
 
+	if floors > maxMapFloors {
+		return apis.NewBadRequestError(fmt.Sprintf("floors must be at most %d", maxMapFloors), nil)
+	}
+
+	startFloor := 1
+	if data.StartFloor != nil {
+		startFloor = *data.StartFloor
+	}
+	if startFloor == 0 || startFloor < minStartFloor || startFloor > maxStartFloor {
+		return apis.NewBadRequestError(fmt.Sprintf("start_floor must be between %d and %d, and not 0", minStartFloor, maxStartFloor), nil)
+	}
+	if mapType == "single" && startFloor != 1 {
+		return apis.NewBadRequestError("A single map has no start floor", nil)
+	}
+
+	sequenceArray := strings.Split(data.Sequence, ",")
+	if len(sequenceArray) > maxUnitsPerFloor {
+		return apis.NewBadRequestError(fmt.Sprintf("A map may have at most %d units per floor", maxUnitsPerFloor), nil)
+	}
+	if len(sequenceArray)*floors > maxMapHomes {
+		return apis.NewBadRequestError(fmt.Sprintf("A map may have at most %d homes", maxMapHomes), nil)
+	}
+	seen := make(map[string]bool, len(sequenceArray))
+	for _, code := range sequenceArray {
+		if seen[code] {
+			return apis.NewBadRequestError(fmt.Sprintf("Duplicate unit in sequence: '%s'", code), nil)
+		}
+		seen[code] = true
+	}
+
 	if !AuthorizeByRole(app, c.Auth.Id, congregation, "administrator") {
 		return apis.NewForbiddenError("Administrator access required", nil)
 	}
@@ -71,7 +128,6 @@ func HandleNewMap(c *core.RequestEvent, app core.App) error {
 		return apis.NewNotFoundError("Error fetching default congregation option", nil)
 	}
 
-	sequenceArray := strings.Split(data.Sequence, ",")
 	maxSeq, err := fetchTerritoryMaxSequence(app, territory)
 	if err != nil {
 		log.Println("Error fetching max sequence:", err)
@@ -109,9 +165,9 @@ func HandleNewMap(c *core.RequestEvent, app core.App) error {
 
 		createdBy := c.Auth.GetString("name")
 
-		for i := 1; i <= floors; i++ {
+		for _, floor := range mapFloors(startFloor, floors) {
 			for index, seq := range sequenceArray {
-				address := createNewAddressRecord(addressCollection, seq, territory, i, index, mapRecord.Id, congregation, createdBy)
+				address := createNewAddressRecord(addressCollection, seq, territory, floor, index, mapRecord.Id, congregation, createdBy)
 				if err := txApp.SaveNoValidate(address); err != nil {
 					log.Println("Error saving address record:", err)
 					return err
@@ -135,7 +191,16 @@ func HandleNewMap(c *core.RequestEvent, app core.App) error {
 		return newServerError(err)
 	}
 
+	// The new map's counts (homes, not done, progress) are worked out now:
+	// without them the map list shows 0 homes until someone changes a home.
+	// Before the territory, which adds up its maps.
+	if err := ProcessMapAggregates(mapRecord.Id, app, false); err != nil {
+		log.Printf("Error calculating aggregates for new map %s: %v", mapRecord.Id, err)
+	}
 	ResetMapTerritory(mapRecord.Id, app)
+	if fresh, err := app.FindRecordById("maps", mapRecord.Id); err == nil {
+		mapRecord = fresh
+	}
 	return c.JSON(200, mapRecord)
 }
 

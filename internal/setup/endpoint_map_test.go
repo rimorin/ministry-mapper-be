@@ -4,6 +4,7 @@ package setup
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -265,6 +266,46 @@ func TestHandleNewMap(t *testing.T) {
 			TestAppFactory:  setupTestApp,
 			ExpectedStatus:  http.StatusBadRequest,
 			ExpectedContent: []string{`"status":400`},
+		},
+		{
+			Name:   "a building can start on the 2nd floor",
+			Method: http.MethodPost,
+			URL:    "/map/add",
+			Body: strings.NewReader(`{
+				"territory":    "testterralpha01",
+				"congregation": "testcongalpha01",
+				"type":         "multi",
+				"floors":       3,
+				"start_floor":  2,
+				"name":         "Blk 777 Test",
+				"coordinates":  "1.3714,103.8494",
+				"sequence":     "101,103,105"
+			}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  http.StatusOK,
+			ExpectedContent: []string{`"type":"multi"`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				var floors []int
+				err := app.DB().NewQuery(`SELECT DISTINCT a.floor FROM addresses a JOIN maps m ON m.id = a.map
+					WHERE m.description = 'Blk 777 Test' ORDER BY a.floor`).Column(&floors)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if fmt.Sprint(floors) != "[2 3 4]" {
+					t.Fatalf("floors = %v, want [2 3 4]", floors)
+				}
+				// The new map's counts are ready at once, not after the first visit.
+				var total int
+				err = app.DB().NewQuery(`SELECT COALESCE(json_extract(aggregates, '$.total'), -1) FROM maps
+					WHERE description = 'Blk 777 Test'`).Row(&total)
+				if err != nil || total != 9 {
+					t.Fatalf("aggregates total = %d (%v), want 9 homes", total, err)
+				}
+			},
 		},
 	}
 
