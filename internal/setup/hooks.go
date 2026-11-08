@@ -67,6 +67,18 @@ func RegisterDomainHooks(app core.App) {
 		return e.Next()
 	})
 
+	// A disabled account cannot sign in (the users auth rule), but a token
+	// issued before it was disabled would keep working until it expires.
+	// Refreshing the token key cancels every such token, and PocketBase drops
+	// the account from open realtime connections too.
+	app.OnRecordUpdate("users").BindFunc(func(e *core.RecordEvent) error {
+		if original := e.Record.Original(); original != nil &&
+			!original.GetBool("disabled") && e.Record.GetBool("disabled") {
+			e.Record.RefreshTokenKey()
+		}
+		return e.Next()
+	})
+
 	// Normalize email on user creation
 	app.OnRecordCreate("users").BindFunc(func(e *core.RecordEvent) error {
 		email := e.Record.GetString("email")
