@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"ministry-mapper/internal/llm"
+
 	"ganigeorgiev.com/pocketbase/dbx"
 	"ganigeorgiev.com/pocketbase/pocketbase/apis"
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
@@ -36,7 +38,7 @@ Return JSON with exactly two fields:
   "todo": up to 3 short lines. Each names the map and the one thing an administrator
           should do, taken only from the messages. Leave the list empty if nothing needs doing.
 
-` + plainLanguageRules
+` + llm.PlainLanguageRules
 
 	var sb strings.Builder
 	sb.WriteString("Recent publisher feedback for " + congregationName + " congregation:\n\n")
@@ -71,7 +73,7 @@ func generateMessagesAISummary(messages []messagesData, congregationName string)
 	if len(todo) > 3 {
 		todo = todo[:3]
 	}
-	if err := groundedNumbers(userMsg, append([]string{resp.Overview}, todo...)...); err != nil {
+	if err := llm.GroundedNumbers(userMsg, append([]string{resp.Overview}, todo...)...); err != nil {
 		log.Printf("AI overview dropped for messages (%s): %v", congregationName, err)
 		return OverviewSummary{}
 	}

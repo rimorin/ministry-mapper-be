@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
+	"ministry-mapper/internal/llm"
+
 	openai "github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/shared"
 )
 
@@ -28,57 +28,35 @@ type OverviewSummary struct {
 	Todo      []string
 }
 
-// llmClient wraps the official OpenAI Go SDK for generating congregation summaries.
+// llmClient adds the report jobs' typed calls to the shared client.
 type llmClient struct {
-	client openai.Client
+	*llm.Client
 }
 
-// newLLMClient initialises an OpenAI client using OPENAI_API_KEY from the environment.
-// Returns nil if the key is not set, which callers treat as "feature disabled".
+// newLLMClient returns nil if OPENAI_API_KEY is not set, which callers treat as
+// "feature disabled".
 func newLLMClient() *llmClient {
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
+	c := llm.New(reportModel)
+	if c == nil {
 		return nil
 	}
-	return &llmClient{
-		client: openai.NewClient(option.WithAPIKey(apiKey)),
-	}
+	return &llmClient{c}
 }
 
 // reportModel is the model used for every congregation narrative. gpt-5.6-terra is
 // picked for instruction adherence, not reasoning: BuildPrompt hands it every figure
 // pre-counted, so following the writing rules is all that is left.
 //
-// IMPORTANT: the 5.6 family rejects any temperature but 1, so temperature is not sent
-// at all. reasoning_effort is left at its default; observed usage is 0 reasoning
-// tokens on this prompt, so there is nothing to tune down.
+// reasoning_effort is left at its default; observed usage is 0 reasoning tokens on
+// this prompt, so there is nothing to tune down.
 const reportModel = openai.ChatModelGPT5_6Terra
-
-// jsonSchema builds a strict Structured Outputs schema from a field list. Strict mode
-// requires every property in "required" and additionalProperties false.
-func jsonSchema(name string, fields ...string) shared.ResponseFormatJSONSchemaJSONSchemaParam {
-	properties := make(map[string]any, len(fields))
-	for _, f := range fields {
-		properties[f] = map[string]any{"type": "string"}
-	}
-	return shared.ResponseFormatJSONSchemaJSONSchemaParam{
-		Name:   name,
-		Strict: openai.Bool(true),
-		Schema: map[string]any{
-			"type":                 "object",
-			"properties":           properties,
-			"required":             fields,
-			"additionalProperties": false,
-		},
-	}
-}
 
 // One schema per response shape, so a caller can never receive a field its prompt did
 // not ask for — the notes and instructions prompts ask for "exactly one field". The
 // messages shape adds a to-do list; strict mode has no maxItems, so the prompt caps it.
 var (
-	territoryReportSchema  = jsonSchema("territory_report", "coverage", "needs_attention")
-	overviewOnlySchema     = jsonSchema("overview_only", "overview")
+	territoryReportSchema  = llm.JSONSchema("territory_report", "coverage", "needs_attention")
+	overviewOnlySchema     = llm.JSONSchema("overview_only", "overview")
 	messagesOverviewSchema = shared.ResponseFormatJSONSchemaJSONSchemaParam{
 		Name:   "messages_overview",
 		Strict: openai.Bool(true),
@@ -94,31 +72,11 @@ var (
 	}
 )
 
-// callLLM makes the API call and returns the raw JSON content string. The schema is
-// enforced by the API, so callers can unmarshal without a shape check.
+// callLLM makes the API call with the report timeout and returns the raw JSON content.
 func (c *llmClient) callLLM(systemMsg, userMsg string, schema shared.ResponseFormatJSONSchemaJSONSchemaParam) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-
-	completion, err := c.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Model: reportModel,
-		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.DeveloperMessage(systemMsg),
-			openai.UserMessage(userMsg),
-		},
-		ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
-			OfJSONSchema: &shared.ResponseFormatJSONSchemaParam{JSONSchema: schema},
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("openai request: %w", err)
-	}
-
-	if len(completion.Choices) == 0 {
-		return "", fmt.Errorf("openai returned no choices")
-	}
-
-	return completion.Choices[0].Message.Content, nil
+	return c.Complete(ctx, systemMsg, userMsg, schema)
 }
 
 // generateSummary sends the prompt to the LLM and returns a parsed LLMResponse
