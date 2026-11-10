@@ -93,6 +93,17 @@ func RegisterRoutes(app core.App) {
 			return handlers.HandleGenerateReport(c, app, jobs.GenerateAndSendCongregationReportToUser)
 		})
 
+		// Admin assistant
+		authRoute("/assistant/ask", func(c *core.RequestEvent) error {
+			return handlers.HandleAssistantAsk(c, app, jobs.IsAssistantEnabled)
+		})
+		authRoute("/assistant/feedback", func(c *core.RequestEvent) error {
+			return handlers.HandleAssistantFeedback(c, app)
+		})
+		authRoute("/assistant/history", func(c *core.RequestEvent) error {
+			return handlers.HandleAssistantHistory(c, app)
+		})
+
 		// Health check
 		e.Router.GET("/api/db-health", func(c *core.RequestEvent) error {
 			return handlers.HandleDBHealth(c, app)

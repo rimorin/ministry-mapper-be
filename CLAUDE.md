@@ -69,6 +69,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ## Layout and bootstrap
 - PocketBase v0.41.x (`core.App`, `*core.RequestEvent`, `e.Next()` chains). Bootstrap order in `main.go` matters: `RegisterAuthHooks` → `RegisterRoutes` → `RegisterDomainHooks` → `ConfigureScheduler`.
 - Routes: `internal/setup/routes.go`. One handler file per endpoint in `internal/handlers/`. Cron jobs, email and the Excel report in `internal/jobs/`.
+- `internal/llm` holds the shared OpenAI client, strict schemas, grounding checks (`GroundedNumbers`, `GroundedQuotedNames`) and `PlainLanguageRules`. `internal/assistant` is the admin assistant behind `/assistant/ask`: the model only picks query functions (`Tools`) and their filters.
 - `serve` applies pending migrations at startup in every environment. Only `Automigrate`, which generates migration files from admin-UI edits, is limited to `go run`.
 
 ## Auth
@@ -98,6 +99,12 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - Address `sequence` is per map and shared across floors for the same code; new codes get `MAX+1`. Map `sequence` is per territory; `/maps/sequence` requires every map id in the territory and renumbers 1..N.
 - Adding a floor copies the codes of the current highest or lowest floor; going below floor 1 skips 0 and jumps to -1. Removing the last floor or deleting the last code is refused.
 - Map and territory reset flip only `not_home`/`done` back to `not_done`; DNC and invalid are untouched.
+
+## Admin assistant
+- IMPORTANT: an assistant function's congregation comes from `Scope`, never from the model's arguments; arguments are filters inside that scope. Every new function must be added to the table in `TestTools_NeverReturnAnotherCongregation` (`internal/assistant/tools_test.go`), which fails otherwise.
+- Functions read with fixed, parameterised SQL. Return `badArgs(...)` for mistakes in the model's arguments (they go back to the model to correct); any other error fails the request.
+- Columns holding people's names go in `PersonColumns`, so the model sees tokens like "Person QXWB" and never names. Keys ending in `_id` are for the frontend's links and are hidden from the model.
+- The flag `enable-admin-assistant` is evaluated per congregation and defaults to off; without LaunchDarkly only `ASSISTANT_ENABLED=true` turns it on. Questions (never answers) go to `assistant_questions`, kept 90 days.
 
 ## Tests and CI
 - Unit tests: `go test ./...`. Integration tests sit behind the `testdata` build tag in `internal/setup/` and `internal/jobs/`; run `./scripts/test.sh` (needs the `sqlite3` CLI). It builds with `-tags testdata`, generates `test_pb_data/` from migrations plus seed, runs the tagged tests and removes the DB afterwards.

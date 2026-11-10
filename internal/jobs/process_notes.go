@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"ministry-mapper/internal/llm"
+
 	"ganigeorgiev.com/pocketbase/dbx"
 	"ganigeorgiev.com/pocketbase/pocketbase/apis"
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
@@ -32,7 +34,7 @@ text, so say what stands out; do not repeat every note.
 
 Return JSON with exactly one field: "overview" (at most 2 sentences).
 
-` + plainLanguageRules
+` + llm.PlainLanguageRules
 
 	var sb strings.Builder
 	sb.WriteString("Recent property notes for " + congregationName + " congregation:\n\n")
@@ -63,7 +65,7 @@ func generateNotesAISummary(notes []notesData, congregationName string) Overview
 		log.Printf("AI overview: LLM call failed for notes (%s): %v", congregationName, err)
 		return OverviewSummary{}
 	}
-	if err := groundedNumbers(userMsg, resp.Overview); err != nil {
+	if err := llm.GroundedNumbers(userMsg, resp.Overview); err != nil {
 		log.Printf("AI overview dropped for notes (%s): %v", congregationName, err)
 		return OverviewSummary{}
 	}

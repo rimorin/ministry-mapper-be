@@ -41,13 +41,3 @@ func TestCheckNarrative_RejectsInventedMapName(t *testing.T) {
 		t.Fatalf("expected the invented map name to be reported, got %v", err)
 	}
 }
-
-func TestGroundedNumbers_NormalisesSeparatorsAndLeadingZeros(t *testing.T) {
-	source := "Address: Blk 412 #05-12\nDate: 02 Aug 2026\nTotal 1,305"
-	if err := groundedNumbers(source, "Blk 412 unit 5-12 on 2 Aug: 1305 homes."); err != nil {
-		t.Errorf("normalised numbers rejected: %v", err)
-	}
-	if err := groundedNumbers(source, "Blk 413 has a dog."); err == nil || !strings.Contains(err.Error(), "413") {
-		t.Errorf("invented block number accepted: %v", err)
-	}
-}

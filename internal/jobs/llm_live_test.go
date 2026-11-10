@@ -136,7 +136,7 @@ func TestLiveUsage(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
-	completion, err := c.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
+	completion, err := c.API.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Model: reportModel,
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.DeveloperMessage(sys),

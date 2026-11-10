@@ -217,6 +217,7 @@ docker run -d \
 | `SENTRY_DSN` | Sentry DSN for error tracking | — | ✅ |
 | `SENTRY_ENV` | Environment label (`development` / `staging` / `production`) | `development` | ✅ |
 | `OPENAI_API_KEY` | OpenAI key for AI-generated summaries in reports/digests | — | ⚠️ AI only |
+| `ASSISTANT_ENABLED` | Turns the admin assistant on when LaunchDarkly is not configured (local runs and tests); with LaunchDarkly, the `enable-admin-assistant` flag decides per congregation | `false` | ⚠️ AI only |
 
 <details>
 <summary>📋 Additional environment variables (SMTP, auth, rate limiting)</summary>

@@ -31,6 +31,18 @@ func IsAISummaryEnabled() bool {
 	return enabled
 }
 
+// IsAssistantEnabled reports whether the enable-admin-assistant flag is on for a
+// congregation, using the "congregation" context kind the frontend also uses.
+func IsAssistantEnabled(congregationID string) bool {
+	ldInitOnce.Do(func() {}) // synchronise with ConfigureScheduler's writes
+	if sharedLDClient == nil {
+		return os.Getenv("ASSISTANT_ENABLED") == "true"
+	}
+	ctx := ldcontext.NewMulti(sharedLDContext, ldcontext.NewWithKind("congregation", congregationID))
+	enabled, _ := sharedLDClient.BoolVariation("enable-admin-assistant", ctx, false)
+	return enabled
+}
+
 // ConfigureScheduler initializes and starts the application's background tasks
 // using a cron-based scheduler. It sets up periodic tasks for territory management
 // and message processing.
@@ -121,6 +133,12 @@ func ConfigureScheduler(app core.App) {
 	// (source = "app") in the past 24 hours.
 	addTask("processNewAddresses", "0 19 * * *", "enable-new-addresses-notification", func() error {
 		return ProcessNewAddresses(app, time.Now().UTC().Add(-24*time.Hour))
+	})
+
+	// Daily — at 19:30 UTC (03:30 SGT).
+	// Deletes assistant questions past their retention period.
+	addTask("cleanUpAssistantQuestions", "30 19 * * *", "enable-assistant-cleanup", func() error {
+		return cleanUpAssistantQuestions(app, time.Now())
 	})
 
 	scheduler.Start()

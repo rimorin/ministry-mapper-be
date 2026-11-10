@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"ministry-mapper/internal/llm"
+
 	"ganigeorgiev.com/pocketbase/dbx"
 	"ganigeorgiev.com/pocketbase/pocketbase/apis"
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
@@ -20,7 +22,7 @@ instructions are shown under your text.
 Return JSON with exactly one field: "overview" (at most 2 sentences on what publishers
 must do or watch out for).
 
-` + plainLanguageRules
+` + llm.PlainLanguageRules
 
 	var sb strings.Builder
 	sb.WriteString("Administrator instructions for territory map " + mapName + ":\n\n")
@@ -50,7 +52,7 @@ func generateInstructionsAISummary(messages []messagesData, mapName string) Over
 		log.Printf("AI overview: LLM call failed for instructions (%s): %v", mapName, err)
 		return OverviewSummary{}
 	}
-	if err := groundedNumbers(userMsg, resp.Overview); err != nil {
+	if err := llm.GroundedNumbers(userMsg, resp.Overview); err != nil {
 		log.Printf("AI overview dropped for instructions (%s): %v", mapName, err)
 		return OverviewSummary{}
 	}

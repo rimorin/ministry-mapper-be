@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"ministry-mapper/internal/llm"
+
 	"ganigeorgiev.com/pocketbase/dbx"
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
 )
@@ -646,7 +648,7 @@ Paragraph 2 — WHAT NEEDS ATTENTION (1-3 sentences):
   Do not list every item; the reader has the full list next to your text.
   If ACTION ITEMS is empty, say in one sentence that there is nothing to act on.
 
-` + plainLanguageRules + `- Start each sentence with the place (territory or map), then the number, then what it means.
+` + llm.PlainLanguageRules + `- Start each sentence with the place (territory or map), then the number, then what it means.
 - Say "finished", not completed or 100%. Say "not started", not stalled or 0%. Call reached
   homes "reached", every time.
 - Never use these words: attempt limit, threshold, review level, concentration, cumulative,

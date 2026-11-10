@@ -80,7 +80,7 @@ echo "✅ Seed verified: ${CONGS} congregations, ${USERS} users, ${ADDRS} addres
 # dir per test, so no live server is needed here. Only internal/setup,
 # internal/jobs and migrations have //go:build testdata test files.
 echo "🧪 Running integration tests..."
-go test -tags testdata -v -timeout 120s ./internal/setup/ ./internal/jobs/ ./migrations/
+go test -tags testdata -v -timeout 120s ./internal/setup/ ./internal/jobs/ ./internal/assistant/ ./migrations/
 
 # Steps 4 & 5: cleanup trap stops the server and removes test_pb_data on EXIT
 echo "✅ All tests passed."
