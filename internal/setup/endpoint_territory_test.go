@@ -307,70 +307,41 @@ func TestHandleTerritoryQuicklink(t *testing.T) {
 	hoursAgo := func(h float64) string {
 		return time.Now().UTC().Add(-time.Duration(h * float64(time.Hour))).Format("2006-01-02 15:04:05.000Z")
 	}
-	// Backdates every link on the map, as if minted h hours ago.
-	ageLinks := func(t testing.TB, app *tests.TestApp, mapID string, h float64) {
-		_, err := app.DB().NewQuery("UPDATE assignments SET created = {:at} WHERE map = {:map}").
-			Bind(dbx.Params{"at": hoursAgo(h), "map": mapID}).Execute()
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	// Leaves the map with a single worked address h hours ago, or none when h < 0.
-	setLastWork := func(t testing.TB, app *tests.TestApp, mapID string, h float64) {
-		if _, err := app.DB().NewQuery("DELETE FROM addresses_log WHERE map = {:map}").Bind(dbx.Params{"map": mapID}).Execute(); err != nil {
-			t.Fatal(err)
-		}
-		if h < 0 {
-			return
-		}
-		_, err := app.DB().NewQuery(`
-			INSERT INTO addresses_log (id, map, congregation, old_status, new_status, created, updated)
-			VALUES ({:id}, {:map}, 'testcongalpha01', 'not_done', 'done', {:at}, {:at})
-		`).Bind(dbx.Params{"id": "worklog" + mapID[len(mapID)-8:], "map": mapID, "at": hoursAgo(h)}).Execute()
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	setExpiryHours := func(t testing.TB, app *tests.TestApp, hours float64) {
-		cong, err := app.FindRecordById("congregations", "testcongalpha01")
-		if err != nil {
-			t.Fatal(err)
-		}
-		cong.Set("expiry_hours", hours)
-		if err := app.Save(cong); err != nil {
-			t.Fatal(err)
-		}
-	}
-	// A is where the caller stands and holds one link, minted linkAge hours ago,
-	// with its last worked address workAge hours ago (none when negative). B is
-	// idle, ~100 m away. C and D are in use. If A's link still counts the caller
-	// is sent to B; if it has gone stale they get A.
-	oneLinkOnNearestMap := func(t testing.TB, app *tests.TestApp, linkAge, workAge float64) {
-		for _, id := range []string{mapA, mapB, mapC, mapD} {
-			setLastWork(t, app, id, -1)
-		}
-		setMap(t, app, mapA, map[string]any{"coordinates": atUser})
-		setMap(t, app, mapB, map[string]any{"coordinates": away100m})
-		setMap(t, app, mapC, map[string]any{"coordinates": away100m})
-		setMap(t, app, mapD, map[string]any{"coordinates": away100m})
-		assign(t, app, mapA)
-		ageLinks(t, app, mapA, linkAge)
-		setLastWork(t, app, mapA, workAge)
-		assign(t, app, mapC)
-		assign(t, app, mapD)
-	}
 	// A is where the caller stands and holds one link from an earlier session,
 	// minted linkAge hours ago under the congregation's expiryHours, with the last
 	// address on A worked workAge hours ago (none when negative). B is idle, ~100 m
 	// away; C and D are in use. The caller gets B while A's link still counts
 	// towards its workload, and A once it no longer does.
 	earlierSessionLink := func(t testing.TB, app *tests.TestApp, expiryHours, linkAge, workAge float64) {
-		setExpiryHours(t, app, expiryHours)
-		oneLinkOnNearestMap(t, app, linkAge, workAge)
-		_, err := app.DB().NewQuery("UPDATE assignments SET expiry_date = {:at} WHERE map = {:map}").
-			Bind(dbx.Params{"at": hoursAgo(linkAge - expiryHours), "map": mapA}).Execute()
+		cong, err := app.FindRecordById("congregations", "testcongalpha01")
 		if err != nil {
 			t.Fatal(err)
+		}
+		cong.Set("expiry_hours", expiryHours)
+		if err := app.Save(cong); err != nil {
+			t.Fatal(err)
+		}
+
+		setMap(t, app, mapA, map[string]any{"coordinates": atUser})
+		for _, id := range []string{mapB, mapC, mapD} {
+			setMap(t, app, id, map[string]any{"coordinates": away100m})
+		}
+		for _, id := range []string{mapA, mapC, mapD} {
+			assign(t, app, id)
+		}
+
+		exec := func(query string, params dbx.Params) {
+			if _, err := app.DB().NewQuery(query).Bind(params).Execute(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		exec("UPDATE assignments SET created = {:created}, expiry_date = {:expiry} WHERE map = {:map}",
+			dbx.Params{"created": hoursAgo(linkAge), "expiry": hoursAgo(linkAge - expiryHours), "map": mapA})
+		exec("DELETE FROM addresses_log", nil)
+		if workAge >= 0 {
+			exec(`INSERT INTO addresses_log (id, map, congregation, old_status, new_status, created, updated)
+				VALUES ('worklogmapa0001', {:map}, 'testcongalpha01', 'not_done', 'done', {:at}, {:at})`,
+				dbx.Params{"map": mapA, "at": hoursAgo(workAge)})
 		}
 	}
 	// The link must be minted on the map the response names.
@@ -894,23 +865,6 @@ func TestHandleTerritoryQuicklink(t *testing.T) {
 			},
 		},
 		{
-			// Only revisits are left on B; that is still work.
-			Name:    "map selection: map with only not-home addresses left still counts as unfinished",
-			Method:  http.MethodPost,
-			URL:     "/territory/link",
-			Body:    strings.NewReader(quicklinkBody),
-			Headers: quicklinkHeaders,
-			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
-				setMap(t, app, mapA, map[string]any{"coordinates": atUser, "progress": 100, "aggregates": remaining(0, 0)})
-				setMap(t, app, mapB, map[string]any{"coordinates": away100m, "progress": 80, "aggregates": remaining(0, 1)})
-				setMap(t, app, mapC, map[string]any{"coordinates": atUser, "progress": 100, "aggregates": remaining(0, 0)})
-				setMap(t, app, mapD, map[string]any{"coordinates": atUser, "progress": 100, "aggregates": remaining(0, 0)})
-			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"mapName":"Blk 100B"`},
-		},
-		{
 			// Nothing left anywhere: the caller still gets a link, to the closest idle map.
 			Name:    "map selection: fully finished territory still returns a map",
 			Method:  http.MethodPost,
@@ -1000,27 +954,6 @@ func TestHandleTerritoryQuicklink(t *testing.T) {
 			ExpectedStatus:  200,
 			ExpectedContent: []string{`"mapName":"Blk 100B"`},
 		},
-		{
-			// Three callers in a row from the same spot are spread over three maps,
-			// nearest first, instead of piling onto one.
-			Name:    "map selection: consecutive requests spread across maps",
-			Method:  http.MethodPost,
-			URL:     "/territory/link",
-			Body:    strings.NewReader(quicklinkBody),
-			Headers: quicklinkHeaders,
-			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
-				setMap(t, app, mapA, map[string]any{"coordinates": atUser})
-				setMap(t, app, mapB, map[string]any{"coordinates": away100m})
-				setMap(t, app, mapC, map[string]any{"coordinates": map[string]float64{"lat": 1.3540, "lng": 103.8198}})
-				setMap(t, app, mapD, map[string]any{"coordinates": map[string]float64{"lat": 1.3550, "lng": 103.8198}})
-				// Stand in for two earlier quicklinks, which would have taken A then B.
-				assign(t, app, mapA)
-				assign(t, app, mapB)
-			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"mapName":"Single Code Blk"`},
-		},
 
 		{
 			Name:    "completion threshold: map just below the threshold is still offered",
@@ -1054,20 +987,6 @@ func TestHandleTerritoryQuicklink(t *testing.T) {
 					t.Errorf("link minted on %s, want %s", got, mapB)
 				}
 			},
-		},
-		{
-			Name:    "completion threshold: map at 97% is set aside for one with work",
-			Method:  http.MethodPost,
-			URL:     "/territory/link",
-			Body:    strings.NewReader(quicklinkBody),
-			Headers: quicklinkHeaders,
-			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
-				setThreshold(t, app, 90)
-				nearlyDoneVersusBusy(t, app, 97)
-			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"mapName":"Blk 100B"`},
 		},
 		{
 			// The same 97% map is offered once the congregation asks for full coverage.
@@ -1122,131 +1041,6 @@ func TestHandleTerritoryQuicklink(t *testing.T) {
 		},
 
 		{
-			// Links last 24 h in the seed, so one stops counting after 6 h without
-			// activity: half the lifetime, capped at 6 h.
-			Name:    "stale links: old link on a map nobody has worked is not counted",
-			Method:  http.MethodPost,
-			URL:     "/territory/link",
-			Body:    strings.NewReader(quicklinkBody),
-			Headers: quicklinkHeaders,
-			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
-				oneLinkOnNearestMap(t, app, 13, -1)
-			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"mapName":"Blk 100A"`},
-		},
-		{
-			Name:    "stale links: old link on a map last worked before the window is not counted",
-			Method:  http.MethodPost,
-			URL:     "/territory/link",
-			Body:    strings.NewReader(quicklinkBody),
-			Headers: quicklinkHeaders,
-			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
-				oneLinkOnNearestMap(t, app, 13, 13)
-			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"mapName":"Blk 100A"`},
-		},
-		{
-			Name:    "stale links: old link on a map worked recently still counts",
-			Method:  http.MethodPost,
-			URL:     "/territory/link",
-			Body:    strings.NewReader(quicklinkBody),
-			Headers: quicklinkHeaders,
-			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
-				oneLinkOnNearestMap(t, app, 13, 1)
-			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"mapName":"Blk 100B"`},
-		},
-		{
-			Name:    "stale links: fresh link counts before any address is worked",
-			Method:  http.MethodPost,
-			URL:     "/territory/link",
-			Body:    strings.NewReader(quicklinkBody),
-			Headers: quicklinkHeaders,
-			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
-				oneLinkOnNearestMap(t, app, 1, -1)
-			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"mapName":"Blk 100B"`},
-		},
-		{
-			Name:    "stale links: link just inside the 6 h cap still counts",
-			Method:  http.MethodPost,
-			URL:     "/territory/link",
-			Body:    strings.NewReader(quicklinkBody),
-			Headers: quicklinkHeaders,
-			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
-				oneLinkOnNearestMap(t, app, 5, -1)
-			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"mapName":"Blk 100B"`},
-		},
-		{
-			// Seven hours is inside half of the 24 h lifetime but past the cap.
-			Name:    "stale links: link just past the 6 h cap is not counted",
-			Method:  http.MethodPost,
-			URL:     "/territory/link",
-			Body:    strings.NewReader(quicklinkBody),
-			Headers: quicklinkHeaders,
-			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
-				oneLinkOnNearestMap(t, app, 7, -1)
-			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"mapName":"Blk 100A"`},
-		},
-		{
-			// With links lasting 6 h the window is 3 h, so 4 h without activity is stale.
-			Name:    "stale links: window is half the congregation's expiry hours",
-			Method:  http.MethodPost,
-			URL:     "/territory/link",
-			Body:    strings.NewReader(quicklinkBody),
-			Headers: quicklinkHeaders,
-			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
-				setExpiryHours(t, app, 6)
-				oneLinkOnNearestMap(t, app, 4, 4)
-			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"mapName":"Blk 100A"`},
-		},
-		{
-			Name:    "stale links: same link counts within the shorter window",
-			Method:  http.MethodPost,
-			URL:     "/territory/link",
-			Body:    strings.NewReader(quicklinkBody),
-			Headers: quicklinkHeaders,
-			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
-				setExpiryHours(t, app, 6)
-				oneLinkOnNearestMap(t, app, 2, -1)
-			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"mapName":"Blk 100B"`},
-		},
-		{
-			// Runs last of this group so the process-wide settings cache is left at the seeded 24 h.
-			Name:    "stale links: same age counts again under the 24 h default",
-			Method:  http.MethodPost,
-			URL:     "/territory/link",
-			Body:    strings.NewReader(quicklinkBody),
-			Headers: quicklinkHeaders,
-			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
-				setExpiryHours(t, app, 24)
-				oneLinkOnNearestMap(t, app, 4, 4)
-			},
-			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"mapName":"Blk 100B"`},
-		},
-		{
 			// A, C and D are where the caller stands and all in use; B is idle but 2 km away.
 			Name:    "detour limit: caller shares the nearby map instead of walking 2 km to an idle one",
 			Method:  http.MethodPost,
@@ -1292,6 +1086,47 @@ func TestHandleTerritoryQuicklink(t *testing.T) {
 		// Production links are minted in two waves, mid-morning and evening, about
 		// ten hours apart, and the map is typically last worked under two hours
 		// after its link was minted. Congregations run 24, 12, 6, 4 and 3 hour links.
+
+		{
+			Name:    "sessions: 24 h links, fresh link counts before any address is worked",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				earlierSessionLink(t, app, 24, 1, -1)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+		{
+			Name:    "sessions: 24 h links, link just inside the 6 h cap still counts",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				earlierSessionLink(t, app, 24, 5, -1)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+		{
+			// Seven hours is inside half of the 24 h lifetime but past the cap.
+			Name:    "sessions: 24 h links, link just past the 6 h cap is not counted",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				earlierSessionLink(t, app, 24, 7, -1)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100A"`},
+		},
 
 		{
 			// Half of 24 h would keep the morning link counting; the 6 h cap does not.

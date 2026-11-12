@@ -7,48 +7,62 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 
 	"ganigeorgiev.com/pocketbase/pocketbase/apis"
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/tests"
 )
 
-// A group tapping the quicklink at the same moment must be spread over the maps
-// exactly as if they had tapped one after another. tests.ApiScenario sends one
-// request per app, so this drives the router directly.
-func TestQuicklinkConcurrentRequestsSpreadEvenly(t *testing.T) {
+// tests.ApiScenario sends one request per app. A group requesting links needs
+// several against the same one, so these tests drive the router directly.
+func serveQuicklinks(t *testing.T, app *tests.TestApp, fn func(post func(publisher string) *httptest.ResponseRecorder)) {
+	t.Helper()
 	token, err := generateToken("conductor@alpha.test")
 	if err != nil {
 		t.Fatal(err)
 	}
+	router, err := apis.NewRouter(app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	serveEvent := new(core.ServeEvent)
+	serveEvent.App = app
+	serveEvent.Router = router
 
-	// testterralpha01 has four maps, none with an active assignment.
-	const (
-		mapCount = 4
-		perMap   = 3
-		rounds   = 5
-		body     = `{"territory":"testterralpha01","coordinates":{"lat":1.3521,"lng":103.8198},"publisher":"Test Publisher"}`
-	)
-
-	for round := 0; round < rounds; round++ {
-		app := setupTestApp(t)
-
-		router, err := apis.NewRouter(app)
+	err = app.OnServe().Trigger(serveEvent, func(e *core.ServeEvent) error {
+		mux, err := e.Router.BuildMux()
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
-		serveEvent := new(core.ServeEvent)
-		serveEvent.App = app
-		serveEvent.Router = router
+		fn(func(publisher string) *httptest.ResponseRecorder {
+			body := fmt.Sprintf(`{"territory":"testterralpha01","coordinates":{"lat":1.3521,"lng":103.8198},"publisher":%q}`, publisher)
+			req := httptest.NewRequest(http.MethodPost, "/territory/link", strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", token)
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+			return rec
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 
-		err = app.OnServe().Trigger(serveEvent, func(e *core.ServeEvent) error {
-			mux, err := e.Router.BuildMux()
-			if err != nil {
-				return err
-			}
+// A group tapping the quicklink at the same moment must be spread over the maps
+// exactly as if they had tapped one after another.
+func TestQuicklinkConcurrentRequestsSpreadEvenly(t *testing.T) {
+	// testterralpha01 has four maps, none with an active assignment.
+	const mapCount, perMap, rounds = 4, 3, 5
 
+	for round := range rounds {
+		app := setupTestApp(t)
+		serveQuicklinks(t, app, func(post func(string) *httptest.ResponseRecorder) {
 			codes := make([]int, mapCount*perMap)
 			start := make(chan struct{})
 			var wg sync.WaitGroup
@@ -56,13 +70,8 @@ func TestQuicklinkConcurrentRequestsSpreadEvenly(t *testing.T) {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					req := httptest.NewRequest(http.MethodPost, "/territory/link", strings.NewReader(body))
-					req.Header.Set("Content-Type", "application/json")
-					req.Header.Set("Authorization", token)
-					rec := httptest.NewRecorder()
 					<-start
-					mux.ServeHTTP(rec, req)
-					codes[i] = rec.Code
+					codes[i] = post("Test Publisher").Code
 				}()
 			}
 			close(start)
@@ -74,26 +83,26 @@ func TestQuicklinkConcurrentRequestsSpreadEvenly(t *testing.T) {
 				}
 			}
 
-			perMapCounts := []struct {
+			links := []struct {
 				Map   string `db:"map"`
 				Count int    `db:"count"`
 			}{}
-			err = app.DB().NewQuery(`
+			err := app.DB().NewQuery(`
 				SELECT a.map AS map, COUNT(*) AS count
 				FROM assignments a
 				JOIN maps m ON m.id = a.map
 				WHERE m.territory = 'testterralpha01' AND a.type = 'normal'
 				GROUP BY a.map
-			`).All(&perMapCounts)
+			`).All(&links)
 			if err != nil {
-				return err
+				t.Fatal(err)
 			}
-			if len(perMapCounts) != mapCount {
-				t.Errorf("round %d: links landed on %d maps, want %d: %+v", round, len(perMapCounts), mapCount, perMapCounts)
+			if len(links) != mapCount {
+				t.Errorf("round %d: links landed on %d maps, want %d: %+v", round, len(links), mapCount, links)
 			}
-			for _, c := range perMapCounts {
-				if c.Count != perMap {
-					t.Errorf("round %d: map %s has %d links, want %d", round, c.Map, c.Count, perMap)
+			for _, l := range links {
+				if l.Count != perMap {
+					t.Errorf("round %d: map %s has %d links, want %d", round, l.Map, l.Count, perMap)
 				}
 			}
 
@@ -101,17 +110,13 @@ func TestQuicklinkConcurrentRequestsSpreadEvenly(t *testing.T) {
 				Count int `db:"count"`
 			}
 			if err := app.DB().NewQuery(`SELECT COUNT(*) AS count FROM assignments_log WHERE action = 'assigned'`).One(&logged); err != nil {
-				return err
+				t.Fatal(err)
 			}
 			if logged.Count != len(codes) {
 				t.Errorf("round %d: %d assignments_log rows, want %d", round, logged.Count, len(codes))
 			}
-			return nil
 		})
 		app.Cleanup()
-		if err != nil {
-			t.Fatal(err)
-		}
 	}
 }
 
@@ -120,10 +125,6 @@ func TestQuicklinkConcurrentRequestsSpreadEvenly(t *testing.T) {
 // 50 m, C is 100 m away and D is 400 m away. The group is spread over the three
 // maps within reach, each new link seeing the ones before it, and D is left alone.
 func TestQuicklinkGroupSessionThroughEndpoint(t *testing.T) {
-	token, err := generateToken("conductor@alpha.test")
-	if err != nil {
-		t.Fatal(err)
-	}
 	app := setupTestApp(t)
 	defer app.Cleanup()
 
@@ -144,28 +145,10 @@ func TestQuicklinkGroupSessionThroughEndpoint(t *testing.T) {
 		}
 	}
 
-	router, err := apis.NewRouter(app)
-	if err != nil {
-		t.Fatal(err)
-	}
-	serveEvent := new(core.ServeEvent)
-	serveEvent.App = app
-	serveEvent.Router = router
-
-	err = app.OnServe().Trigger(serveEvent, func(e *core.ServeEvent) error {
-		mux, err := e.Router.BuildMux()
-		if err != nil {
-			return err
-		}
-
+	serveQuicklinks(t, app, func(post func(string) *httptest.ResponseRecorder) {
 		var handedOut []string
 		for i := range 8 {
-			body := fmt.Sprintf(`{"territory":"testterralpha01","coordinates":{"lat":1.3521,"lng":103.8198},"publisher":"Publisher %d"}`, i+1)
-			req := httptest.NewRequest(http.MethodPost, "/territory/link", strings.NewReader(body))
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("Authorization", token)
-			rec := httptest.NewRecorder()
-			mux.ServeHTTP(rec, req)
+			rec := post(fmt.Sprintf("Publisher %d", i+1))
 			if rec.Code != http.StatusOK {
 				t.Fatalf("request %d: status %d: %s", i+1, rec.Code, rec.Body.String())
 			}
@@ -188,12 +171,8 @@ func TestQuicklinkGroupSessionThroughEndpoint(t *testing.T) {
 			"Blk 100A", "Blk 100B", "Single Code Blk",
 			"Blk 100A", "Blk 100B",
 		}
-		if fmt.Sprint(handedOut) != fmt.Sprint(want) {
+		if !slices.Equal(handedOut, want) {
 			t.Errorf("maps handed out:\n got  %v\n want %v", handedOut, want)
 		}
-		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
 }

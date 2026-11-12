@@ -9,11 +9,11 @@ import (
 
 func TestHaversineDistance(t *testing.T) {
 	tests := []struct {
-		name     string
-		lat1     float64
-		lon1     float64
-		lat2     float64
-		lon2     float64
+		name       string
+		lat1       float64
+		lon1       float64
+		lat2       float64
+		lon2       float64
 		wantApprox float64 // expected distance in metres (±5% tolerance)
 	}{
 		{
@@ -245,7 +245,7 @@ func TestFindBestMap_ZeroZeroIsARealLocation(t *testing.T) {
 // Both are within the 50m band → B should win.
 func TestFindBestMap_ProximityBandIncludes(t *testing.T) {
 	maps := []MapWithDistance{
-		{ID: "closest", Progress: 80, AssignCount: 0, Coordinates: `{"lat":1.3521,"lng":103.8198}`},   // 0m
+		{ID: "closest", Progress: 80, AssignCount: 0, Coordinates: `{"lat":1.3521,"lng":103.8198}`},  // 0m
 		{ID: "in_band", Progress: 20, AssignCount: 0, Coordinates: `{"lat":1.35237,"lng":103.8198}`}, // ~30m
 	}
 	result := findBestMap(maps, 1.3521, 103.8198, 100)
@@ -263,8 +263,8 @@ func TestFindBestMap_ProximityBandIncludes(t *testing.T) {
 // B is outside the 50m band → A wins despite higher progress.
 func TestFindBestMap_ProximityBandExcludes(t *testing.T) {
 	maps := []MapWithDistance{
-		{ID: "closest",   Progress: 80, AssignCount: 0, Coordinates: `{"lat":1.3521,"lng":103.8198}`},  // 0m
-		{ID: "out_band",  Progress: 20, AssignCount: 0, Coordinates: `{"lat":1.35300,"lng":103.8198}`}, // ~100m
+		{ID: "closest", Progress: 80, AssignCount: 0, Coordinates: `{"lat":1.3521,"lng":103.8198}`},   // 0m
+		{ID: "out_band", Progress: 20, AssignCount: 0, Coordinates: `{"lat":1.35300,"lng":103.8198}`}, // ~100m
 	}
 	result := findBestMap(maps, 1.3521, 103.8198, 100)
 	if result == nil {
@@ -275,8 +275,9 @@ func TestFindBestMap_ProximityBandExcludes(t *testing.T) {
 	}
 }
 
-func aggregatesJSON(notDone, notHome int) string {
-	return fmt.Sprintf(`{"notDone":%d,"notHome":%d,"done":5,"completed":5,"total":%d}`, notDone, notHome, notDone+notHome+5)
+// aggregatesJSON stores a map with 5 addresses completed and left still to work.
+func aggregatesJSON(left int) string {
+	return fmt.Sprintf(`{"completed":5,"total":%d}`, left+5)
 }
 
 const (
@@ -289,8 +290,8 @@ const (
 // even when it is idle, closest and the other already has publishers.
 func TestFindBestMap_FinishedMapNotOffered(t *testing.T) {
 	maps := []MapWithDistance{
-		{ID: "finished", Progress: 100, AssignCount: 0, Coordinates: atUser, Aggregates: aggregatesJSON(0, 0)},
-		{ID: "has_work", Progress: 40, AssignCount: 2, Coordinates: away100m, Aggregates: aggregatesJSON(3, 1)},
+		{ID: "finished", Progress: 100, AssignCount: 0, Coordinates: atUser, Aggregates: aggregatesJSON(0)},
+		{ID: "has_work", Progress: 40, AssignCount: 2, Coordinates: away100m, Aggregates: aggregatesJSON(4)},
 	}
 	result := findBestMap(maps, 1.3521, 103.8198, 100)
 	if result == nil || result.ID != "has_work" {
@@ -298,25 +299,13 @@ func TestFindBestMap_FinishedMapNotOffered(t *testing.T) {
 	}
 }
 
-// Addresses still to be revisited (not home, tries left) count as work.
-func TestFindBestMap_NotHomeOnlyCountsAsWork(t *testing.T) {
-	maps := []MapWithDistance{
-		{ID: "finished", Progress: 100, AssignCount: 0, Coordinates: atUser, Aggregates: aggregatesJSON(0, 0)},
-		{ID: "revisits", Progress: 90, AssignCount: 1, Coordinates: away100m, Aggregates: aggregatesJSON(0, 2)},
-	}
-	result := findBestMap(maps, 1.3521, 103.8198, 100)
-	if result == nil || result.ID != "revisits" {
-		t.Fatalf("expected 'revisits', got %+v", result)
-	}
-}
-
 // When the whole territory is finished the request still gets a map, ranked the
 // usual way.
 func TestFindBestMap_AllFinishedFallsBackToAll(t *testing.T) {
 	maps := []MapWithDistance{
-		{ID: "busy", Progress: 100, AssignCount: 1, Coordinates: atUser, Aggregates: aggregatesJSON(0, 0)},
-		{ID: "far", Progress: 100, AssignCount: 0, Coordinates: away100m, Aggregates: aggregatesJSON(0, 0)},
-		{ID: "close", Progress: 100, AssignCount: 0, Coordinates: near30m, Aggregates: aggregatesJSON(0, 0)},
+		{ID: "busy", Progress: 100, AssignCount: 1, Coordinates: atUser, Aggregates: aggregatesJSON(0)},
+		{ID: "far", Progress: 100, AssignCount: 0, Coordinates: away100m, Aggregates: aggregatesJSON(0)},
+		{ID: "close", Progress: 100, AssignCount: 0, Coordinates: near30m, Aggregates: aggregatesJSON(0)},
 	}
 	result := findBestMap(maps, 1.3521, 103.8198, 100)
 	if result == nil || result.ID != "close" {
@@ -330,7 +319,7 @@ func TestFindBestMap_UncountedMapIsNotTreatedAsFinished(t *testing.T) {
 	for _, raw := range []string{``, `null`, `{}`, `not-json`} {
 		maps := []MapWithDistance{
 			{ID: "uncounted", Progress: 0, AssignCount: 0, Coordinates: atUser, Aggregates: raw},
-			{ID: "has_work", Progress: 40, AssignCount: 1, Coordinates: atUser, Aggregates: aggregatesJSON(3, 0)},
+			{ID: "has_work", Progress: 40, AssignCount: 1, Coordinates: atUser, Aggregates: aggregatesJSON(3)},
 		}
 		result := findBestMap(maps, 1.3521, 103.8198, 100)
 		if result == nil || result.ID != "uncounted" {
@@ -343,8 +332,8 @@ func TestFindBestMap_UncountedMapIsNotTreatedAsFinished(t *testing.T) {
 // percentage: a large map at 50% holds more work than a small untouched one.
 func TestFindBestMap_MoreRemainingWinsWithinBand(t *testing.T) {
 	maps := []MapWithDistance{
-		{ID: "small_untouched", Progress: 0, AssignCount: 0, Coordinates: atUser, Aggregates: aggregatesJSON(10, 0)},
-		{ID: "large_half_done", Progress: 50, AssignCount: 0, Coordinates: near30m, Aggregates: aggregatesJSON(90, 10)},
+		{ID: "small_untouched", Progress: 0, AssignCount: 0, Coordinates: atUser, Aggregates: aggregatesJSON(10)},
+		{ID: "large_half_done", Progress: 50, AssignCount: 0, Coordinates: near30m, Aggregates: aggregatesJSON(100)},
 	}
 	result := findBestMap(maps, 1.3521, 103.8198, 100)
 	if result == nil || result.ID != "large_half_done" {
@@ -354,8 +343,8 @@ func TestFindBestMap_MoreRemainingWinsWithinBand(t *testing.T) {
 
 func TestFindBestMap_RemainingDoesNotOverrideDistance(t *testing.T) {
 	maps := []MapWithDistance{
-		{ID: "close_small", Progress: 0, AssignCount: 0, Coordinates: atUser, Aggregates: aggregatesJSON(10, 0)},
-		{ID: "far_large", Progress: 0, AssignCount: 0, Coordinates: away100m, Aggregates: aggregatesJSON(200, 0)},
+		{ID: "close_small", Progress: 0, AssignCount: 0, Coordinates: atUser, Aggregates: aggregatesJSON(10)},
+		{ID: "far_large", Progress: 0, AssignCount: 0, Coordinates: away100m, Aggregates: aggregatesJSON(200)},
 	}
 	result := findBestMap(maps, 1.3521, 103.8198, 100)
 	if result == nil || result.ID != "close_small" {
@@ -365,8 +354,8 @@ func TestFindBestMap_RemainingDoesNotOverrideDistance(t *testing.T) {
 
 func TestFindBestMap_RemainingDoesNotOverrideWorkload(t *testing.T) {
 	maps := []MapWithDistance{
-		{ID: "idle_small", Progress: 0, AssignCount: 0, Coordinates: away100m, Aggregates: aggregatesJSON(10, 0)},
-		{ID: "busy_large", Progress: 0, AssignCount: 1, Coordinates: atUser, Aggregates: aggregatesJSON(200, 0)},
+		{ID: "idle_small", Progress: 0, AssignCount: 0, Coordinates: away100m, Aggregates: aggregatesJSON(10)},
+		{ID: "busy_large", Progress: 0, AssignCount: 1, Coordinates: atUser, Aggregates: aggregatesJSON(200)},
 	}
 	result := findBestMap(maps, 1.3521, 103.8198, 100)
 	if result == nil || result.ID != "idle_small" {
@@ -376,8 +365,8 @@ func TestFindBestMap_RemainingDoesNotOverrideWorkload(t *testing.T) {
 
 func TestFindBestMap_EqualRemainingLowerProgressWins(t *testing.T) {
 	maps := []MapWithDistance{
-		{ID: "further_along", Progress: 80, AssignCount: 0, Coordinates: atUser, Aggregates: aggregatesJSON(10, 0)},
-		{ID: "less_done", Progress: 20, AssignCount: 0, Coordinates: near30m, Aggregates: aggregatesJSON(8, 2)},
+		{ID: "further_along", Progress: 80, AssignCount: 0, Coordinates: atUser, Aggregates: aggregatesJSON(10)},
+		{ID: "less_done", Progress: 20, AssignCount: 0, Coordinates: near30m, Aggregates: aggregatesJSON(10)},
 	}
 	result := findBestMap(maps, 1.3521, 103.8198, 100)
 	if result == nil || result.ID != "less_done" {
@@ -388,12 +377,12 @@ func TestFindBestMap_EqualRemainingLowerProgressWins(t *testing.T) {
 // The winner must not depend on the order the query returns the maps in.
 func TestFindBestMap_OrderIndependentAcrossAllRules(t *testing.T) {
 	base := []MapWithDistance{
-		{ID: "finished_idle", Progress: 100, AssignCount: 0, Coordinates: atUser, Aggregates: aggregatesJSON(0, 0)},
-		{ID: "busy", Progress: 10, AssignCount: 2, Coordinates: atUser, Aggregates: aggregatesJSON(50, 0)},
-		{ID: "unlocated", Progress: 0, AssignCount: 1, Coordinates: `null`, Aggregates: aggregatesJSON(99, 0)},
-		{ID: "far", Progress: 0, AssignCount: 1, Coordinates: away100m, Aggregates: aggregatesJSON(99, 0)},
-		{ID: "close_small", Progress: 0, AssignCount: 1, Coordinates: atUser, Aggregates: aggregatesJSON(5, 0)},
-		{ID: "winner", Progress: 60, AssignCount: 1, Coordinates: near30m, Aggregates: aggregatesJSON(20, 5)},
+		{ID: "finished_idle", Progress: 100, AssignCount: 0, Coordinates: atUser, Aggregates: aggregatesJSON(0)},
+		{ID: "busy", Progress: 10, AssignCount: 2, Coordinates: atUser, Aggregates: aggregatesJSON(50)},
+		{ID: "unlocated", Progress: 0, AssignCount: 1, Coordinates: `null`, Aggregates: aggregatesJSON(99)},
+		{ID: "far", Progress: 0, AssignCount: 1, Coordinates: away100m, Aggregates: aggregatesJSON(99)},
+		{ID: "close_small", Progress: 0, AssignCount: 1, Coordinates: atUser, Aggregates: aggregatesJSON(5)},
+		{ID: "winner", Progress: 60, AssignCount: 1, Coordinates: near30m, Aggregates: aggregatesJSON(25)},
 	}
 	for start := range base {
 		for _, reverse := range []bool{false, true} {
@@ -426,66 +415,13 @@ func TestFindBestMap_ThresholdBoundary(t *testing.T) {
 	}
 	for _, tc := range cases {
 		maps := []MapWithDistance{
-			{ID: "nearly_done", Progress: tc.progress, AssignCount: 0, Coordinates: atUser, Aggregates: aggregatesJSON(6, 0)},
-			{ID: "has_work", Progress: 40, AssignCount: 2, Coordinates: away100m, Aggregates: aggregatesJSON(30, 0)},
+			{ID: "nearly_done", Progress: tc.progress, AssignCount: 0, Coordinates: atUser, Aggregates: aggregatesJSON(6)},
+			{ID: "has_work", Progress: 40, AssignCount: 2, Coordinates: away100m, Aggregates: aggregatesJSON(30)},
 		}
 		result := findBestMap(maps, 1.3521, 103.8198, 90)
 		if result == nil || result.ID != tc.want {
 			t.Errorf("progress %d: expected %q, got %+v", tc.progress, tc.want, result)
 		}
-	}
-}
-
-// A congregation that sets the threshold to 100 keeps offering a map until it
-// reaches 100%.
-func TestFindBestMap_Threshold100OffersNearlyDoneMap(t *testing.T) {
-	maps := []MapWithDistance{
-		{ID: "nearly_done", Progress: 97, AssignCount: 0, Coordinates: atUser, Aggregates: aggregatesJSON(6, 0)},
-		{ID: "has_work", Progress: 40, AssignCount: 2, Coordinates: away100m, Aggregates: aggregatesJSON(30, 0)},
-	}
-	result := findBestMap(maps, 1.3521, 103.8198, 100)
-	if result == nil || result.ID != "nearly_done" {
-		t.Fatalf("expected 'nearly_done', got %+v", result)
-	}
-}
-
-// Once every map is past the threshold their leftover addresses are offered
-// again, ranked the usual way.
-func TestFindBestMap_AllPastThresholdFallsBackToAll(t *testing.T) {
-	maps := []MapWithDistance{
-		{ID: "busy", Progress: 91, AssignCount: 1, Coordinates: atUser, Aggregates: aggregatesJSON(40, 0)},
-		{ID: "far", Progress: 92, AssignCount: 0, Coordinates: away100m, Aggregates: aggregatesJSON(40, 0)},
-		{ID: "close_less_left", Progress: 99, AssignCount: 0, Coordinates: atUser, Aggregates: aggregatesJSON(1, 0)},
-		{ID: "close_more_left", Progress: 95, AssignCount: 0, Coordinates: near30m, Aggregates: aggregatesJSON(8, 2)},
-	}
-	result := findBestMap(maps, 1.3521, 103.8198, 90)
-	if result == nil || result.ID != "close_more_left" {
-		t.Fatalf("expected 'close_more_left', got %+v", result)
-	}
-}
-
-// A map with no countable addresses sits at 0%, below any threshold, but has
-// nothing to offer.
-func TestFindBestMap_EmptyMapIsFinishedDespiteZeroProgress(t *testing.T) {
-	maps := []MapWithDistance{
-		{ID: "empty", Progress: 0, AssignCount: 0, Coordinates: atUser, Aggregates: `{"notDone":0,"notHome":0,"done":0,"completed":0,"total":0}`},
-		{ID: "has_work", Progress: 40, AssignCount: 1, Coordinates: away100m, Aggregates: aggregatesJSON(30, 0)},
-	}
-	result := findBestMap(maps, 1.3521, 103.8198, 90)
-	if result == nil || result.ID != "has_work" {
-		t.Fatalf("expected 'has_work', got %+v", result)
-	}
-}
-
-// Uncounted aggregates still do not make a map finished under a threshold.
-func TestFindBestMap_UncountedMapBelowThresholdHasWork(t *testing.T) {
-	maps := []MapWithDistance{
-		{ID: "uncounted", Progress: 0, AssignCount: 0, Coordinates: atUser, Aggregates: `null`},
-		{ID: "has_work", Progress: 40, AssignCount: 1, Coordinates: atUser, Aggregates: aggregatesJSON(30, 0)},
-	}
-	result := findBestMap(maps, 1.3521, 103.8198, 90)
-	if result == nil || result.ID != "uncounted" {
-		t.Fatalf("expected 'uncounted', got %+v", result)
 	}
 }
 
@@ -503,8 +439,8 @@ const (
 // Nobody is sent more than 300m past the nearest map just to avoid sharing it.
 func TestFindBestMap_SharesNearbyMapRatherThanLongDetour(t *testing.T) {
 	maps := []MapWithDistance{
-		{ID: "near_busy", Progress: 10, AssignCount: 1, Coordinates: atUser, Aggregates: aggregatesJSON(50, 0)},
-		{ID: "far_idle", Progress: 0, AssignCount: 0, Coordinates: away2km, Aggregates: aggregatesJSON(50, 0)},
+		{ID: "near_busy", Progress: 10, AssignCount: 1, Coordinates: atUser, Aggregates: aggregatesJSON(50)},
+		{ID: "far_idle", Progress: 0, AssignCount: 0, Coordinates: away2km, Aggregates: aggregatesJSON(50)},
 	}
 	result := findBestMap(maps, 1.3521, 103.8198, 90)
 	if result == nil || result.ID != "near_busy" {
@@ -524,8 +460,8 @@ func TestFindBestMap_DetourBoundary(t *testing.T) {
 	}
 	for _, tc := range cases {
 		maps := []MapWithDistance{
-			{ID: "near_busy", Progress: 10, AssignCount: 3, Coordinates: atUser, Aggregates: aggregatesJSON(50, 0)},
-			{ID: "idle", Progress: 0, AssignCount: 0, Coordinates: tc.idleAt, Aggregates: aggregatesJSON(50, 0)},
+			{ID: "near_busy", Progress: 10, AssignCount: 3, Coordinates: atUser, Aggregates: aggregatesJSON(50)},
+			{ID: "idle", Progress: 0, AssignCount: 0, Coordinates: tc.idleAt, Aggregates: aggregatesJSON(50)},
 		}
 		result := findBestMap(maps, 1.3521, 103.8198, 90)
 		if result == nil || result.ID != tc.want {
@@ -538,10 +474,10 @@ func TestFindBestMap_DetourBoundary(t *testing.T) {
 // finished map next to the caller does not pin them to it.
 func TestFindBestMap_DetourMeasuredFromNearestUnfinishedMap(t *testing.T) {
 	maps := []MapWithDistance{
-		{ID: "finished_here", Progress: 100, AssignCount: 0, Coordinates: atUser, Aggregates: aggregatesJSON(0, 0)},
-		{ID: "busy_1km", Progress: 10, AssignCount: 1, Coordinates: away1km, Aggregates: aggregatesJSON(50, 0)},
-		{ID: "idle_1200m", Progress: 10, AssignCount: 0, Coordinates: away1200, Aggregates: aggregatesJSON(50, 0)},
-		{ID: "idle_2km", Progress: 10, AssignCount: 0, Coordinates: away2km, Aggregates: aggregatesJSON(500, 0)},
+		{ID: "finished_here", Progress: 100, AssignCount: 0, Coordinates: atUser, Aggregates: aggregatesJSON(0)},
+		{ID: "busy_1km", Progress: 10, AssignCount: 1, Coordinates: away1km, Aggregates: aggregatesJSON(50)},
+		{ID: "idle_1200m", Progress: 10, AssignCount: 0, Coordinates: away1200, Aggregates: aggregatesJSON(50)},
+		{ID: "idle_2km", Progress: 10, AssignCount: 0, Coordinates: away2km, Aggregates: aggregatesJSON(500)},
 	}
 	result := findBestMap(maps, 1.3521, 103.8198, 90)
 	if result == nil || result.ID != "idle_1200m" {
@@ -552,9 +488,9 @@ func TestFindBestMap_DetourMeasuredFromNearestUnfinishedMap(t *testing.T) {
 // Within reach, the least busy map still wins; beyond reach it is ignored.
 func TestFindBestMap_LeastBusyWithinReach(t *testing.T) {
 	maps := []MapWithDistance{
-		{ID: "here_two", Progress: 10, AssignCount: 2, Coordinates: atUser, Aggregates: aggregatesJSON(50, 0)},
-		{ID: "250m_one", Progress: 10, AssignCount: 1, Coordinates: away250m, Aggregates: aggregatesJSON(50, 0)},
-		{ID: "1km_none", Progress: 10, AssignCount: 0, Coordinates: away1km, Aggregates: aggregatesJSON(50, 0)},
+		{ID: "here_two", Progress: 10, AssignCount: 2, Coordinates: atUser, Aggregates: aggregatesJSON(50)},
+		{ID: "250m_one", Progress: 10, AssignCount: 1, Coordinates: away250m, Aggregates: aggregatesJSON(50)},
+		{ID: "1km_none", Progress: 10, AssignCount: 0, Coordinates: away1km, Aggregates: aggregatesJSON(50)},
 	}
 	result := findBestMap(maps, 1.3521, 103.8198, 90)
 	if result == nil || result.ID != "250m_one" {
@@ -566,9 +502,9 @@ func TestFindBestMap_LeastBusyWithinReach(t *testing.T) {
 // otherwise it would never be offered while any located map has work.
 func TestFindBestMap_DetourLimitDoesNotExcludeUnlocatedMap(t *testing.T) {
 	maps := []MapWithDistance{
-		{ID: "near_busy", Progress: 10, AssignCount: 1, Coordinates: atUser, Aggregates: aggregatesJSON(50, 0)},
-		{ID: "far_idle", Progress: 0, AssignCount: 0, Coordinates: away2km, Aggregates: aggregatesJSON(50, 0)},
-		{ID: "unlocated_idle", Progress: 0, AssignCount: 0, Coordinates: `null`, Aggregates: aggregatesJSON(50, 0)},
+		{ID: "near_busy", Progress: 10, AssignCount: 1, Coordinates: atUser, Aggregates: aggregatesJSON(50)},
+		{ID: "far_idle", Progress: 0, AssignCount: 0, Coordinates: away2km, Aggregates: aggregatesJSON(50)},
+		{ID: "unlocated_idle", Progress: 0, AssignCount: 0, Coordinates: `null`, Aggregates: aggregatesJSON(50)},
 	}
 	result := findBestMap(maps, 1.3521, 103.8198, 90)
 	if result == nil || result.ID != "unlocated_idle" {
@@ -629,10 +565,10 @@ func TestFindBestMap_RemainingComesFromCompletedAndTotal(t *testing.T) {
 // arrive in.
 func TestFindBestMap_FullTieFollowsMapSequenceThenID(t *testing.T) {
 	base := []MapWithDistance{
-		{ID: "c", Sequence: 3, Coordinates: atUser, Aggregates: aggregatesJSON(40, 0)},
-		{ID: "b", Sequence: 1, Coordinates: atUser, Aggregates: aggregatesJSON(40, 0)},
-		{ID: "a", Sequence: 2, Coordinates: atUser, Aggregates: aggregatesJSON(40, 0)},
-		{ID: "d", Sequence: 1, Coordinates: atUser, Aggregates: aggregatesJSON(40, 0)},
+		{ID: "c", Sequence: 3, Coordinates: atUser, Aggregates: aggregatesJSON(40)},
+		{ID: "b", Sequence: 1, Coordinates: atUser, Aggregates: aggregatesJSON(40)},
+		{ID: "a", Sequence: 2, Coordinates: atUser, Aggregates: aggregatesJSON(40)},
+		{ID: "d", Sequence: 1, Coordinates: atUser, Aggregates: aggregatesJSON(40)},
 	}
 	for start := range base {
 		for _, reverse := range []bool{false, true} {
