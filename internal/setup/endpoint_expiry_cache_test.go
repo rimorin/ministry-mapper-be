@@ -14,7 +14,7 @@ import (
 	"ganigeorgiev.com/pocketbase/pocketbase/tests"
 )
 
-// congregationExpiryCache is a package-level cache in the handlers package, so it
+// quicklinkSettingsCache is a package-level cache in the handlers package, so it
 // survives across the separate test apps these scenarios create. That is exactly
 // the condition the bug needed: without the invalidation hook, an admin's change
 // to expiry_hours would go unnoticed until the process restarted.
@@ -93,6 +93,65 @@ func TestCongregationExpiryCacheInvalidation(t *testing.T) {
 				}
 				if hours < 1.5 {
 					t.Errorf("expected ~2h expiry after the update, got %.2fh", hours)
+				}
+			},
+		},
+		{
+			// expiry_hours accepts fractions; half an hour must not round down to a
+			// link that is already expired.
+			Name:   "fractional expiry_hours is honoured",
+			Method: http.MethodPost,
+			URL:    "/territory/link",
+			Body:   strings.NewReader(body),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": conductorToken,
+			},
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				cong, err := app.FindRecordById("congregations", "testcongalpha01")
+				if err != nil {
+					t.Fatal(err)
+				}
+				cong.Set("expiry_hours", 0.5)
+				if err := app.Save(cong); err != nil {
+					t.Fatal(err)
+				}
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"linkId"`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				if hours := expiryHoursOf(t, app, res); hours < 0.4 || hours > 0.6 {
+					t.Errorf("expected ~0.5h expiry, got %.2fh", hours)
+				}
+			},
+		},
+		{
+			// Runs last so the process-wide cache is left at the 24h default.
+			Name:   "negative expiry_hours falls back to 24h",
+			Method: http.MethodPost,
+			URL:    "/territory/link",
+			Body:   strings.NewReader(body),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": conductorToken,
+			},
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				cong, err := app.FindRecordById("congregations", "testcongalpha01")
+				if err != nil {
+					t.Fatal(err)
+				}
+				cong.Set("expiry_hours", -3)
+				if err := app.Save(cong); err != nil {
+					t.Fatal(err)
+				}
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"linkId"`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				if hours := expiryHoursOf(t, app, res); hours < 23 || hours > 24.5 {
+					t.Errorf("expected ~24h expiry, got %.2fh", hours)
 				}
 			},
 		},

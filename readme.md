@@ -131,7 +131,7 @@ sequenceDiagram
     Auth-->>API: user context
     API->>H: HandleTerritoryQuicklink
     H->>DB: fetch maps + assignments
-    H->>H: rank by workload · distance · progress
+    H->>H: rank by workload · distance · remaining work
     H->>DB: create assignment
     H-->>C: { map_id, distance, assignment_count }
 ```
@@ -428,13 +428,23 @@ pb.collection("addresses").subscribe("*", (e) => {
 
 The caller must hold a role — any role, including `read_only` — in the congregation that owns the territory. Candidate maps are restricted to that same congregation.
 
-Maps are then ranked by three criteria in priority order:
+A map is **finished** once its progress reaches the congregation's `completion_threshold` (the setting that also completes a territory, 90 by default), or it has nothing left to work (`total` minus `completed` in its aggregates is zero; the per-status counts are not used, as they are stale on older maps). Finished maps are set aside; they are only considered when every map in the territory is finished, and then those with addresses left come before those with none. A map whose counts were never calculated is treated as having work.
 
-1. **Workload** — maps with the fewest active assignments are preferred
+The remaining maps are ranked by these criteria in priority order:
+
+1. **Workload** — maps with the fewest active assignments are preferred. An assignment counts while it is unexpired and still in use: created within the activity window, or on a map where an address was worked within it. The window is half of the congregation's `expiry_hours`, at most 6 hours
 2. **Proximity** — Haversine distance from the user's coordinates; maps within 50 m of the closest one are treated as equally near
-3. **Progress** — within that band, the map with the lowest completion % wins
+3. **Remaining work** — within that band, the map with the most addresses left to work wins
+4. **Progress** — if that is also equal, the map with the lowest completion % wins
+5. **Map order** — full ties, common when the maps of one block share a pin, go to the map first in the territory's sequence
 
-Maps with unparseable coordinates are skipped. On a successful match an assignment record is created with an expiry derived from the congregation's `expiry_hours` setting; its id is the returned `linkId`, which doubles as the publisher's `link-id` credential for that map.
+Only maps within 300 m of the nearest unfinished map are ranked, so nobody is sent more than 300 m further just to avoid sharing a map. A map without usable coordinates is exempt from that limit: it stays eligible and ranks as the farthest candidate, so it is chosen only when no located map has the same workload. On a successful match an assignment record is created with an expiry derived from the congregation's `expiry_hours` setting (fractions allowed; zero or negative means 24 hours); its id is the returned `linkId`, which doubles as the publisher's `link-id` credential for that map.
+
+To check the selection rules against a real database without writing to it:
+
+```bash
+QUICKLINK_REPLAY_DB=path/to/data.db go test ./internal/handlers/ -run TestQuicklinkReplay -v
+```
 
 **Request body:**
 ```json
