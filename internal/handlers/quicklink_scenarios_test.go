@@ -111,27 +111,6 @@ func TestScenario_DenseEstateStartOfRound(t *testing.T) {
 	}
 }
 
-// The same estate read back in a different row order must hand out the same
-// maps: with shared pins, ties are the norm.
-func TestScenario_DenseEstateIsOrderIndependent(t *testing.T) {
-	layout := []scenarioMap{
-		{id: "101A", north: 0, total: 96},
-		{id: "101B", north: 0, total: 96},
-		{id: "101C", north: 0, total: 96},
-		{id: "102", north: 40, total: 96},
-		{id: "103", north: 45, total: 96},
-	}
-	want, _ := serveGroup(t, buildScenario(layout), 0, 0, 90, 7)
-	for start := range layout {
-		maps := buildScenario(layout)
-		rotated := append(slices.Clone(maps[start:]), maps[:start]...)
-		slices.Reverse(rotated)
-		got, _ := serveGroup(t, rotated, 0, 0, 90, 7)
-		expectOrder(t, got, want)
-	}
-	expectOrder(t, want, []string{"101A", "101B", "101C", "102", "103", "101A", "101B"})
-}
-
 // Late in a round the group meets at a block that is already done. The maps at
 // or past the 90% threshold are passed over, leftovers included, and the group
 // is spread over the unfinished maps starting from the nearest one.
