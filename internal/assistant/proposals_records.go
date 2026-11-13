@@ -72,19 +72,22 @@ func newName(raw string) (string, error) {
 	return name, nil
 }
 
-var proposeMapRename = Tool{
-	Name: "propose_map_rename",
-	Description: "Prepare to rename a map. Nothing changes until the asker confirms on a card. Use it only when " +
-		"the admin asks to rename a map.",
+var proposeRename = Tool{
+	Name: "propose_rename",
+	Description: "Prepare to rename a map, or to change a territory's name (not its code). Nothing changes until " +
+		"the asker confirms on a card. Use it only when the admin asks to rename a map or a territory.",
 	Params: object(map[string]any{
-		"map":       map[string]any{"type": "string", "description": "The map's exact current name. Use find_places first if unsure."},
+		"what":      enumOf("Whether a map or a territory is renamed.", "map", "territory"),
+		"name":      map[string]any{"type": "string", "description": "The map's exact current name, or the territory's exact code. Use find_places first if unsure."},
 		"territory": mapTerritoryArg,
 		"new_name":  map[string]any{"type": "string", "description": "The new name, exactly as the admin wants it."},
 	}),
 	Run: func(s Scope, raw json.RawMessage) (Result, error) {
 		var args struct {
-			mapRef
-			NewName string `json:"new_name"`
+			What      string  `json:"what"`
+			Name      string  `json:"name"`
+			Territory *string `json:"territory"`
+			NewName   string  `json:"new_name"`
 		}
 		if err := decodeArgs(raw, &args); err != nil {
 			return Result{}, err
@@ -93,7 +96,26 @@ var proposeMapRename = Tool{
 		if err != nil {
 			return Result{}, err
 		}
-		target, previous, err := mapTarget(s, args.Map, args.Territory)
+		if args.What == "territory" {
+			territoryID, code, err := territoryByCode(s, args.Name)
+			if err != nil {
+				return Result{}, err
+			}
+			var description string
+			if err := s.App.DB().NewQuery(`SELECT COALESCE(description, '') FROM territories WHERE id = {:id}`).
+				Bind(dbx.Params{"id": territoryID}).Row(&description); err != nil {
+				return Result{}, err
+			}
+			if name == description {
+				return Result{}, badArgs("the territory is already named %q", name)
+			}
+			return Result{Proposal: &Proposal{
+				Kind:   "territory_rename",
+				Target: territoryTarget(territoryID, code),
+				From:   description, To: name, Value: name, Previous: description,
+			}}, nil
+		}
+		target, previous, err := mapTarget(s, args.Name, args.Territory)
 		if err != nil {
 			return Result{}, err
 		}
@@ -101,47 +123,9 @@ var proposeMapRename = Tool{
 			return Result{}, badArgs("the map is already named %q", name)
 		}
 		return Result{Proposal: &Proposal{
+			Kind:   "map_rename",
 			Target: &target, From: target.Name, To: name,
 			Value: renamed(previous, name, s.Locale), Previous: previous,
-		}}, nil
-	},
-}
-
-var proposeTerritoryRename = Tool{
-	Name: "propose_territory_rename",
-	Description: "Prepare to change a territory's name (not its code). Nothing changes until the asker confirms " +
-		"on a card. Use it only when the admin asks to rename a territory.",
-	Params: object(map[string]any{
-		"territory": map[string]any{"type": "string", "description": "The territory's exact code."},
-		"new_name":  map[string]any{"type": "string", "description": "The new name, exactly as the admin wants it."},
-	}),
-	Run: func(s Scope, raw json.RawMessage) (Result, error) {
-		var args struct {
-			Territory string `json:"territory"`
-			NewName   string `json:"new_name"`
-		}
-		if err := decodeArgs(raw, &args); err != nil {
-			return Result{}, err
-		}
-		name, err := newName(args.NewName)
-		if err != nil {
-			return Result{}, err
-		}
-		territoryID, code, err := territoryByCode(s, args.Territory)
-		if err != nil {
-			return Result{}, err
-		}
-		var description string
-		if err := s.App.DB().NewQuery(`SELECT COALESCE(description, '') FROM territories WHERE id = {:id}`).
-			Bind(dbx.Params{"id": territoryID}).Row(&description); err != nil {
-			return Result{}, err
-		}
-		if name == description {
-			return Result{}, badArgs("the territory is already named %q", name)
-		}
-		return Result{Proposal: &Proposal{
-			Target: territoryTarget(territoryID, code),
-			From:   description, To: name, Value: name, Previous: description,
 		}}, nil
 	},
 }

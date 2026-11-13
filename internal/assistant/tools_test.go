@@ -251,20 +251,64 @@ func TestPeopleAndRoles_FindsAMaskedName(t *testing.T) {
 	}
 }
 
-func TestHouseholdTypes_MapWithMostOfAType(t *testing.T) {
+func TestHomes_MapWithMostOfAType(t *testing.T) {
 	app := newTestApp(t)
 	addMalay(t, app, "testalpha01a001", "testalpha01a002", "testalpha01b001")
 	s := scopeFor(t, app, alphaCong)
 
-	r := run(t, s, householdTypes, `{"household_type": "malay", "group_by": "map"}`)
-	if len(r.Rows) != 2 || r.Rows[0]["map"] != "Blk 100A" || r.Rows[0]["homes"] != 2 || r.Rows[0]["household_type"] != "Malay" {
+	r := run(t, s, homesTool, `{"household_type": "malay", "group_by": "map"}`)
+	if len(r.Rows) != 2 || r.Rows[0]["map"] != "Blk 100A" || r.Rows[0]["all_homes"] != 2 || r.Rows[0]["homes"] != 2 {
 		t.Fatalf("rows = %v", r.Rows)
 	}
-
-	none := run(t, s, householdTypes, `{"household_type": "Klingon", "group_by": "map"}`)
-	if none.Note == "" || len(none.Rows) == 0 || none.Rows[0]["household_type"] == nil {
-		t.Fatalf("an unknown type must list the congregation's types, got %v", none)
+	byType := run(t, s, homesTool, `{"household_type": "MY", "group_by": "household_type"}`)
+	if len(byType.Rows) != 1 || byType.Rows[0]["household_type"] != "Malay" || byType.Rows[0]["all_homes"] != 3 {
+		t.Fatalf("by type = %v", byType.Rows)
 	}
+
+	_, err := homesTool.Run(s, json.RawMessage(`{"household_type": "Klingon", "group_by": "map"}`))
+	wantArgError(t, err, "Malay")
+}
+
+// Blk 100A: 10 and 11 not done, 12 and 13 nobody home, 14 done. Only 12 and
+// 13 have a countable household type.
+func TestHomes_ListsAndCountsOneMap(t *testing.T) {
+	app := newTestApp(t)
+	exec(t, app, `UPDATE addresses SET not_home_tries = 3 WHERE id = 'testalpha01a003'`, nil)
+	exec(t, app, `UPDATE addresses SET notes = 'Dog' WHERE id = 'testalpha01a001'`, nil)
+	s := scopeFor(t, app, alphaCong)
+
+	notDone := run(t, s, homesTool, `{"map": "Blk 100A", "status": ["not_done"], "group_by": "home"}`)
+	if notDone.Total != 2 || notDone.Rows[0]["home"] != "10" || notDone.Rows[0]["counted"] != false ||
+		notDone.Rows[0]["has_notes"] != true || notDone.Rows[1]["home"] != "11" {
+		t.Fatalf("not done = %v", notDone.Rows)
+	}
+	one := run(t, s, homesTool, `{"map": "Blk 100A", "unit": "12", "group_by": "home"}`)
+	if len(one.Rows) != 1 || one.Rows[0]["status"] != "not_home" || one.Rows[0]["tries"] != 3 ||
+		one.Rows[0]["at_try_limit"] != true || !strings.Contains(one.Note, "try limit is 3") {
+		t.Fatalf("one home = %v, note %q", one.Rows, one.Note)
+	}
+	first := run(t, s, homesTool, `{"map": "Blk 100A", "group_by": "home", "limit": 1}`)
+	if len(first.Rows) != 1 || first.Total != 5 {
+		t.Fatalf("limit: %d rows of %d", len(first.Rows), first.Total)
+	}
+
+	// The same counts map_details gives, so the two never disagree.
+	total := run(t, s, homesTool, `{"map": "Blk 100A", "group_by": "total"}`).Rows[0]
+	details := run(t, s, mapDetails, `{"map": "Blk 100A"}`).Rows[0]
+	for _, column := range homeCounts {
+		if total[column] != details[column] {
+			t.Errorf("%s: homes says %v, map_details says %v", column, total[column], details[column])
+		}
+	}
+	if total["homes"] != 2 || total["not_home"] != 2 || total["at_try_limit"] != 1 || total["not_counted"] != 3 || total["all_homes"] != 5 {
+		t.Fatalf("total = %v", total)
+	}
+	left := run(t, s, homesTool, `{"map": "Blk 100A", "counted": false, "group_by": "territory"}`)
+	if len(left.Rows) != 1 || left.Rows[0]["territory"] != "T01" || left.Rows[0]["all_homes"] != 3 {
+		t.Fatalf("not counted = %v", left.Rows)
+	}
+	_, err := homesTool.Run(s, json.RawMessage(`{"group_by": "floor"}`))
+	wantArgError(t, err, "needs one map")
 }
 
 func TestCongregationSettings(t *testing.T) {
@@ -346,37 +390,35 @@ func TestPlaceMatch(t *testing.T) {
 // congregation. The table must name every function, so a new one cannot skip it.
 func TestTools_NeverReturnAnotherCongregation(t *testing.T) {
 	broad := map[string][]string{
-		"find_places":              {`{"text": "Blk"}`, `{"text": "T0"}`, `{"text": "Alpha"}`, `{"text": "Beta"}`},
-		"territory_overview":       {`{}`, `{"territory": "T01"}`},
-		"map_overview":             {`{}`},
-		"map_details":              {`{"map": "Blk 100A"}`, `{"map": "Blk 300A"}`},
-		"activity":                 {`{"from": "2026-01-01", "to": "2026-11-06", "group_by": "map"}`, `{"from": "2026-01-01", "to": "2026-11-06", "group_by": "territory"}`},
-		"who_worked":               {`{"from": "2026-01-01", "to": "2026-11-06"}`},
-		"people_and_roles":         {`{}`},
-		"household_types":          {`{"group_by": "map"}`, `{"household_type": "Malay", "group_by": "map"}`},
-		"congregation_settings":    {`{}`},
-		"assignments":              {`{"which": "active"}`, `{"which": "given", "within_days": 3650}`},
-		"not_home_backlog":         {`{"group_by": "home"}`, `{"group_by": "map"}`},
-		"do_not_call_review":       {`{"group_by": "home"}`},
-		"feedback":                 {`{"kind": "both", "within_days": 3650}`},
-		"data_quality":             {`{"check": "maps_without_location"}`, `{"check": "territories_without_boundary"}`, `{"check": "empty_maps"}`},
-		"maps_near":                {`{"from": "place", "place": "T01"}`, `{"from": "my_location"}`},
-		"propose_role_change":      {`{"person": "Alpha Admin", "role": "read_only"}`, `{"person": "Beta Admin", "role": "read_only"}`},
-		"propose_map_rename":       {`{"map": "Blk 100A", "new_name": "New Name"}`, `{"map": "Blk 300A", "new_name": "New Name"}`},
-		"propose_territory_rename": {`{"territory": "T01", "new_name": "New Name"}`},
-		"propose_share_link":       {`{"map": "Blk 100A", "publisher": "Someone New", "type": "normal"}`, `{"map": "Blk 300A", "publisher": "Someone New", "type": "normal"}`},
-		"propose_pin_message":      {`{"map": "Blk 100A", "message": "Knock softly"}`, `{"map": "Blk 300A", "message": "Knock softly"}`},
-		"propose_report_email":     {`{}`},
-		"propose_mark_read":        {`{}`, `{"territory": "T01"}`},
-		"propose_unpin_message":    {`{"map": "Blk 100A"}`, `{"map": "Blk 300A"}`},
-		"propose_map_location":     {`{"map": "Blk 100A"}`, `{"map": "Blk 300A"}`},
-		"propose_link_revoke":      {`{"map": "Blk 100A"}`, `{"map": "Blk 300A"}`},
-		"propose_quick_link":       {`{"territory": "T01", "publisher": "Someone New"}`},
-		"propose_home_update":      {`{"map": "Blk 100A", "unit": "1", "status": "done"}`, `{"map": "Blk 300A", "unit": "60", "status": "done"}`},
-		"propose_map_reset":        {`{"map": "Blk 100A"}`, `{"map": "Blk 300A"}`},
-		"propose_territory_reset":  {`{"territory": "T01"}`},
-		"propose_tries_reset":      {`{}`},
-		"calculate":                {`{"expression": "(1 + 2) * 100"}`},
+		"find_places":        {`{"text": "Blk"}`, `{"text": "T0"}`, `{"text": "Alpha"}`, `{"text": "Beta"}`},
+		"territory_overview": {`{}`, `{"territory": "T01"}`},
+		"map_overview":       {`{}`},
+		"map_details":        {`{"map": "Blk 100A"}`, `{"map": "Blk 300A"}`},
+		"activity":           {`{"from": "2026-01-01", "to": "2026-11-06", "group_by": "map"}`, `{"from": "2026-01-01", "to": "2026-11-06", "group_by": "territory"}`},
+		"who_worked":         {`{"from": "2026-01-01", "to": "2026-11-06"}`},
+		"people_and_roles":   {`{}`},
+		"homes": {`{"group_by": "home", "limit": 100}`, `{"group_by": "map"}`, `{"group_by": "territory"}`,
+			`{"group_by": "household_type"}`, `{"map": "Blk 300A", "group_by": "home"}`, `{"territory": "T01", "group_by": "total"}`},
+		"congregation_settings": {`{}`},
+		"assignments":           {`{"which": "active"}`, `{"which": "given", "within_days": 3650}`},
+		"feedback":              {`{"kind": "both", "within_days": 3650}`},
+		"data_quality":          {`{"check": "maps_without_location"}`, `{"check": "territories_without_boundary"}`, `{"check": "empty_maps"}`},
+		"maps_near":             {`{"from": "place", "place": "T01"}`, `{"from": "my_location"}`},
+		"propose_role_change":   {`{"person": "Alpha Admin", "role": "read_only"}`, `{"person": "Beta Admin", "role": "read_only"}`},
+		"propose_rename": {`{"what": "map", "name": "Blk 100A", "new_name": "New Name"}`, `{"what": "map", "name": "Blk 300A", "new_name": "New Name"}`,
+			`{"what": "territory", "name": "T01", "new_name": "New Name"}`},
+		"propose_share_link":    {`{"map": "Blk 100A", "publisher": "Someone New", "type": "normal"}`, `{"map": "Blk 300A", "publisher": "Someone New", "type": "normal"}`},
+		"propose_pin_message":   {`{"map": "Blk 100A", "message": "Knock softly"}`, `{"map": "Blk 300A", "message": "Knock softly"}`},
+		"propose_report_email":  {`{}`},
+		"propose_mark_read":     {`{}`, `{"territory": "T01"}`},
+		"propose_unpin_message": {`{"map": "Blk 100A"}`, `{"map": "Blk 300A"}`},
+		"propose_map_location":  {`{"map": "Blk 100A"}`, `{"map": "Blk 300A"}`},
+		"propose_link_revoke":   {`{"map": "Blk 100A"}`, `{"map": "Blk 300A"}`},
+		"propose_quick_link":    {`{"territory": "T01", "publisher": "Someone New"}`},
+		"propose_home_update":   {`{"map": "Blk 100A", "unit": "1", "status": "done"}`, `{"map": "Blk 300A", "unit": "60", "status": "done"}`},
+		"propose_reset":         {`{"what": "map", "name": "Blk 100A"}`, `{"what": "map", "name": "Blk 300A"}`, `{"what": "territory", "name": "T01"}`},
+		"propose_tries_reset":   {`{}`},
+		"calculate":             {`{"expression": "(1 + 2) * 100"}`},
 		"territory_rounds": {`{"view": "rounds", "from": "2026-01-01", "to": "2026-11-06", "territory": null, "limit": null}`,
 			`{"view": "territories", "from": null, "to": null, "territory": null, "limit": null}`},
 		"propose_homes_status":     {`{"map": "Blk 100A", "status": "done"}`, `{"map": "Blk 300A", "status": "done"}`},

@@ -125,191 +125,6 @@ var assignments = Tool{
 	},
 }
 
-var notHomeBacklog = Tool{
-	Name: "not_home_backlog",
-	Description: "Homes where nobody was home, with how many tries each has had against the congregation's " +
-		"limit. At the limit, a home counts as covered for progress. Group by territory, by map, or list homes.",
-	Params: object(map[string]any{
-		"territory":     nullable("string", "Exact territory code, or null for every territory."),
-		"at_limit_only": nullable("boolean", "Only homes that reached the try limit."),
-		"group_by":      enumOf("territory or map for counts, home to list each home.", "territory", "map", "home"),
-		"limit":         limitParam(),
-	}),
-	Run: func(s Scope, raw json.RawMessage) (Result, error) {
-		var args struct {
-			Territory   *string `json:"territory"`
-			AtLimitOnly *bool   `json:"at_limit_only"`
-			GroupBy     string  `json:"group_by"`
-			Limit       *int    `json:"limit"`
-		}
-		if err := decodeArgs(raw, &args); err != nil {
-			return Result{}, err
-		}
-		territoryID, err := territoryIDByCode(s, args.Territory)
-		if err != nil {
-			return Result{}, err
-		}
-		var homes []struct {
-			TerritoryID string `db:"territory_id"`
-			Territory   string `db:"territory"`
-			MapID       string `db:"map_id"`
-			Map         string `db:"map"`
-			MapType     string `db:"map_type"`
-			Floor       int    `db:"floor"`
-			Code        string `db:"code"`
-			Tries       int    `db:"tries"`
-			MaxTries    int    `db:"max_tries"`
-		}
-		err = s.App.DB().NewQuery(`
-			SELECT t.id AS territory_id, t.code AS territory, m.id AS map_id, m.description AS map, m.type AS map_type,
-			       a.floor, a.code, COALESCE(a.not_home_tries, 0) AS tries, COALESCE(c.max_tries, 0) AS max_tries
-			FROM addresses a JOIN maps m ON m.id = a.map JOIN territories t ON t.id = a.territory
-			JOIN congregations c ON c.id = a.congregation
-			WHERE a.congregation = {:congregation} AND a.status = 'not_home'
-			  AND ({:territory} = '' OR a.territory = {:territory})
-			ORDER BY t.code, m.description, a.floor, a.sequence
-		`).Bind(dbx.Params{"congregation": s.CongregationID, "territory": territoryID}).All(&homes)
-		if err != nil {
-			return Result{}, err
-		}
-
-		type group struct {
-			row                 map[string]any
-			nobodyHome, atLimit int
-		}
-		groups := map[string]*group{}
-		var order []string
-		r := Result{}
-		for _, h := range homes {
-			atLimit := h.MaxTries > 0 && h.Tries >= h.MaxTries
-			if args.AtLimitOnly != nil && *args.AtLimitOnly && !atLimit {
-				continue
-			}
-			if args.GroupBy == "home" {
-				r.Rows = append(r.Rows, map[string]any{
-					"territory_id": h.TerritoryID, "territory": h.Territory, "map_id": h.MapID, "map": h.Map,
-					"home": home(h.MapType, h.Floor, h.Code), "tries": h.Tries, "try_limit": h.MaxTries, "at_limit": atLimit,
-				})
-				continue
-			}
-			key, row := h.TerritoryID, map[string]any{"territory_id": h.TerritoryID, "territory": h.Territory}
-			if args.GroupBy == "map" {
-				key, row = h.MapID, map[string]any{"territory_id": h.TerritoryID, "territory": h.Territory, "map_id": h.MapID, "map": h.Map}
-			}
-			if groups[key] == nil {
-				groups[key] = &group{row: row}
-				order = append(order, key)
-			}
-			groups[key].nobodyHome++
-			if atLimit {
-				groups[key].atLimit++
-			}
-		}
-		switch args.GroupBy {
-		case "home":
-			r.Columns = []string{"territory", "map", "home", "tries", "try_limit", "at_limit"}
-		case "map":
-			r.Columns = []string{"territory", "map", "nobody_home", "at_try_limit"}
-		default:
-			r.Columns = []string{"territory", "nobody_home", "at_try_limit"}
-		}
-		for _, key := range order {
-			g := groups[key]
-			g.row["nobody_home"], g.row["at_try_limit"] = g.nobodyHome, g.atLimit
-			r.Rows = append(r.Rows, g.row)
-		}
-		if args.GroupBy != "home" {
-			sort.SliceStable(r.Rows, func(i, j int) bool { return r.Rows[i]["nobody_home"].(int) > r.Rows[j]["nobody_home"].(int) })
-		}
-		return truncate(r, clampLimit(args.Limit)), nil
-	},
-}
-
-var doNotCallReview = Tool{
-	Name: "do_not_call_review",
-	Description: "Homes marked do not call, with the date each was marked, oldest first, to decide which " +
-		"are due for a recheck. Group by map for counts, or list homes.",
-	Params: object(map[string]any{
-		"territory":       nullable("string", "Exact territory code, or null for every territory."),
-		"older_than_days": nullable("integer", "Only homes marked at least this many days ago."),
-		"group_by":        enumOf("map for counts, home to list each home.", "map", "home"),
-		"limit":           limitParam(),
-	}),
-	Run: func(s Scope, raw json.RawMessage) (Result, error) {
-		var args struct {
-			Territory *string `json:"territory"`
-			OlderThan *int    `json:"older_than_days"`
-			GroupBy   string  `json:"group_by"`
-			Limit     *int    `json:"limit"`
-		}
-		if err := decodeArgs(raw, &args); err != nil {
-			return Result{}, err
-		}
-		if err := validDays("older_than_days", args.OlderThan); err != nil {
-			return Result{}, err
-		}
-		territoryID, err := territoryIDByCode(s, args.Territory)
-		if err != nil {
-			return Result{}, err
-		}
-		var homes []struct {
-			TerritoryID string `db:"territory_id"`
-			Territory   string `db:"territory"`
-			MapID       string `db:"map_id"`
-			Map         string `db:"map"`
-			MapType     string `db:"map_type"`
-			Floor       int    `db:"floor"`
-			Code        string `db:"code"`
-			Marked      string `db:"marked"`
-		}
-		err = s.App.DB().NewQuery(`
-			SELECT t.id AS territory_id, t.code AS territory, m.id AS map_id, m.description AS map, m.type AS map_type,
-			       a.floor, a.code, COALESCE(a.dnc_time, '') AS marked
-			FROM addresses a JOIN maps m ON m.id = a.map JOIN territories t ON t.id = a.territory
-			WHERE a.congregation = {:congregation} AND a.status = 'do_not_call'
-			  AND ({:territory} = '' OR a.territory = {:territory})
-			ORDER BY COALESCE(a.dnc_time, ''), t.code, m.description
-		`).Bind(dbx.Params{"congregation": s.CongregationID, "territory": territoryID}).All(&homes)
-		if err != nil {
-			return Result{}, err
-		}
-		cutoff := ""
-		if args.OlderThan != nil {
-			cutoff = daysAgo(s, *args.OlderThan)
-		}
-		r := Result{Note: "A home with no marked date was marked before dates were recorded."}
-		counts := map[string]map[string]any{}
-		var order []string
-		for _, h := range homes {
-			if cutoff != "" && h.Marked != "" && h.Marked >= cutoff {
-				continue
-			}
-			if args.GroupBy == "home" {
-				r.Rows = append(r.Rows, map[string]any{
-					"territory_id": h.TerritoryID, "territory": h.Territory, "map_id": h.MapID, "map": h.Map,
-					"home": home(h.MapType, h.Floor, h.Code), "marked": localDate(s, h.Marked),
-				})
-				continue
-			}
-			if counts[h.MapID] == nil {
-				counts[h.MapID] = map[string]any{"territory_id": h.TerritoryID, "territory": h.Territory, "map_id": h.MapID, "map": h.Map, "do_not_call": 0, "oldest": localDate(s, h.Marked)}
-				order = append(order, h.MapID)
-			}
-			counts[h.MapID]["do_not_call"] = counts[h.MapID]["do_not_call"].(int) + 1
-		}
-		if args.GroupBy == "home" {
-			r.Columns = []string{"territory", "map", "home", "marked"}
-		} else {
-			r.Columns = []string{"territory", "map", "do_not_call", "oldest"}
-			for _, id := range order {
-				r.Rows = append(r.Rows, counts[id])
-			}
-			sort.SliceStable(r.Rows, func(i, j int) bool { return r.Rows[i]["do_not_call"].(int) > r.Rows[j]["do_not_call"].(int) })
-		}
-		return truncate(r, clampLimit(args.Limit)), nil
-	},
-}
-
 var feedback = Tool{
 	Name: "feedback",
 	Description: "Recent messages on maps (from publishers, conductors and administrators) and notes left on " +
@@ -488,7 +303,7 @@ var dataQuality = Tool{
 				}
 			case "maps_mostly_invalid":
 				if m.Homes > 0 && m.Invalid*100 >= m.Homes*30 {
-					row["homes"], row["invalid"] = m.Homes, m.Invalid
+					row["all_homes"], row["invalid"] = m.Homes, m.Invalid
 					r.Rows = append(r.Rows, row)
 				}
 			case "empty_maps":
@@ -503,8 +318,8 @@ var dataQuality = Tool{
 		case "territories_without_boundary":
 			r.Columns = []string{"territory"}
 		case "maps_mostly_invalid":
-			r.Columns = []string{"territory", "map", "homes", "invalid"}
-			r.Note = "Listed when at least 30% of a map's homes are invalid."
+			r.Columns = []string{"territory", "map", "all_homes", "invalid"}
+			r.Note = "Listed when at least 30% of all of a map's homes, counted toward progress or not, are invalid."
 		}
 		sort.SliceStable(r.Rows, func(i, j int) bool {
 			a, _ := r.Rows[i]["map"].(string)

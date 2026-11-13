@@ -261,9 +261,9 @@ func TestEvalScenario_HoldsWhatTheQuestionsExpect(t *testing.T) {
 	}{
 		{territoryOverview, `{"not_completed_within_days": 180}`, []string{"T01"}},
 		{whoWorked, `{"from": "` + today + `", "to": "` + today + `"}`, []string{"Bro Tan", "Sis Lim", "Blk 100A"}},
-		{householdTypes, `{"household_type": "Malay", "group_by": "map"}`, []string{"Blk 100A"}},
-		{notHomeBacklog, `{"territory": "T01", "at_limit_only": true, "group_by": "home"}`, []string{`"12"`}},
-		{doNotCallReview, `{"older_than_days": 365, "group_by": "home"}`, []string{`"20"`}},
+		{homesTool, `{"household_type": "Malay", "group_by": "map"}`, []string{"Blk 100A"}},
+		{homesTool, `{"territory": "T01", "at_try_limit": true, "group_by": "home"}`, []string{`"12"`}},
+		{homesTool, `{"dnc_older_than_days": 365, "group_by": "home"}`, []string{`"20"`}},
 		{feedback, `{"kind": "notes", "text": "dog"}`, []string{"Blk 100A"}},
 		{dataQuality, `{"check": "maps_outside_boundary"}`, []string{"Blk 100B"}},
 		{dataQuality, `{"check": "territories_without_boundary"}`, []string{"T02"}},

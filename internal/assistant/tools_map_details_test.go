@@ -19,7 +19,7 @@ func TestMapDetails(t *testing.T) {
 	row := r.Rows[0]
 	// Blk 100A: 10 and 11 not done, 12 and 13 nobody home (12 at the limit
 	// of 3), 14 done. Only 12 and 13 have a countable household type.
-	if row["homes"] != 5 || row["not_counted"] != 3 || row["not_home"] != 2 || row["at_try_limit"] != 1 {
+	if row["homes"] != 2 || row["all_homes"] != 5 || row["not_counted"] != 3 || row["not_home"] != 2 || row["at_try_limit"] != 1 {
 		t.Fatalf("homes = %v", row)
 	}
 	if row["progress"] != 50 || row["units_per_floor"] != 5 || row["homes_with_notes"] != 1 {

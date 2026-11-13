@@ -430,7 +430,7 @@ var proposeHomeUpdate = Tool{
 				}
 			}
 			if !found {
-				return Result{}, badArgs("no household type is named %q; use household_types to list them", want)
+				return Result{}, badArgs("no household type is named %q; use congregation_settings to list them", want)
 			}
 		}
 

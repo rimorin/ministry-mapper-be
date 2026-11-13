@@ -10,20 +10,20 @@ import (
 
 func TestProposeMapReset(t *testing.T) {
 	s := adminScope(t, alphaCong, "testuseralpha01")
-	p := propose(t, s, proposeMapReset, `{"map": "Blk 100A"}`)
+	p := propose(t, s, proposeReset, `{"what": "map", "name": "Blk 100A"}`)
 	if p.Kind != "map_reset" || p.Target.ID != "testmapalpha01a" || strings.Join(p.Warnings, ",") != "cannot_undo" {
 		t.Fatalf("proposal = %+v", p)
 	}
 	if p.Data["done"] != 1 || p.Data["not_home"] != 2 {
 		t.Fatalf("data = %v, want 1 done and 2 not home on Blk 100A", p.Data)
 	}
-	_, err := proposeMapReset.Run(s, json.RawMessage(`{"map": "Blk 200B"}`))
+	_, err := proposeReset.Run(s, json.RawMessage(`{"what": "map", "name": "Blk 200B"}`))
 	wantArgError(t, err, "nothing to reset")
 }
 
 func TestProposeTerritoryReset(t *testing.T) {
 	s := adminScope(t, alphaCong, "testuseralpha01")
-	p := propose(t, s, proposeTerritoryReset, `{"territory": "t01"}`)
+	p := propose(t, s, proposeReset, `{"what": "territory", "name": "t01"}`)
 	if p.Kind != "territory_reset" || p.Target.Name != "T01" ||
 		strings.Join(p.Warnings, ",") != "cannot_undo,starts_round" || p.Data["maps"].(int) < 1 {
 		t.Fatalf("proposal = %+v", p)

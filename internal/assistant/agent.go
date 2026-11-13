@@ -43,13 +43,13 @@ const (
 
 // Tools is every query function the model may call.
 var Tools = []Tool{
-	findPlaces, territoryOverview, mapOverview, mapDetails, mapsNear, activity, whoWorked, territoryRounds,
-	assignments, notHomeBacklog, doNotCallReview, feedback, dataQuality,
-	changeHistory, peopleAndRoles, householdTypes, congregationSettings, calculate,
+	findPlaces, territoryOverview, mapOverview, mapDetails, homesTool, mapsNear, activity, whoWorked, territoryRounds,
+	assignments, feedback, dataQuality,
+	changeHistory, peopleAndRoles, congregationSettings, calculate,
 	proposeRoleChange, proposeRoleGrant,
-	proposeMapRename, proposeTerritoryRename, proposeShareLink, proposePinMessage, proposeReportEmail,
+	proposeRename, proposeShareLink, proposePinMessage, proposeReportEmail,
 	proposeMarkRead, proposeUnpinMessage, proposeMapLocation, proposeLinkRevoke, proposeQuickLink, proposeHomeUpdate,
-	proposeMapReset, proposeTerritoryReset, proposeTriesReset, proposeHomesStatus, proposeDncReturn, proposeSettings,
+	proposeReset, proposeTriesReset, proposeHomesStatus, proposeDncReturn, proposeSettings,
 	proposeMapMove, proposeFloorAdd, proposeUnitAdd, proposeTerritoryCreate, proposeMapsCreate,
 }
 
