@@ -148,7 +148,7 @@ var proposeRoleChange = Tool{
 		"role, or role none to remove their access. Nothing changes until the asker confirms on a card. " +
 		"Use it only when the admin asks for the change.",
 	Params: object(map[string]any{
-		"person": map[string]any{"type": "string", "description": "The person's token as shown in results, such as Person QXWB."},
+		"person": map[string]any{"type": "string", "description": "The person's token as shown in results, such as Person QXWBKDMR."},
 		"role":   enumOf("The new role, or none to remove access.", slices.Concat(assignableRoles, []string{"none"})...),
 	}),
 	Run: func(s Scope, raw json.RawMessage) (Result, error) {

@@ -2,6 +2,7 @@ package assistant
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"strconv"
 
@@ -128,7 +129,7 @@ var unsettled = regexp.MustCompile(`(?:[\d.,]+|\b` + startsOf(tokenWord) + `)$`)
 
 // startsOf matches any start of a token: "P", "Pers", "Person QX" and so on.
 func startsOf(word string) string {
-	pattern := "(?:[A-Z]{0,4})?"
+	pattern := fmt.Sprintf("(?:[A-Z]{0,%d})?", tokenLetters)
 	for i := len(word) - 1; i > 0; i-- {
 		pattern = "(?:" + regexp.QuoteMeta(word[i:i+1]) + pattern + ")?"
 	}

@@ -2,6 +2,7 @@ package assistant
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
@@ -48,12 +49,12 @@ func TestPseudonyms_StableLettersOnlyAndRestorable(t *testing.T) {
 	if token == newPseudonyms("cong2").token("Bro Tan") {
 		t.Errorf("tokens must differ between congregations")
 	}
-	if !regexp.MustCompile(`^Person [A-Z]{4}$`).MatchString(token) {
+	if !regexp.MustCompile(`^Person [A-Z]{8}$`).MatchString(token) {
 		t.Fatalf("token %q must be letters only", token)
 	}
 
-	text := "Yes, " + token + " came out. Person ZZZZ did not."
-	if got := p.restore(text); got != "Yes, Bro Tan came out. Person ZZZZ did not." {
+	text := "Yes, " + token + " came out. Person ZZZZZZZZ did not."
+	if got := p.restore(text); got != "Yes, Bro Tan came out. Person ZZZZZZZZ did not." {
 		t.Errorf("restore = %q", got)
 	}
 	if used := p.used(text); len(used) != 1 || used[token] != "Bro Tan" {
@@ -96,5 +97,19 @@ func TestNaturalLess(t *testing.T) {
 	})
 	if got := strings.Join(codes, ","); got != "A,T1,t2,T02a,T10" {
 		t.Errorf("sorted = %s", got)
+	}
+}
+
+// Two names sharing a token would put one person's name on the other's work.
+func TestPseudonyms_LargeCongregationSharesNoToken(t *testing.T) {
+	p := newPseudonyms("cong1")
+	seen := map[string]string{}
+	for i := 0; i < 5000; i++ {
+		name := fmt.Sprintf("Publisher %d", i)
+		token := p.token(name)
+		if other, ok := seen[token]; ok {
+			t.Fatalf("%q and %q share the token %q", other, name, token)
+		}
+		seen[token] = name
 	}
 }
