@@ -22,8 +22,8 @@ func TestPolicy_FollowsTheScreens(t *testing.T) {
 		t.Errorf("toolRoles has %d entries for %d functions", len(toolRoles), len(Tools))
 	}
 	want := map[string][]string{
-		roleReadOnly: {"activity", "calculate", "data_quality", "do_not_call_review", "feedback", "find_places",
-			"household_types", "map_details", "map_overview", "maps_near", "not_home_backlog", "territory_overview",
+		roleReadOnly: {"activity", "calculate", "data_quality", "feedback", "find_places",
+			"homes", "map_details", "map_overview", "maps_near", "territory_overview",
 			"territory_rounds"},
 		roleConductor: {"assignments", "change_history", "congregation_settings", "propose_home_update",
 			"propose_homes_status", "propose_link_revoke", "propose_quick_link", "propose_share_link", "propose_tries_reset", "who_worked"},
@@ -75,7 +75,7 @@ func TestPolicy_OffersOnlyWhatTheRoleMayUse(t *testing.T) {
 		{conductor, "change_history", true},
 		{conductor, "propose_home_update", true},
 		{conductor, "people_and_roles", false},
-		{conductor, "propose_territory_reset", false},
+		{conductor, "propose_reset", false},
 		{conductor, "propose_settings", false},
 	} {
 		if strings.Contains(c.list, ","+c.name+",") != c.offered {
@@ -109,7 +109,7 @@ func TestPolicy_RefusesACallAboveTheRole(t *testing.T) {
 		{roleReadOnly, "people_and_roles", `{}`, "needs the administrator role"},
 		{roleReadOnly, "who_worked", `{"from": "2026-01-01", "to": "2026-11-06"}`, "needs the conductor role"},
 		{roleConductor, "people_and_roles", `{}`, "needs the administrator role"},
-		{roleConductor, "propose_map_reset", `{"map": "Blk 100A"}`, "needs the administrator role"},
+		{roleConductor, "propose_reset", `{"what": "map", "name": "Blk 100A"}`, "needs the administrator role"},
 		{roleConductor, "change_history", `{"kind": "role", "within_days": 3650}`, "kind role needs the administrator role"},
 		{roleConductor, "propose_share_link", `{"map": "Blk 100B", "publisher": "Sis Ong", "type": "personal", "days": 7}`,
 			"type personal needs the administrator role"},
@@ -171,7 +171,7 @@ func TestAsk_ReadOnlyAskerIsOfferedOnlyReadOnlyFunctions(t *testing.T) {
 	for _, tool := range chat.calls[0].Tools {
 		offered[tool.OfFunction.Name] = true
 	}
-	if !offered["find_places"] || offered["people_and_roles"] || offered["who_worked"] || offered["propose_map_reset"] {
+	if !offered["find_places"] || offered["people_and_roles"] || offered["who_worked"] || offered["propose_reset"] {
 		t.Fatalf("offered = %v", offered)
 	}
 	if len(resp.Steps) != 1 || !strings.Contains(resp.Steps[0].Error, "needs the administrator role") || resp.Steps[0].Result != nil {

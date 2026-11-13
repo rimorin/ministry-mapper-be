@@ -26,30 +26,30 @@ func TestAssignments_ActiveAndExpiring(t *testing.T) {
 	}
 }
 
-func TestNotHomeBacklog_AtTheTryLimit(t *testing.T) {
+func TestHomes_AtTheTryLimit(t *testing.T) {
 	app := newTestApp(t)
 	exec(t, app, `UPDATE addresses SET not_home_tries = 3 WHERE id = 'testalpha01a003'`, nil)
 	exec(t, app, `UPDATE addresses SET not_home_tries = 1 WHERE id = 'testalpha01a004'`, nil)
 	s := scopeFor(t, app, alphaCong)
 
-	atLimit := run(t, s, notHomeBacklog, `{"territory": "T01", "at_limit_only": true, "group_by": "home"}`)
-	if len(atLimit.Rows) != 1 || atLimit.Rows[0]["home"] != "12" || atLimit.Rows[0]["try_limit"] != 3 {
+	atLimit := run(t, s, homesTool, `{"territory": "T01", "at_try_limit": true, "group_by": "home"}`)
+	if len(atLimit.Rows) != 1 || atLimit.Rows[0]["home"] != "12" || atLimit.Rows[0]["tries"] != 3 {
 		t.Fatalf("at limit = %v", atLimit.Rows)
 	}
-	byMap := run(t, s, notHomeBacklog, `{"territory": "T01", "group_by": "map"}`)
-	if len(byMap.Rows) != 1 || byMap.Rows[0]["nobody_home"] != 2 || byMap.Rows[0]["at_try_limit"] != 1 {
+	byMap := run(t, s, homesTool, `{"territory": "T01", "status": ["not_home"], "group_by": "map"}`)
+	if len(byMap.Rows) != 1 || byMap.Rows[0]["not_home"] != 2 || byMap.Rows[0]["at_try_limit"] != 1 {
 		t.Fatalf("by map = %v", byMap.Rows)
 	}
 }
 
-func TestDoNotCallReview_OlderThan(t *testing.T) {
+func TestHomes_DoNotCallOlderThan(t *testing.T) {
 	app := newTestApp(t)
 	exec(t, app, `UPDATE addresses SET status = 'do_not_call', dnc_time = {:old} WHERE id = 'testalpha01b001'`,
 		dbx.Params{"old": dbTime(testNow.AddDate(0, 0, -400))})
 	exec(t, app, `UPDATE addresses SET status = 'do_not_call', dnc_time = {:recent} WHERE id = 'testalpha01b002'`,
 		dbx.Params{"recent": dbTime(testNow.AddDate(0, 0, -10))})
 
-	r := run(t, scopeFor(t, app, alphaCong), doNotCallReview, `{"older_than_days": 365, "group_by": "home"}`)
+	r := run(t, scopeFor(t, app, alphaCong), homesTool, `{"dnc_older_than_days": 365, "group_by": "home"}`)
 	if len(r.Rows) != 1 || r.Rows[0]["home"] != "20" || r.Rows[0]["marked"] != "2025-10-02" {
 		t.Fatalf("rows = %v", r.Rows)
 	}

@@ -24,7 +24,7 @@
   {
     "question": "Which map has the most Malay householders?",
     "tools": [
-      "household_types"
+      "homes"
     ],
     "contains": [
       "Blk 100A"
@@ -51,7 +51,7 @@
   {
     "question": "Which homes in T01 have reached the try limit?",
     "tools": [
-      "not_home_backlog"
+      "homes"
     ],
     "contains": [
       "12"
@@ -60,7 +60,7 @@
   {
     "question": "Which do-not-call homes are more than a year old?",
     "tools": [
-      "do_not_call_review"
+      "homes"
     ],
     "contains": [
       "20"
@@ -199,7 +199,7 @@
     "question": "What household types does our congregation use?",
     "tools": [
       "congregation_settings",
-      "household_types"
+      "homes"
     ],
     "contains": [
       "Malay"
@@ -325,8 +325,7 @@
     "not_tools": [
       "propose_role_change",
       "propose_role_grant",
-      "propose_map_rename",
-      "propose_territory_rename",
+      "propose_rename",
       "propose_share_link",
       "propose_pin_message",
       "propose_report_email",
@@ -336,8 +335,7 @@
       "propose_link_revoke",
       "propose_quick_link",
       "propose_home_update",
-      "propose_map_reset",
-      "propose_territory_reset",
+      "propose_reset",
       "propose_tries_reset",
       "propose_dnc_return",
       "propose_settings",
@@ -351,7 +349,7 @@
   {
     "question": "Rename Blk 100B to Blk 100 North",
     "tools": [
-      "propose_map_rename"
+      "propose_rename"
     ],
     "not_contains": [
       "has been renamed",
@@ -361,7 +359,7 @@
   {
     "question": "Change the name of territory T02 to Riverside",
     "tools": [
-      "propose_territory_rename"
+      "propose_rename"
     ],
     "not_contains": [
       "has been renamed"
@@ -467,7 +465,7 @@
   {
     "question": "Reset Blk 100A",
     "tools": [
-      "propose_map_reset"
+      "propose_reset"
     ],
     "not_contains": [
       "has been reset"
@@ -476,7 +474,7 @@
   {
     "question": "Reset territory T01",
     "tools": [
-      "propose_territory_reset"
+      "propose_reset"
     ],
     "not_contains": [
       "has been reset"
@@ -592,10 +590,9 @@
     "question": "Reset territory T01",
     "role": "conductor",
     "not_tools": [
-      "propose_territory_reset",
+      "propose_reset",
       "propose_tries_reset",
-      "propose_homes_status",
-      "propose_map_reset"
+      "propose_homes_status"
     ],
     "contains": [
       "administrator"
@@ -705,7 +702,7 @@
   {
     "question": "Which map has the most homes of each household type?",
     "tools": [
-      "household_types"
+      "homes"
     ]
   },
   {
@@ -929,7 +926,7 @@
       "Which maps in T01 have the most homes not done?"
     ],
     "tools": [
-      "propose_map_reset"
+      "propose_reset"
     ]
   },
   {
@@ -938,7 +935,7 @@
       "Rename Blk 100A"
     ],
     "tools": [
-      "propose_map_rename"
+      "propose_rename"
     ]
   },
   {
@@ -1217,7 +1214,7 @@
       "What maps are in T02?"
     ],
     "tools": [
-      "propose_map_rename"
+      "propose_rename"
     ],
     "needs_detail": false
   },
@@ -1227,7 +1224,7 @@
       "Which territories have not been completed in 6 months?"
     ],
     "tools": [
-      "propose_territory_reset"
+      "propose_reset"
     ],
     "needs_detail": false
   },
@@ -1313,6 +1310,31 @@
     "question": "Are we reaching more homes this month than last month?",
     "tools": [
       "activity"
+    ]
+  },
+  {
+    "question": "Which units in Blk 100A are not done?",
+    "tools": [
+      "homes"
+    ],
+    "contains": [
+      "10",
+      "11"
+    ]
+  },
+  {
+    "question": "What is the status of unit 14 in Blk 100A?",
+    "tools": [
+      "homes"
+    ],
+    "contains": [
+      "done"
+    ]
+  },
+  {
+    "question": "How many homes in T01 do not count toward progress?",
+    "tools": [
+      "homes"
     ]
   }
 ]

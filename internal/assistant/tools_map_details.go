@@ -161,7 +161,7 @@ var mapDetails = Tool{
 			"map_id": target.ID, "map": target.Name, "territory_id": target.TerritoryID,
 			"territory": m.TerritoryCode, "territory_name": resolveLocalized(m.TerritoryName, s.Locale),
 			"type": m.Type, "floors": floorText,
-			"units_per_floor": len(units), "homes": len(homes),
+			"units_per_floor": len(units), "homes": counted, "all_homes": len(homes),
 			"progress": progress, "not_done": counts["not_done"], "done": counts["done"],
 			"not_home": counts["not_home"], "at_try_limit": atLimit, "dnc": counts["do_not_call"],
 			"invalid": counts["invalid"], "not_counted": notCounted, "household_types": strings.Join(typeParts, ", "),
@@ -185,12 +185,11 @@ var mapDetails = Tool{
 		}
 		return Result{
 			Columns: []string{"territory", "map", "type", "floors", "units_per_floor", "homes", "progress", "not_done",
-				"done", "not_home", "at_try_limit", "dnc", "invalid", "not_counted", "household_types", "last_visit",
+				"done", "not_home", "at_try_limit", "dnc", "invalid", "not_counted", "all_homes", "household_types", "last_visit",
 				"visits_30_days", "last_reset", "unread_messages", "pinned_instructions", "homes_with_notes",
 				"active_links", "has_location"},
 			Rows: []map[string]any{row},
-			Note: "homes counts every home; progress counts done and nobody-home homes at the try limit among homes " +
-				"whose household type is counted. not_counted homes have only uncounted types.",
+			Note: homeCountsNote,
 		}, nil
 	},
 }

@@ -64,6 +64,7 @@ var territoryOverview = Tool{
 			Homes         int    `db:"homes"`
 			Done          int    `db:"done"`
 			NotHome       int    `db:"not_home"`
+			AtTryLimit    int    `db:"at_try_limit"`
 			NotDone       int    `db:"not_done"`
 			DNC           int    `db:"dnc"`
 			Invalid       int    `db:"invalid"`
@@ -78,6 +79,7 @@ var territoryOverview = Tool{
 			       COALESCE(SUM(` + agg("total") + `), 0) AS homes,
 			       COALESCE(SUM(` + agg("done") + `), 0) AS done,
 			       COALESCE(SUM(` + agg("notHome") + `), 0) AS not_home,
+			       COALESCE(SUM(` + aggAtTryLimit + `), 0) AS at_try_limit,
 			       COALESCE(SUM(` + agg("notDone") + `), 0) AS not_done,
 			       COALESCE(SUM(` + agg("dnc") + `), 0) AS dnc,
 			       COALESCE(SUM(` + agg("invalid") + `), 0) AS invalid,
@@ -101,8 +103,8 @@ var territoryOverview = Tool{
 		}
 
 		r := Result{
-			Columns: []string{"territory", "description", "maps", "homes", "progress", "done", "not_home", "not_done", "dnc", "invalid", "round_open_since", "last_completed", "last_worked", "has_boundary"},
-			Note:    completionTrackingNote,
+			Columns: []string{"territory", "description", "maps", "homes", "progress", "done", "not_done", "not_home", "at_try_limit", "dnc", "invalid", "round_open_since", "last_completed", "last_worked", "has_boundary"},
+			Note:    completionTrackingNote + " " + homesNote,
 		}
 		for _, t := range rows {
 			if completedCutoff != "" && t.LastCompleted != "" && t.LastCompleted >= completedCutoff {
@@ -124,7 +126,8 @@ var territoryOverview = Tool{
 			r.Rows = append(r.Rows, map[string]any{
 				"territory_id": t.ID, "territory": t.Code, "description": t.Description,
 				"maps": t.Maps, "homes": t.Homes, "progress": t.Progress,
-				"done": t.Done, "not_home": t.NotHome, "not_done": t.NotDone, "dnc": t.DNC, "invalid": t.Invalid,
+				"done": t.Done, "not_done": t.NotDone, "not_home": t.NotHome + t.AtTryLimit, "at_try_limit": t.AtTryLimit,
+				"dnc": t.DNC, "invalid": t.Invalid,
 				"round_open_since": roundOpenSince, "last_completed": localDate(s, t.LastCompleted),
 				"last_worked": localDate(s, t.LastWorked), "has_boundary": t.HasBoundary,
 			})
@@ -187,6 +190,7 @@ var mapOverview = Tool{
 			Homes        int    `db:"homes"`
 			Done         int    `db:"done"`
 			NotHome      int    `db:"not_home"`
+			AtTryLimit   int    `db:"at_try_limit"`
 			NotDone      int    `db:"not_done"`
 			DNC          int    `db:"dnc"`
 			Invalid      int    `db:"invalid"`
@@ -200,6 +204,7 @@ var mapOverview = Tool{
 			       COALESCE(` + agg("total") + `, 0) AS homes,
 			       COALESCE(` + agg("done") + `, 0) AS done,
 			       COALESCE(` + agg("notHome") + `, 0) AS not_home,
+			       COALESCE(` + aggAtTryLimit + `, 0) AS at_try_limit,
 			       COALESCE(` + agg("notDone") + `, 0) AS not_done,
 			       COALESCE(` + agg("dnc") + `, 0) AS dnc,
 			       COALESCE(` + agg("invalid") + `, 0) AS invalid,
@@ -224,8 +229,8 @@ var mapOverview = Tool{
 			assignedCutoff = daysAgo(s, *args.NotAssignedIn)
 		}
 		r := Result{
-			Columns: []string{"territory", "map", "type", "homes", "progress", "done", "not_home", "not_done", "dnc", "invalid", "last_worked", "last_assigned", "active_links", "has_location"},
-			Note:    "Share links are recorded from May 2026, and links from the quick-assign button only from November 2026; an empty last_assigned can mean before then.",
+			Columns: []string{"territory", "map", "type", "homes", "progress", "done", "not_done", "not_home", "at_try_limit", "dnc", "invalid", "last_worked", "last_assigned", "active_links", "has_location"},
+			Note:    homesNote + " Share links are recorded from May 2026, and links from the quick-assign button only from November 2026; an empty last_assigned can mean before then.",
 		}
 		for _, m := range rows {
 			switch {
@@ -239,8 +244,8 @@ var mapOverview = Tool{
 			}
 			r.Rows = append(r.Rows, map[string]any{
 				"map_id": m.ID, "map": m.Map, "type": m.Type, "territory_id": m.TerritoryID, "territory": m.Territory,
-				"homes": m.Homes, "progress": m.Progress, "done": m.Done, "not_home": m.NotHome,
-				"not_done": m.NotDone, "dnc": m.DNC, "invalid": m.Invalid,
+				"homes": m.Homes, "progress": m.Progress, "done": m.Done, "not_done": m.NotDone,
+				"not_home": m.NotHome + m.AtTryLimit, "at_try_limit": m.AtTryLimit, "dnc": m.DNC, "invalid": m.Invalid,
 				"last_worked": localDate(s, m.LastWorked), "last_assigned": localDate(s, m.LastAssigned),
 				"active_links": m.ActiveLinks, "has_location": m.HasLocation,
 			})
@@ -255,6 +260,11 @@ var mapOverview = Tool{
 func agg(field string) string {
 	return "(CASE WHEN json_valid(m.aggregates) THEN json_extract(m.aggregates, '$." + field + "') END)"
 }
+
+// aggAtTryLimit is a map's nobody-home homes at the try limit. The app stores
+// them inside completed and keeps notHome for those below the limit; the
+// assistant reports every nobody-home home as not_home, with these as a part.
+var aggAtTryLimit = "(" + agg("completed") + " - " + agg("done") + ")"
 
 // sortRows orders rows by the requested key. Dates sort oldest first with empty
 // (never) first, so "least recently" questions read top-down; counts sort largest

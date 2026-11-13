@@ -42,73 +42,51 @@ func countResettable(s Scope, column, id string) (resetCounts, error) {
 	return c, err
 }
 
-var proposeMapReset = Tool{
-	Name: "propose_map_reset",
-	Description: "Prepare to reset a map, as Reset on the map does: homes done or not home go back to not done " +
-		"and nobody-home tries are cleared; do-not-call and invalid homes stay. It cannot be undone. Nothing " +
-		"changes until the asker confirms on a card. Use it only when the admin asks to reset a map.",
+var proposeReset = Tool{
+	Name: "propose_reset",
+	Description: "Prepare to reset a map, as Reset on the map does, or every map in a territory, as Reset on the " +
+		"territory does, which also starts its next round. Homes done or not home go back to not done and " +
+		"nobody-home tries are cleared; do-not-call and invalid homes stay. It cannot be undone. Nothing changes " +
+		"until the asker confirms on a card. Use it only when the admin asks to reset a map or a territory.",
 	Params: object(map[string]any{
-		"map":       mapArg,
+		"what":      enumOf("Whether one map or a whole territory is reset.", "map", "territory"),
+		"name":      map[string]any{"type": "string", "description": "The map's exact name, or the territory's exact code. Use find_places first if unsure."},
 		"territory": mapTerritoryArg,
 	}),
 	Run: func(s Scope, raw json.RawMessage) (Result, error) {
 		var args struct {
-			mapRef
+			What      string  `json:"what"`
+			Name      string  `json:"name"`
+			Territory *string `json:"territory"`
 		}
 		if err := decodeArgs(raw, &args); err != nil {
 			return Result{}, err
 		}
-		target, err := args.target(s)
-		if err != nil {
-			return Result{}, err
+		p := Proposal{Kind: "map_reset", Warnings: []string{"cannot_undo"}}
+		column, label := "map", ""
+		if args.What == "territory" {
+			territoryID, code, err := territoryByCode(s, args.Name)
+			if err != nil {
+				return Result{}, err
+			}
+			p.Kind, p.Warnings = "territory_reset", append(p.Warnings, "starts_round")
+			p.Target, column, label = territoryTarget(territoryID, code), "territory", code
+		} else {
+			target, _, err := mapTarget(s, args.Name, args.Territory)
+			if err != nil {
+				return Result{}, err
+			}
+			p.Target, label = &target, target.Name
 		}
-		counts, err := countResettable(s, "map", target.ID)
-		if err != nil {
-			return Result{}, err
-		}
-		if counts.Done+counts.NotHome == 0 {
-			return Result{}, badArgs("%s has no homes done or not home, so there is nothing to reset", target.Name)
-		}
-		return Result{Proposal: &Proposal{
-			Warnings: []string{"cannot_undo"},
-			Target:   &target, Data: counts.data(),
-		}}, nil
-	},
-}
-
-var proposeTerritoryReset = Tool{
-	Name: "propose_territory_reset",
-	Description: "Prepare to reset every map in a territory, as Reset on the territory does, and start its next " +
-		"round: homes done or not home go back to not done; do-not-call and invalid homes stay. It cannot be " +
-		"undone. Nothing changes until the asker confirms on a card. Use it only when the admin asks to reset a " +
-		"territory.",
-	Params: object(map[string]any{
-		"territory": map[string]any{"type": "string", "description": "The territory's exact code."},
-	}),
-	Run: func(s Scope, raw json.RawMessage) (Result, error) {
-		var args struct {
-			Territory string `json:"territory"`
-		}
-		if err := decodeArgs(raw, &args); err != nil {
-			return Result{}, err
-		}
-		territoryID, code, err := territoryByCode(s, args.Territory)
-		if err != nil {
-			return Result{}, err
-		}
-		counts, err := countResettable(s, "territory", territoryID)
+		counts, err := countResettable(s, column, p.Target.ID)
 		if err != nil {
 			return Result{}, err
 		}
 		if counts.Done+counts.NotHome == 0 {
-			return Result{}, badArgs("%s has no homes done or not home, so there is nothing to reset", code)
+			return Result{}, badArgs("%s has no homes done or not home, so there is nothing to reset", label)
 		}
-		return Result{Proposal: &Proposal{
-			Warnings: []string{"cannot_undo", "starts_round"},
-
-			Target: territoryTarget(territoryID, code),
-			Data:   counts.data(),
-		}}, nil
+		p.Data = counts.data()
+		return Result{Proposal: &p}, nil
 	},
 }
 

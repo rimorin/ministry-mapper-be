@@ -10,7 +10,7 @@ import (
 
 func TestProposeMapRename(t *testing.T) {
 	s := adminScope(t, alphaCong, "testuseralpha01")
-	p := propose(t, s, proposeMapRename, `{"map": "blk 100a", "territory": "T01", "new_name": "  Blk 100 North "}`)
+	p := propose(t, s, proposeRename, `{"what": "map", "name": "blk 100a", "territory": "T01", "new_name": "  Blk 100 North "}`)
 	if p.Kind != "map_rename" || p.From != "Blk 100A" || p.To != "Blk 100 North" ||
 		p.Value != "Blk 100 North" || p.Previous != "Blk 100A" {
 		t.Fatalf("proposal = %+v", p)
@@ -19,20 +19,20 @@ func TestProposeMapRename(t *testing.T) {
 		t.Fatalf("target = %+v", p.Target)
 	}
 
-	_, err := proposeMapRename.Run(s, json.RawMessage(`{"map": "Blk 100A", "new_name": "Blk 100A"}`))
+	_, err := proposeRename.Run(s, json.RawMessage(`{"what": "map", "name": "Blk 100A", "new_name": "Blk 100A"}`))
 	wantArgError(t, err, "already named")
-	_, err = proposeMapRename.Run(s, json.RawMessage(`{"map": "Blk 300A", "new_name": "Mine now"}`))
+	_, err = proposeRename.Run(s, json.RawMessage(`{"what": "map", "name": "Blk 300A", "new_name": "Mine now"}`))
 	wantArgError(t, err, "no map is named")
-	_, err = proposeMapRename.Run(s, json.RawMessage(`{"map": "", "new_name": "Mine now"}`))
+	_, err = proposeRename.Run(s, json.RawMessage(`{"what": "map", "name": "", "new_name": "Mine now"}`))
 	wantArgError(t, err, "map is required")
-	_, err = proposeMapRename.Run(s, json.RawMessage(`{"map": "Blk 100A", "new_name": "   "}`))
+	_, err = proposeRename.Run(s, json.RawMessage(`{"what": "map", "name": "Blk 100A", "new_name": "   "}`))
 	wantArgError(t, err, "new_name must be")
 }
 
 func TestProposeMapRename_KeepsOtherLanguages(t *testing.T) {
 	s := adminScope(t, alphaCong, "testuseralpha01")
 	s.Locale = "zh"
-	p := propose(t, s, proposeMapRename, `{"map": "富地图", "new_name": "新地图"}`)
+	p := propose(t, s, proposeRename, `{"what": "map", "name": "富地图", "new_name": "新地图"}`)
 	if p.From != "富地图" || p.Previous != `{"en":"Rich Map","zh":"富地图"}` {
 		t.Fatalf("proposal = %+v", p)
 	}
@@ -52,14 +52,14 @@ func TestProposeMapRename_KeepsOtherLanguages(t *testing.T) {
 
 func TestProposeTerritoryRename(t *testing.T) {
 	s := adminScope(t, alphaCong, "testuseralpha01")
-	p := propose(t, s, proposeTerritoryRename, `{"territory": "t01", "new_name": "North Side"}`)
+	p := propose(t, s, proposeRename, `{"what": "territory", "name": "t01", "new_name": "North Side"}`)
 	if p.Kind != "territory_rename" || p.From != "Alpha Territory 01" || p.To != "North Side" ||
 		p.Target == nil || p.Target.ID != "testterralpha01" || p.Target.Name != "T01" {
 		t.Fatalf("proposal = %+v", p)
 	}
-	_, err := proposeTerritoryRename.Run(s, json.RawMessage(`{"territory": "ZZ9", "new_name": "North"}`))
+	_, err := proposeRename.Run(s, json.RawMessage(`{"what": "territory", "name": "ZZ9", "new_name": "North"}`))
 	wantArgError(t, err, "no territory has the code")
-	_, err = proposeTerritoryRename.Run(s, json.RawMessage(`{"territory": "T01", "new_name": "Alpha Territory 01"}`))
+	_, err = proposeRename.Run(s, json.RawMessage(`{"what": "territory", "name": "T01", "new_name": "Alpha Territory 01"}`))
 	wantArgError(t, err, "already named")
 }
 
