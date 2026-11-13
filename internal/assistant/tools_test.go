@@ -479,11 +479,11 @@ func TestRestoreNames_PutsBackOnlyKnownPeople(t *testing.T) {
 	s := scopeFor(t, app, alphaCong)
 	token := newPseudonyms(alphaCong).token("Alpha Admin")
 
-	restored, people, err := RestoreNames(s, []string{token + " came out.", "Person ZZZZ was not found.", ""})
+	restored, people, err := RestoreNames(s, []string{token + " came out.", "Person ZZZZZZZZ was not found.", ""})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if restored[0] != "Alpha Admin came out." || restored[1] != "Person ZZZZ was not found." || restored[2] != "" {
+	if restored[0] != "Alpha Admin came out." || restored[1] != "Person ZZZZZZZZ was not found." || restored[2] != "" {
 		t.Fatalf("restored = %q", restored)
 	}
 	if len(people) != 1 || people[token] != "Alpha Admin" {

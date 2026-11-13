@@ -63,7 +63,7 @@ type Tool struct {
 	Description string
 	Params      map[string]any
 	// PersonColumns name the columns holding people's names. The model sees them
-	// as tokens such as Person QXWB and the answer is translated back before it reaches the admin.
+	// as tokens such as Person QXWBKDMR and the answer is translated back before it reaches the admin.
 	PersonColumns []string
 	Run           func(s Scope, args json.RawMessage) (Result, error)
 }

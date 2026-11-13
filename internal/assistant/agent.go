@@ -500,7 +500,7 @@ func clip(s string) string {
 	return s[:cut]
 }
 
-// pseudonyms replace people's names with tokens such as "Person QXWB". A token
+// pseudonyms replace people's names with tokens such as "Person QXWBKDMR". A token
 // depends only on the congregation and the name, so the same person keeps the
 // same token across follow-up questions. Letters only, so a token never looks
 // like a figure to the grounding check.
@@ -509,10 +509,17 @@ type pseudonyms struct {
 	names map[string]string // token → name
 }
 
-// tokenWord starts every person token, such as "Person QXWB".
+// tokenWord starts every person token, such as "Person QXWBKDMR".
 const tokenWord = "Person "
 
-var tokenPattern = regexp.MustCompile(`\b` + tokenWord + `[A-Z]{4}\b`)
+// tokenLetters is how many letters follow tokenWord. A congregation's records
+// can hold well over a thousand names, and two names sharing a token would
+// put one person's name on the other's work: four letters gave such a pair in
+// about one large congregation in four, eight in about one in a hundred
+// thousand.
+const tokenLetters = 8
+
+var tokenPattern = regexp.MustCompile(fmt.Sprintf(`\b%s[A-Z]{%d}\b`, tokenWord, tokenLetters))
 
 func newPseudonyms(salt string) *pseudonyms {
 	return &pseudonyms{salt: salt, names: map[string]string{}}
@@ -520,11 +527,11 @@ func newPseudonyms(salt string) *pseudonyms {
 
 func (p *pseudonyms) token(name string) string {
 	sum := sha256.Sum256([]byte(p.salt + "\x00" + strings.ToLower(strings.TrimSpace(name))))
-	letters := make([]byte, 4)
+	letters := make([]byte, tokenLetters)
 	for i := range letters {
 		letters[i] = 'A' + sum[i]%26
 	}
-	token := "Person " + string(letters)
+	token := tokenWord + string(letters)
 	p.remember(token, name)
 	return token
 }

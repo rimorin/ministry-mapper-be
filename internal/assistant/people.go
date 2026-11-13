@@ -30,7 +30,7 @@ func knownPeople(s Scope) ([]string, error) {
 
 // nameMask finds known names in text the admin typed and replaces each with
 // its person token, so a question like "what did Bro Tan do?" reaches the
-// model as "what did Person QXWB do?" and matches the tokens in the results.
+// model as "what did Person QXWBKDMR do?" and matches the tokens in the results.
 // It is built once per question and applied to the question and its history.
 //
 // A name of several words is matched in any case, since admins type "bro tan".
