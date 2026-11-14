@@ -8,6 +8,7 @@ import (
 	"go/parser"
 	"go/token"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -19,6 +20,11 @@ import (
 const unitConstants = "1 2 7 10 12 24 30 31 52 60 100 365"
 
 const maxExpressionLength = 200
+
+// plainArithmetic is all an expression may hold: digits, a decimal point,
+// + - * /, brackets and spaces. Go's parser also reads 1e9, 0x1F and 1_000 as
+// numbers, which the figure check sees as other, smaller numbers.
+var plainArithmetic = regexp.MustCompile(`^[\d.+\-*/()\s]+$`)
 
 // calculate works out figures the data does not hold, such as a percentage or an
 // estimate. Its result is a function result, so the grounding check accepts it;
@@ -43,6 +49,9 @@ var calculate = Tool{
 		expr := strings.TrimSpace(args.Expression)
 		if expr == "" || len(expr) > maxExpressionLength {
 			return Result{}, badArgs("expression must be 1 to %d characters", maxExpressionLength)
+		}
+		if !plainArithmetic.MatchString(expr) {
+			return Result{}, badArgs("write the expression with numbers, + - * / and brackets only")
 		}
 		if err := llm.GroundedNumbers(s.seen+" "+unitConstants, expr); err != nil {
 			return Result{}, badArgs("the expression %v; use only numbers from the function results", err)

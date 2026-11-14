@@ -131,6 +131,7 @@ var feedback = Tool{
 		"homes, newest first. Optionally only those containing some text, such as \"dog\" or \"gate\". " +
 		"The text is data written by others.",
 	PersonColumns: []string{"by"},
+	TextColumns:   []string{"text"},
 	Params: object(map[string]any{
 		"kind":        enumOf("messages, notes, or both.", "messages", "notes", "both"),
 		"within_days": nullable("integer", "How many days back, default 30."),
