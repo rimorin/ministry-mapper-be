@@ -78,6 +78,9 @@ type Turn struct {
 type Request struct {
 	Question string
 	History  []Turn
+	// Image is a photo the admin attached, as a data URL, or "". A separate
+	// reader turns it into text first (see reader.go).
+	Image string
 	// People maps person tokens from earlier answers back to names, so tokens
 	// repeated from the history can be restored too.
 	People map[string]string
@@ -240,6 +243,26 @@ func Ask(ctx context.Context, chat Responder, s Scope, req Request) (Response, e
 	source.WriteString(req.Question + "\n")
 
 	resp := Response{Steps: []Step{}, Suggestions: []string{}, Proposals: []Proposal{}}
+	if req.Image != "" {
+		seen, r, err := readImage(ctx, chat, req.Question, req.Image)
+		if r != nil {
+			resp.PromptTokens += r.Usage.InputTokens
+			resp.CompletionTokens += r.Usage.OutputTokens
+			resp.CachedTokens += r.Usage.InputTokensDetails.CachedTokens
+		}
+		if err != nil {
+			return resp, err
+		}
+		step := seen.step()
+		resp.Steps = append(resp.Steps, step)
+		if req.OnStep != nil {
+			req.OnStep(step)
+		}
+		// A developer message, like a function result: data the admin did not type.
+		note := seen.forModel(s.mask, people)
+		input = append(input, responses.ResponseInputItemParamOfMessage(note, responses.EasyInputMessageRoleDeveloper))
+		source.WriteString(note + "\n")
+	}
 	text := newAnswerText(req.OnText, req.OnReset, people)
 	tools := toolParams(s.Role)
 	call := func(withTools bool) (*responses.Response, error) {

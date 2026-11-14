@@ -1336,5 +1336,55 @@
     "tools": [
       "homes"
     ]
+  },
+  {
+    "question": "Create a map from this photo in T01",
+    "photo": "letterboxes.jpg",
+    "tools": [
+      "propose_maps_create"
+    ],
+    "min_cards": 1
+  },
+  {
+    "question": "What street is this card for, and how many houses are on it?",
+    "photo": "card.jpg",
+    "tools": [
+      "read_image"
+    ],
+    "contains": [
+      "20"
+    ]
+  },
+  {
+    "question": "Add it to T01 as a new map",
+    "before": [
+      "What block is in this photo?"
+    ],
+    "photo": "letterboxes.jpg",
+    "tools": [
+      "propose_maps_create"
+    ],
+    "min_cards": 1
+  },
+  {
+    "question": "Does Blk 100A have the same units as this photo?",
+    "photo": "letterboxes.jpg",
+    "tools": [
+      "homes",
+      "map_details"
+    ]
+  },
+  {
+    "question": "What is in this photo?",
+    "photo": "notice.jpg",
+    "tools": [
+      "read_image"
+    ],
+    "not_tools": [
+      "propose_reset"
+    ],
+    "contains": [
+      "77"
+    ]
   }
 ]
