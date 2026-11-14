@@ -246,6 +246,27 @@ func TestAssistantAsk(t *testing.T) {
 		}
 	})
 
+	t.Run("a photo that is not one", func(t *testing.T) {
+		t.Setenv("ASSISTANT_ENABLED", "true")
+		useChatter(t, answeringChat{})
+		for _, image := range []string{"https://example.com/photo.jpg", "data:image/svg+xml;base64,PHN2Zz4="} {
+			body, _ := json.Marshal(map[string]any{
+				"congregation": "testcongalpha01", "question": "What is this?", "locale": "en", "image": image,
+			})
+			(&tests.ApiScenario{
+				Name:            "refused before any model call: " + image[:16],
+				Method:          http.MethodPost,
+				URL:             "/assistant/ask",
+				Body:            strings.NewReader(string(body)),
+				Headers:         jsonHeaders(adminToken),
+				TestAppFactory:  setupTestApp,
+				ExpectedStatus:  400,
+				ExpectedContent: []string{"must be a JPEG, PNG or WebP"},
+				AfterTestFunc:   questionsLogged(0),
+			}).Test(t)
+		}
+	})
+
 	t.Run("one person's daily limit", func(t *testing.T) {
 		t.Setenv("ASSISTANT_ENABLED", "true")
 		useChatter(t, answeringChat{})

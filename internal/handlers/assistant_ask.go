@@ -47,6 +47,8 @@ type assistantAskRequest struct {
 	// earlier turns the model is shown are read from this conversation's log,
 	// never taken from the request.
 	Conversation string `json:"conversation"`
+	// Image is a photo to read, as a data URL the panel has already made smaller.
+	Image string `json:"image"`
 	// Location is the admin's position, sent only after they chose to share it.
 	Location *struct {
 		Lat float64 `json:"lat"`
@@ -90,6 +92,10 @@ func HandleAssistantAsk(c *core.RequestEvent, app core.App, enabled func(congreg
 		return apis.NewBadRequestError("question is too long", nil)
 	}
 
+	if req.Image != "" && !assistant.ValidImage(req.Image) {
+		return apis.NewBadRequestError("image must be a JPEG, PNG or WebP within the size limit", nil)
+	}
+
 	var origin *assistant.Location
 	if req.Location != nil {
 		if req.Location.Lat < -90 || req.Location.Lat > 90 || req.Location.Lng < -180 || req.Location.Lng > 180 {
@@ -120,7 +126,8 @@ func HandleAssistantAsk(c *core.RequestEvent, app core.App, enabled func(congreg
 
 	var asked, askedByUser int
 	since, _ := types.ParseDateTime(time.Now().Add(-24 * time.Hour))
-	err = app.DB().NewQuery(`SELECT COUNT(*), COALESCE(SUM(user = {:user}), 0) FROM assistant_questions
+	err = app.DB().NewQuery(`SELECT COALESCE(SUM(`+questionWeight+`), 0),
+		       COALESCE(SUM((user = {:user}) * `+questionWeight+`), 0) FROM assistant_questions
 		WHERE congregation = {:congregation} AND created >= {:since}`).
 		Bind(dbx.Params{"congregation": req.Congregation, "user": c.Auth.Id, "since": since.String()}).Row(&asked, &askedByUser)
 	if err != nil {
@@ -174,7 +181,7 @@ func HandleAssistantAsk(c *core.RequestEvent, app core.App, enabled func(congreg
 	}
 	resp, err := assistant.Ask(ctx, chat, scope,
 		assistant.Request{
-			Question: req.Question, History: history, People: req.People,
+			Question: req.Question, History: history, People: req.People, Image: req.Image,
 			OnStep:  func(step assistant.Step) { send(assistantEvent{Type: "step", Step: &step}) },
 			OnText:  func(text string) { send(assistantEvent{Type: "delta", Text: text}) },
 			OnReset: func() { send(assistantEvent{Type: "reset"}) },
@@ -203,6 +210,10 @@ func HandleAssistantAsk(c *core.RequestEvent, app core.App, enabled func(congreg
 	send(assistantEvent{Type: "done", Response: &resp})
 	return nil
 }
+
+// questionWeight is what a logged question counts toward the daily caps: a
+// question with a photo makes a second model call to read it, so it counts twice.
+const questionWeight = `(1 + (COALESCE(tools, '') LIKE '%"read_image"%'))`
 
 // questionsRunning counts each person's questions still being answered.
 var questionsRunning = struct {
@@ -252,8 +263,10 @@ func loggedHistory(app core.App, conversationID, userID, congregationID string) 
 		Question string `db:"question"`
 		Answer   string `db:"answer"`
 		Cards    string `db:"cards"`
+		Steps    string `db:"steps"`
 	}
-	err = app.DB().NewQuery(`SELECT question, answer, COALESCE(cards, '') AS cards FROM assistant_questions
+	err = app.DB().NewQuery(`SELECT question, answer, COALESCE(cards, '') AS cards, COALESCE(steps, '') AS steps
+		FROM assistant_questions
 		WHERE conversation = {:conversation} AND COALESCE(status, '') = '' AND COALESCE(answer, '') != ''
 		ORDER BY created DESC, id DESC LIMIT {:limit}`).
 		Bind(dbx.Params{"conversation": conversation.Id, "limit": assistant.MaxHistory}).All(&rows)
@@ -270,7 +283,10 @@ func loggedHistory(app core.App, conversationID, userID, congregationID string) 
 				answer += " " + note
 			}
 		}
-		turns = append(turns, assistant.Turn{Question: rows[i].Question, Answer: answer})
+		// The photo is never kept, so a follow-up works from its logged reading.
+		var steps []assistant.Step
+		_ = json.Unmarshal([]byte(rows[i].Steps), &steps)
+		turns = append(turns, assistant.Turn{Question: rows[i].Question + assistant.PhotoNote(steps), Answer: answer})
 	}
 	return turns, nil
 }

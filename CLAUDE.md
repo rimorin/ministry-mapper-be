@@ -101,6 +101,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - Map and territory reset flip only `not_home`/`done` back to `not_done`; DNC and invalid are untouched.
 
 ## Admin assistant
+- IMPORTANT: a photo sent to the assistant goes only to the reader call in `internal/assistant/reader.go`, which has no functions. The main loop gets the reading as text, so the figure check, name masking and history apply to it. Never pass the image to the main loop. `TestLiveReader` scores readings against `testdata/photos/expected.json`; `OPENAI_LIVE_PHOTOS=1` runs only the photo questions of `TestLiveEval`.
 - IMPORTANT: an assistant function's congregation comes from `Scope`, never from the model's arguments; arguments are filters inside that scope. Every new function must be added to the table in `TestTools_NeverReturnAnotherCongregation` (`internal/assistant/tools_test.go`), which fails otherwise.
 - Functions read with fixed, parameterised SQL. Return `badArgs(...)` for mistakes in the model's arguments (they go back to the model to correct); any other error fails the request.
 - Columns holding people's names go in `PersonColumns`, so the model sees tokens like "Person QXWB" and never names. Keys ending in `_id` are for the frontend's links and are hidden from the model.

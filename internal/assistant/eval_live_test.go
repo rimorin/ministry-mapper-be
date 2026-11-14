@@ -4,6 +4,7 @@ package assistant
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -63,6 +64,9 @@ func TestLiveEval(t *testing.T) {
 		// Before are earlier questions in the same conversation, asked first
 		// and sent back as history the way the panel does.
 		Before []string `json:"before"`
+		// Photo is a file in testdata/photos sent with the case's first
+		// question, as the panel attaches one.
+		Photo string `json:"photo"`
 		// View is the territory code and map name the admin has open.
 		View *struct {
 			Territory string `json:"territory"`
@@ -81,12 +85,14 @@ func TestLiveEval(t *testing.T) {
 
 	// OPENAI_LIVE_FOLLOWUPS=1 runs only the conversations, for a cheaper check.
 	followUpsOnly := os.Getenv("OPENAI_LIVE_FOLLOWUPS") != ""
+	// OPENAI_LIVE_PHOTOS=1 runs only the questions that carry a photo.
+	photosOnly := os.Getenv("OPENAI_LIVE_PHOTOS") != ""
 
 	passed, ran, questions := 0, 0, 0
 	var prompt, completion, cached int64
 	var elapsed time.Duration
 	for _, c := range cases {
-		if followUpsOnly && len(c.Before) == 0 {
+		if followUpsOnly && len(c.Before) == 0 || photosOnly && c.Photo == "" {
 			continue
 		}
 		ran++
@@ -100,6 +106,14 @@ func TestLiveEval(t *testing.T) {
 		}
 		var history []Turn
 		people := map[string]string{}
+		image := ""
+		if c.Photo != "" {
+			photo, err := os.ReadFile("testdata/photos/" + c.Photo)
+			if err != nil {
+				t.Fatal(err)
+			}
+			image = "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(photo)
+		}
 		ask := func(question string) (Response, error) {
 			questions++
 			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -107,12 +121,14 @@ func TestLiveEval(t *testing.T) {
 			started := time.Now()
 			defer func() { elapsed += time.Since(started) }()
 			resp, err := Ask(ctx, chat, scope, Request{
-				Question: question, History: slices.Clone(history), People: maps.Clone(people),
+				Question: question, History: slices.Clone(history), People: maps.Clone(people), Image: image,
 			})
+			image = "" // a photo goes with one question
 			prompt, completion, cached = prompt+resp.PromptTokens, completion+resp.CompletionTokens, cached+resp.CachedTokens
 			// As the panel does: only grounded answers become history.
 			if err == nil && resp.Grounded {
-				history = append(history, Turn{Question: question, Answer: resp.Context})
+				// As the route does: a later question is told what the photo read.
+				history = append(history, Turn{Question: question + PhotoNote(resp.Steps), Answer: resp.Context})
 				maps.Copy(people, resp.People)
 			}
 			return resp, err
