@@ -38,4 +38,10 @@ func TestCalculate_UsesOnlyNumbersFromTheData(t *testing.T) {
 
 	_, err = calculate.Run(s, json.RawMessage(`{"expression": "999 / 412 * 100"}`))
 	wantArgError(t, err, "999")
+
+	// Other ways to write a number would read as smaller, allowed ones.
+	for _, expr := range []string{"1e9", "0x1F", "1_000", "412e2"} {
+		_, err = calculate.Run(Scope{seen: "1 9 412 1000 31"}, json.RawMessage(`{"expression": "`+expr+`"}`))
+		wantArgError(t, err, "numbers, + - * / and brackets only")
+	}
 }

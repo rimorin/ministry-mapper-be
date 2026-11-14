@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -24,7 +25,13 @@ const (
 	maxAssistantQuestionLength = 500
 	// assistantDailyCap bounds model spend per congregation per rolling day.
 	assistantDailyCap = 300
-	assistantTimeout  = 90 * time.Second
+	// assistantUserDailyCap keeps one person from using up the congregation's day.
+	assistantUserDailyCap = 100
+	// maxQuestionsAtOnce bounds how many of one person's questions run together.
+	// The panel asks one at a time; without this, questions sent together would
+	// all pass the daily caps, which count only questions already logged.
+	maxQuestionsAtOnce = 2
+	assistantTimeout   = 90 * time.Second
 	// maxLoggedAnswerRunes fits the answer field of assistant_questions.
 	maxLoggedAnswerRunes = 5000
 )
@@ -32,12 +39,13 @@ const (
 type assistantAskRequest struct {
 	Congregation string            `json:"congregation"`
 	Question     string            `json:"question"`
-	History      []assistant.Turn  `json:"history"`
 	Locale       string            `json:"locale"`
 	People       map[string]string `json:"people"`
 	// Conversation is the id the panel gave this conversation when it started,
 	// so even a question that fails or is stopped lands in it. One that is
-	// someone else's, or not an id, starts a new conversation instead.
+	// someone else's, or not an id, starts a new conversation instead. The
+	// earlier turns the model is shown are read from this conversation's log,
+	// never taken from the request.
 	Conversation string `json:"conversation"`
 	// Location is the admin's position, sent only after they chose to share it.
 	Location *struct {
@@ -105,15 +113,28 @@ func HandleAssistantAsk(c *core.RequestEvent, app core.App, enabled func(congreg
 		return apis.NewApiError(http.StatusServiceUnavailable, "The assistant is not configured", nil)
 	}
 
-	var asked int
+	if !beginQuestion(c.Auth.Id) {
+		return apis.NewTooManyRequestsError("Wait for your earlier question to finish", nil)
+	}
+	defer endQuestion(c.Auth.Id)
+
+	var asked, askedByUser int
 	since, _ := types.ParseDateTime(time.Now().Add(-24 * time.Hour))
-	err = app.DB().NewQuery(`SELECT COUNT(*) FROM assistant_questions WHERE congregation = {:congregation} AND created >= {:since}`).
-		Bind(dbx.Params{"congregation": req.Congregation, "since": since.String()}).Row(&asked)
+	err = app.DB().NewQuery(`SELECT COUNT(*), COALESCE(SUM(user = {:user}), 0) FROM assistant_questions
+		WHERE congregation = {:congregation} AND created >= {:since}`).
+		Bind(dbx.Params{"congregation": req.Congregation, "user": c.Auth.Id, "since": since.String()}).Row(&asked, &askedByUser)
 	if err != nil {
 		return newServerError(err)
 	}
 	if asked >= assistantDailyCap {
 		return apis.NewTooManyRequestsError("Your congregation has reached today's question limit", nil)
+	}
+	if askedByUser >= assistantUserDailyCap {
+		return apis.NewTooManyRequestsError("You have reached today's question limit", nil)
+	}
+	history, err := loggedHistory(app, req.Conversation, c.Auth.Id, req.Congregation)
+	if err != nil {
+		return newServerError(err)
 	}
 
 	congregation, err := app.FindRecordById("congregations", req.Congregation)
@@ -153,7 +174,7 @@ func HandleAssistantAsk(c *core.RequestEvent, app core.App, enabled func(congreg
 	}
 	resp, err := assistant.Ask(ctx, chat, scope,
 		assistant.Request{
-			Question: req.Question, History: req.History, People: req.People,
+			Question: req.Question, History: history, People: req.People,
 			OnStep:  func(step assistant.Step) { send(assistantEvent{Type: "step", Step: &step}) },
 			OnText:  func(text string) { send(assistantEvent{Type: "delta", Text: text}) },
 			OnReset: func() { send(assistantEvent{Type: "reset"}) },
@@ -181,6 +202,77 @@ func HandleAssistantAsk(c *core.RequestEvent, app core.App, enabled func(congreg
 	resp.ConversationID, resp.QuestionID = logAssistantQuestion(app, entry, resp)
 	send(assistantEvent{Type: "done", Response: &resp})
 	return nil
+}
+
+// questionsRunning counts each person's questions still being answered.
+var questionsRunning = struct {
+	sync.Mutex
+	byUser map[string]int
+}{byUser: map[string]int{}}
+
+// beginQuestion reports whether the user may start another question now.
+func beginQuestion(userID string) bool {
+	questionsRunning.Lock()
+	defer questionsRunning.Unlock()
+	if questionsRunning.byUser[userID] >= maxQuestionsAtOnce {
+		return false
+	}
+	questionsRunning.byUser[userID]++
+	return true
+}
+
+func endQuestion(userID string) {
+	questionsRunning.Lock()
+	defer questionsRunning.Unlock()
+	if questionsRunning.byUser[userID]--; questionsRunning.byUser[userID] <= 0 {
+		delete(questionsRunning.byUser, userID)
+	}
+}
+
+// What the next question tells the model became of each card.
+var cardOutcomeNotes = map[string]string{
+	"done":      "The admin confirmed this change.",
+	"cancelled": "The admin cancelled this change.",
+	"undone":    "The admin confirmed this change, then undid it.",
+	"failed":    "The change failed and was not made.",
+	"stale":     "The change was not made because the record had changed since it was prepared.",
+}
+
+// loggedHistory is the earlier turns of the asker's conversation, oldest
+// first, as the log holds them: the answers the model really gave (people as
+// tokens) and what became of their cards. Reading them here rather than from
+// the request means nobody can put words or figures in the model's mouth.
+// Questions that failed, were stopped or had their answer dropped are left out.
+func loggedHistory(app core.App, conversationID, userID, congregationID string) ([]assistant.Turn, error) {
+	conversation, _, err := askerConversation(app, conversationID, userID, congregationID)
+	if err != nil || conversation == nil {
+		return nil, err
+	}
+	var rows []struct {
+		Question string `db:"question"`
+		Answer   string `db:"answer"`
+		Cards    string `db:"cards"`
+	}
+	err = app.DB().NewQuery(`SELECT question, answer, COALESCE(cards, '') AS cards FROM assistant_questions
+		WHERE conversation = {:conversation} AND COALESCE(status, '') = '' AND COALESCE(answer, '') != ''
+		ORDER BY created DESC, id DESC LIMIT {:limit}`).
+		Bind(dbx.Params{"conversation": conversation.Id, "limit": assistant.MaxHistory}).All(&rows)
+	if err != nil {
+		return nil, err
+	}
+	turns := make([]assistant.Turn, 0, len(rows))
+	for i := len(rows) - 1; i >= 0; i-- {
+		answer := rows[i].Answer
+		var cards []assistant.Card
+		_ = json.Unmarshal([]byte(rows[i].Cards), &cards) // a question without cards has none
+		for _, card := range cards {
+			if note := cardOutcomeNotes[card.Outcome]; note != "" {
+				answer += " " + note
+			}
+		}
+		turns = append(turns, assistant.Turn{Question: rows[i].Question, Answer: answer})
+	}
+	return turns, nil
 }
 
 // loggedView is the place the admin had open, as history shows it again and as

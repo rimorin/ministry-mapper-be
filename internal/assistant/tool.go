@@ -36,6 +36,8 @@ type Scope struct {
 	seen string
 	// knownTokens maps each person token to its name, loaded once per question.
 	knownTokens map[string]string
+	// mask finds known people's names in text, loaded once per question.
+	mask nameMask
 }
 
 // Location is a point on the map, as latitude and longitude in degrees.
@@ -65,7 +67,10 @@ type Tool struct {
 	// PersonColumns name the columns holding people's names. The model sees them
 	// as tokens such as Person QXWBKDMR and the answer is translated back before it reaches the admin.
 	PersonColumns []string
-	Run           func(s Scope, args json.RawMessage) (Result, error)
+	// TextColumns name the columns holding text people wrote, such as notes.
+	// Names of known people inside them are replaced with tokens too.
+	TextColumns []string
+	Run         func(s Scope, args json.RawMessage) (Result, error)
 }
 
 // mapArg and mapTerritoryArg are the parameters that name one map.

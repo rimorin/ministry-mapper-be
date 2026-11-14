@@ -220,10 +220,10 @@ func Ask(ctx context.Context, chat Responder, s Scope, req Request) (Response, e
 	if len(req.History) > MaxHistory {
 		req.History = req.History[len(req.History)-MaxHistory:]
 	}
-	mask := newNameMask(names)
-	req.Question = mask.apply(req.Question, people)
+	s.mask = newNameMask(names)
+	req.Question = s.mask.apply(req.Question, people)
 	for i := range req.History {
-		req.History[i].Question = mask.apply(req.History[i].Question, people)
+		req.History[i].Question = s.mask.apply(req.History[i].Question, people)
 	}
 
 	var source strings.Builder // everything the model may quote figures from
@@ -443,7 +443,7 @@ func runTool(s Scope, people *pseudonyms, name, rawArgs string) (Step, string, e
 		result.Total = len(result.Rows)
 	}
 	step.Result = &result
-	return step, modelView(result, tool.PersonColumns, people), nil
+	return step, modelView(result, tool, s.mask, people), nil
 }
 
 // fillProposal sets what every card needs, here rather than in each function:
@@ -463,19 +463,28 @@ func fillProposal(p *Proposal, toolName string) {
 }
 
 // modelView is the model's copy of a result: the listed columns only (so no
-// record ids), rows as arrays, and people as tokens.
-func modelView(r Result, personColumns []string, people *pseudonyms) string {
-	isPerson := map[string]bool{}
-	for _, c := range personColumns {
+// record ids), rows as arrays, and people as tokens, both in the columns that
+// name a person and inside text people wrote.
+func modelView(r Result, tool Tool, mask nameMask, people *pseudonyms) string {
+	isPerson, isText := map[string]bool{}, map[string]bool{}
+	for _, c := range tool.PersonColumns {
 		isPerson[c] = true
+	}
+	for _, c := range tool.TextColumns {
+		isText[c] = true
 	}
 	rows := make([][]any, len(r.Rows))
 	for i, row := range r.Rows {
 		values := make([]any, len(r.Columns))
 		for j, c := range r.Columns {
 			v := row[c]
-			if name, ok := v.(string); ok && isPerson[c] && name != "" {
-				v = people.token(name)
+			if text, ok := v.(string); ok && text != "" {
+				switch {
+				case isPerson[c]:
+					v = people.token(text)
+				case isText[c]:
+					v = mask.apply(text, people)
+				}
 			}
 			values[j] = v
 		}

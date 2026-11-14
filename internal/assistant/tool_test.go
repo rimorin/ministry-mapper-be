@@ -69,7 +69,7 @@ func TestModelView_HidesIdsAndMasksPeople(t *testing.T) {
 		Total:   1,
 	}
 	people := newPseudonyms("cong1")
-	view := modelView(r, []string{"name"}, people)
+	view := modelView(r, Tool{PersonColumns: []string{"name"}}, nil, people)
 	if strings.Contains(view, "Sis Lim") || strings.Contains(view, "secretmapid0001") {
 		t.Fatalf("model view leaks a name or an id: %s", view)
 	}
@@ -81,6 +81,23 @@ func TestModelView_HidesIdsAndMasksPeople(t *testing.T) {
 	}
 	if parsed.Rows[0][0] != people.token("Sis Lim") || parsed.Rows[0][1] != "Blk 100A" {
 		t.Errorf("rows = %v", parsed.Rows)
+	}
+}
+
+func TestModelView_MasksKnownNamesInsideText(t *testing.T) {
+	r := Result{
+		Columns: []string{"by", "text"},
+		Rows:    []map[string]any{{"by": "Sis Lim", "text": "Called back, bro tan will return on Friday. Mdm Wong asked."}},
+	}
+	people := newPseudonyms("cong1")
+	tool := Tool{PersonColumns: []string{"by"}, TextColumns: []string{"text"}}
+	view := modelView(r, tool, newNameMask([]string{"Bro Tan", "Sis Lim"}), people)
+	if strings.Contains(strings.ToLower(view), "bro tan") || strings.Contains(view, "Sis Lim") {
+		t.Fatalf("model view leaks a known name: %s", view)
+	}
+	// A name the records do not hold cannot be recognised and stays.
+	if !strings.Contains(view, people.token("Bro Tan")+" will return") || !strings.Contains(view, "Mdm Wong") {
+		t.Errorf("view = %s", view)
 	}
 }
 
