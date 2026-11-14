@@ -1,40 +1,52 @@
 package handlers
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"log"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
 	"ganigeorgiev.com/pocketbase/dbx"
 	"ganigeorgiev.com/pocketbase/pocketbase/apis"
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/tools/types"
 )
 
 type MapWithDistance struct {
-	ID           string `db:"id"`
-	Description  string `db:"description"`
-	Progress     int    `db:"progress"`
-	Coordinates  string `db:"coordinates"`
-	Aggregates   string `db:"aggregates"`
-	AssignCount  int    `db:"assignment_count"`
-	Distance     float64
-	ParsedCoords *Coordinates // set by findBestMap; nil when coordinates are invalid
+	ID           string       `db:"id"`
+	Description  string       `db:"description"`
+	Progress     int          `db:"progress"`
+	Sequence     int          `db:"sequence"`
+	Coordinates  string       `db:"coordinates"`
+	Aggregates   string       `db:"aggregates"`
+	AssignCount  int          `db:"assignment_count"`
+	Distance     float64      // set by findBestMap; +Inf when the map has no usable coordinates
+	ParsedCoords *Coordinates // set by findBestMap; nil when the map has no usable coordinates
+	Remaining    int          // set by findBestMap; addresses left to work, 0 when unknown
+	tier         int          // set by findBestMap; see mapTier
 }
 
-// congregationExpiryCache stores expiry_hours per congregation ID, saving a DB
-// round trip on every quicklink request. Congregation settings change rarely, but
-// "rarely" is not "never": InvalidateCongregationExpiryCache must be called
-// whenever a congregation record changes, or an admin's edit to expiry_hours has
-// no effect until the process restarts.
-var congregationExpiryCache sync.Map
+// quicklinkSettings are the congregation settings a quicklink request depends on.
+type quicklinkSettings struct {
+	expiryHours         float64
+	completionThreshold int
+}
 
-// InvalidateCongregationExpiryCache drops the cached expiry_hours for a
-// congregation. Wired to the congregations update hook in setup.RegisterDomainHooks.
-func InvalidateCongregationExpiryCache(congregationId string) {
-	congregationExpiryCache.Delete(congregationId)
+// quicklinkSettingsCache stores quicklinkSettings per congregation ID, saving a DB
+// round trip on every quicklink request. Congregation settings change rarely, but
+// "rarely" is not "never": InvalidateQuicklinkSettingsCache must be called
+// whenever a congregation record changes, or an admin's edit has no effect until
+// the process restarts.
+var quicklinkSettingsCache sync.Map
+
+// InvalidateQuicklinkSettingsCache drops the cached settings for a congregation.
+// Wired to the congregations update hook in setup.RegisterDomainHooks.
+func InvalidateQuicklinkSettingsCache(congregationId string) {
+	quicklinkSettingsCache.Delete(congregationId)
 }
 
 type Coordinates struct {
@@ -71,17 +83,18 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 	}
 
 	currentLat, ok := latValue.(float64)
-	if !ok {
+	if !ok || currentLat < -90 || currentLat > 90 {
 		return apis.NewBadRequestError("Invalid latitude value", nil)
 	}
 
 	currentLong, ok := longValue.(float64)
-	if !ok {
+	if !ok || currentLong < -180 || currentLong > 180 {
 		return apis.NewBadRequestError("Invalid longitude value", nil)
 	}
 
-	publisher, ok := data["publisher"].(string)
-	if !ok || publisher == "" {
+	publisher, _ := data["publisher"].(string)
+	publisher = strings.TrimSpace(publisher)
+	if publisher == "" {
 		return apis.NewBadRequestError("Publisher is required", nil)
 	}
 
@@ -98,33 +111,42 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 		return apis.NewForbiddenError("Unauthorized", nil)
 	}
 
-	maps, err := getMapsWithAssignmentCount(app, territoryId, congregationId)
+	settings, err := getQuicklinkSettings(app, congregationId)
 	if err != nil {
-		return apis.NewNotFoundError("Error fetching maps", nil)
+		return newServerError(err)
 	}
 
-	if len(maps) == 0 {
-		return apis.NewNotFoundError("No maps found for territory", nil)
-	}
+	// A link stops counting towards a map's workload after half its lifetime
+	// without activity.
+	activeSince := time.Now().Add(-min(time.Duration(settings.expiryHours/2*float64(time.Hour)), maxActivityWindow))
 
-	bestMap := findBestMap(maps, currentLat, currentLong)
-	if bestMap == nil {
-		return apis.NewNotFoundError("No suitable map found", nil)
-	}
+	// Counting and minting share a transaction, and PocketBase runs transactions
+	// one at a time, so each request sees the links minted before it. Otherwise a
+	// group tapping at the same moment reads the same counts and piles onto one map.
+	var bestMap *MapWithDistance
+	var assignmentId string
+	var assignees []string
+	err = app.RunInTransaction(func(txApp core.App) error {
+		maps, err := getMapsWithAssignmentCount(txApp, territoryId, congregationId, activeSince)
+		if err != nil {
+			return err
+		}
+		if len(maps) == 0 {
+			return apis.NewNotFoundError("No maps found for territory", nil)
+		}
 
-	expiryHours, err := getCongregationExpiryHours(app, congregationId)
+		bestMap = findBestMap(maps, currentLat, currentLong, settings.completionThreshold)
+
+		assignmentId, err = createAssignment(txApp, bestMap.ID, c.Auth, publisher, congregationId, settings.expiryHours)
+		if err != nil {
+			return err
+		}
+
+		assignees, err = getMapAssignees(txApp, bestMap.ID, assignmentId)
+		return err
+	})
 	if err != nil {
-		return apis.NewNotFoundError("Error fetching expiry hours", nil)
-	}
-
-	assignmentId, err := createAssignment(app, bestMap.ID, c.Auth, publisher, congregationId, expiryHours)
-	if err != nil {
-		return apis.NewBadRequestError("Error creating assignment", nil)
-	}
-
-	assignees, err := getMapAssignees(app, bestMap.ID, assignmentId)
-	if err != nil {
-		return apis.NewNotFoundError("Error fetching assignees", nil)
+		return wrapTransactionError(err)
 	}
 
 	var aggregates MapAggregates
@@ -153,12 +175,17 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 }
 
 // getMapsWithAssignmentCount gets all maps for a territory with their current assignment counts.
-// Only counts active (non-expired) "normal" type assignments.
+// Only counts non-expired "normal" type assignments still in use: minted since
+// activeSince, or on a map with an address worked since then. A link outlives
+// the publisher's session, so an unexpired one alone does not mean the map is busy.
+//
+// Activity is judged per map, not per link: an address change records the
+// publisher's name, not the link it came through.
 //
 // Restricted to congregationId — the one the caller was authorized against — so a
 // map that ended up under a foreign congregation's territory can never be selected
 // and minted into an assignment the caller has no role for.
-func getMapsWithAssignmentCount(app core.App, territoryId string, congregationId string) ([]MapWithDistance, error) {
+func getMapsWithAssignmentCount(app core.App, territoryId string, congregationId string, activeSince time.Time) ([]MapWithDistance, error) {
 	maps := []MapWithDistance{}
 
 	query := `
@@ -166,19 +193,23 @@ func getMapsWithAssignmentCount(app core.App, territoryId string, congregationId
 			m.id,
 			COALESCE(m.description, '') as description,
 			COALESCE(m.progress, 0) as progress,
+			COALESCE(m.sequence, 0) as sequence,
 			COALESCE(m.coordinates, '{}') as coordinates,
 			COALESCE(m.aggregates, '{}') as aggregates,
-			COUNT(CASE WHEN a.type = 'normal' AND a.expiry_date > datetime('now') THEN a.id END) as assignment_count
+			COUNT(CASE WHEN a.type = 'normal' AND a.expiry_date > datetime('now') AND (
+				a.created > {:activeSince}
+				OR EXISTS (SELECT 1 FROM addresses_log l WHERE l.map = m.id AND l.created > {:activeSince})
+			) THEN a.id END) as assignment_count
 		FROM maps m
 		LEFT JOIN assignments a ON m.id = a.map
 		WHERE m.territory = {:territory} AND m.congregation = {:congregation}
 		GROUP BY m.id
-		ORDER BY assignment_count ASC, progress ASC
 	`
 
 	err := app.DB().NewQuery(query).Bind(dbx.Params{
 		"territory":    territoryId,
 		"congregation": congregationId,
+		"activeSince":  activeSince.UTC().Format(types.DefaultDateLayout),
 	}).All(&maps)
 
 	return maps, err
@@ -200,56 +231,121 @@ func haversineDistance(lat1, lon1, lat2, lon2 float64) float64 {
 	return R * c
 }
 
-// findBestMap selects the optimal map based on assignment count, distance, and progress.
-// Priority: fewest assignments > proximity (50m threshold) > lowest progress.
+// maxActivityWindow caps how long a link counts towards its map's workload
+// without activity: long enough for one session, short enough that a morning
+// link is not still counted in the evening.
+const maxActivityWindow = 6 * time.Hour
+
+// maxDetourMeters is how much further than the nearest map a caller may be sent
+// to reach a less busy one. Beyond it they share the nearer map instead.
+const maxDetourMeters = 300
+
+// Maps are offered from the lowest tier present in the territory.
+const (
+	tierUnfinished = iota // below the completion threshold, with addresses left
+	tierLeftovers         // at or past the threshold, with addresses left
+	tierDone              // no addresses left
+)
+
+// mapTier classifies a map and returns how many addresses are left to work.
+//
+// What is left is total minus completed, the pair progress is derived from; the
+// per-status counts stored beside them are stale on older maps. Aggregates
+// without that pair (a new map has none) say nothing, so such a map is never
+// done. Progress alone cannot tell: a map with no countable addresses sits at 0%.
+func mapTier(m *MapWithDistance, completionThreshold int) (tier, remaining int) {
+	var counts struct {
+		Completed *int `json:"completed"`
+		Total     *int `json:"total"`
+	}
+	if err := json.Unmarshal([]byte(m.Aggregates), &counts); err == nil && counts.Completed != nil && counts.Total != nil {
+		remaining = max(*counts.Total-*counts.Completed, 0)
+		if remaining == 0 {
+			return tierDone, 0
+		}
+	}
+	if m.Progress >= completionThreshold {
+		return tierLeftovers, remaining
+	}
+	return tierUnfinished, remaining
+}
+
+// findBestMap selects the map to hand out, or nil when there are none.
+// Priority: fewest assignments > proximity (50m threshold) > most addresses left
+// > lowest progress > territory map order > id, among the maps of the lowest
+// tier within maxDetourMeters of the nearest one. Full ties are common, since
+// the maps of one block often share a pin and a size, and the result must not
+// depend on the order the query returns rows in.
+//
+// A map without usable coordinates is the farthest candidate but stays eligible:
+// with no distance to measure, the detour limit cannot rule it out.
 //
 // Uses separate passes to avoid order-dependent results that a single greedy pass
 // produces when the 50m proximity window straddles multiple maps at different distances.
-func findBestMap(maps []MapWithDistance, currentLat, currentLong float64) *MapWithDistance {
-	if len(maps) == 0 {
-		return nil
-	}
-
-	// Pass 1: compute all distances and cache parsed coordinates.
+func findBestMap(maps []MapWithDistance, currentLat, currentLong float64, completionThreshold int) *MapWithDistance {
+	// Pass 1: locate and classify each map.
+	lowestTier := tierDone
 	for i := range maps {
-		var coords Coordinates
-		if err := json.Unmarshal([]byte(maps[i].Coordinates), &coords); err != nil {
-			maps[i].Distance = math.Inf(1)
-			continue
+		m := &maps[i]
+
+		// Pointers tell a missing key apart from a real pin at lat 0, lng 0;
+		// `{}` and `null` both unmarshal without error.
+		var coords struct {
+			Lat *float64 `json:"lat"`
+			Lng *float64 `json:"lng"`
 		}
-		maps[i].Distance = haversineDistance(currentLat, currentLong, coords.Lat, coords.Lng)
-		c := coords
-		maps[i].ParsedCoords = &c
+		m.Distance = math.Inf(1)
+		if err := json.Unmarshal([]byte(m.Coordinates), &coords); err == nil && coords.Lat != nil && coords.Lng != nil {
+			m.Distance = haversineDistance(currentLat, currentLong, *coords.Lat, *coords.Lng)
+			m.ParsedCoords = &Coordinates{Lat: *coords.Lat, Lng: *coords.Lng}
+		}
+
+		m.tier, m.Remaining = mapTier(m, completionThreshold)
+		lowestTier = min(lowestTier, m.tier)
 	}
 
-	// Pass 2: find minimum assignment count among maps with valid coordinates.
-	minCount := math.MaxInt32
-	for _, m := range maps {
-		if !math.IsInf(m.Distance, 1) && m.AssignCount < minCount {
+	// Pass 2: find the nearest map on offer, which sets how far the caller can be sent.
+	nearest := math.Inf(1)
+	for i := range maps {
+		if m := &maps[i]; m.tier == lowestTier && m.Distance < nearest {
+			nearest = m.Distance
+		}
+	}
+	eligible := func(m *MapWithDistance) bool {
+		return m.tier == lowestTier && (math.IsInf(m.Distance, 1) || m.Distance <= nearest+maxDetourMeters)
+	}
+
+	// Pass 3: find the minimum assignment count.
+	minCount := math.MaxInt
+	for i := range maps {
+		if m := &maps[i]; eligible(m) && m.AssignCount < minCount {
 			minCount = m.AssignCount
 		}
 	}
-	if minCount == math.MaxInt32 {
-		return nil
-	}
 
-	// Pass 3: find minimum distance within the minimum-count cohort.
+	// Pass 4: find the minimum distance within the minimum-count cohort. Stays
+	// +Inf when none of them has coordinates, which puts them all in the band below.
 	minDist := math.Inf(1)
-	for _, m := range maps {
-		if m.AssignCount == minCount && !math.IsInf(m.Distance, 1) && m.Distance < minDist {
+	for i := range maps {
+		if m := &maps[i]; eligible(m) && m.AssignCount == minCount && m.Distance < minDist {
 			minDist = m.Distance
 		}
 	}
 
-	// Pass 4: pick lowest progress among maps within 50m of the minimum distance.
-	// Maps within this band are considered equally close; progress breaks the tie.
+	// Pass 5: among maps within 50m of the minimum distance, which count as
+	// equally close, pick the one with the most left to work.
 	var best *MapWithDistance
 	for i := range maps {
 		m := &maps[i]
-		if m.AssignCount != minCount || math.IsInf(m.Distance, 1) || m.Distance > minDist+50 {
+		if !eligible(m) || m.AssignCount != minCount || m.Distance > minDist+50 {
 			continue
 		}
-		if best == nil || m.Progress < best.Progress {
+		if best == nil || cmp.Or(
+			cmp.Compare(best.Remaining, m.Remaining),
+			cmp.Compare(m.Progress, best.Progress),
+			cmp.Compare(m.Sequence, best.Sequence),
+			cmp.Compare(m.ID, best.ID),
+		) < 0 {
 			best = m
 		}
 	}
@@ -257,26 +353,29 @@ func findBestMap(maps []MapWithDistance, currentLat, currentLong float64) *MapWi
 	return best
 }
 
-// getCongregationExpiryHours gets assignment expiry hours from congregation settings.
-// Results are cached for the process lifetime since expiry_hours changes only via admin action.
-// Defaults to 24 hours if not set.
-func getCongregationExpiryHours(app core.App, congregationId string) (float64, error) {
-	if cached, ok := congregationExpiryCache.Load(congregationId); ok {
-		return cached.(float64), nil
+// getQuicklinkSettings reads the congregation settings a quicklink depends on.
+// Results are cached for the process lifetime since they change only via admin action.
+// expiry_hours defaults to 24 if not set or not positive.
+func getQuicklinkSettings(app core.App, congregationId string) (quicklinkSettings, error) {
+	if cached, ok := quicklinkSettingsCache.Load(congregationId); ok {
+		return cached.(quicklinkSettings), nil
 	}
 
 	congregation, err := app.FindRecordById("congregations", congregationId)
 	if err != nil {
-		return 0, err
+		return quicklinkSettings{}, err
 	}
 
-	hours := congregation.GetFloat("expiry_hours")
-	if hours == 0 {
-		hours = 24
+	settings := quicklinkSettings{
+		expiryHours:         congregation.GetFloat("expiry_hours"),
+		completionThreshold: completionThreshold(congregation),
+	}
+	if settings.expiryHours <= 0 {
+		settings.expiryHours = 24
 	}
 
-	congregationExpiryCache.Store(congregationId, hours)
-	return hours, nil
+	quicklinkSettingsCache.Store(congregationId, settings)
+	return settings, nil
 }
 
 // createAssignment creates a new assignment record linking a user to a map with expiry.
@@ -293,8 +392,8 @@ func createAssignment(app core.App, mapId string, user *core.Record, publisher, 
 	assignment.Set("publisher", publisher)
 	assignment.Set("congregation", congId)
 
-	// Calculate expiry date
-	expiryDate := time.Now().UTC().Add(time.Duration(expiryHours) * time.Hour)
+	// Multiply before converting: expiry_hours may be fractional.
+	expiryDate := time.Now().UTC().Add(time.Duration(expiryHours * float64(time.Hour)))
 	assignment.Set("expiry_date", expiryDate)
 
 	if err := app.Save(assignment); err != nil {

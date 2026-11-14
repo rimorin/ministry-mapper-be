@@ -1,17 +1,16 @@
 package handlers
 
 import (
+	"ministry-mapper/internal/assistant"
+
 	"ganigeorgiev.com/pocketbase/dbx"
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
 	"ganigeorgiev.com/pocketbase/pocketbase/tools/routine"
 	"ganigeorgiev.com/pocketbase/pocketbase/tools/types"
 )
 
-// DefaultCompletionThreshold is the progress a territory needs to count as
-// completed when the congregation has not chosen its own. Below 100 because
-// territories rarely reach it: not-homes short of max tries, and homes that
-// were missed or can't be reached.
-const DefaultCompletionThreshold = 90
+// DefaultCompletionThreshold is shared with the assistant, which reports it.
+const DefaultCompletionThreshold = assistant.DefaultCompletionThreshold
 
 // A territory's coverage is tracked in rounds for the S-13 record. A round starts
 // at round_started_at (creation, a territory reset, or a map reset after the

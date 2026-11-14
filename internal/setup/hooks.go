@@ -35,11 +35,11 @@ func RegisterDomainHooks(app core.App) {
 		return e.Next()
 	})
 
-	// Drop the cached expiry_hours so an admin's change takes effect immediately.
+	// Drop the cached quicklink settings so an admin's change takes effect immediately.
 	// Bound to the after-success hook rather than the update *request* hook so it
 	// also fires for superuser edits made through the PocketBase admin UI.
 	app.OnRecordAfterUpdateSuccess("congregations").BindFunc(func(e *core.RecordEvent) error {
-		handlers.InvalidateCongregationExpiryCache(e.Record.Id)
+		handlers.InvalidateQuicklinkSettingsCache(e.Record.Id)
 		return e.Next()
 	})
 
@@ -63,6 +63,18 @@ func RegisterDomainHooks(app core.App) {
 		e.Record.Set("inactive_final_warning_sent_at", nil)
 		if err := e.App.SaveNoValidate(e.Record); err != nil {
 			log.Printf("warning: error saving last_login for user %s: %v", e.Record.Id, err)
+		}
+		return e.Next()
+	})
+
+	// A disabled account cannot sign in (the users auth rule), but a token
+	// issued before it was disabled would keep working until it expires.
+	// Refreshing the token key cancels every such token, and PocketBase drops
+	// the account from open realtime connections too.
+	app.OnRecordUpdate("users").BindFunc(func(e *core.RecordEvent) error {
+		if original := e.Record.Original(); original != nil &&
+			!original.GetBool("disabled") && e.Record.GetBool("disabled") {
+			e.Record.RefreshTokenKey()
 		}
 		return e.Next()
 	})

@@ -2274,6 +2274,149 @@ func TestAuthHook_RolesUpdateRequest(t *testing.T) {
 	}
 }
 
+// testrolexcng01a is the only administrator of testcongalpha01 in the seed.
+func TestAuthHook_RolesKeepLastAdministrator(t *testing.T) {
+	adminToken, err := generateToken("admin@alpha.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	conductorToken, err := generateToken("conductor@alpha.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	superuserToken, err := generateSuperuserToken("testing_account@ministry-mapper.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lastAdminRefused := []string{`"A congregation must keep at least one administrator."`}
+	lastAdminURL := "/api/collections/roles/records/testrolexcng01a"
+	adminHeaders := map[string]string{"Content-Type": "application/json", "Authorization": adminToken}
+
+	// promoteConductor gives testcongalpha01 a second administrator, optionally disabled.
+	promoteConductor := func(disabled bool) func(testing.TB, *tests.TestApp, *core.ServeEvent) {
+		return func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+			role, err := app.FindRecordById("roles", "testrolexcng01b")
+			if err != nil {
+				t.Fatal(err)
+			}
+			role.Set("role", "administrator")
+			if err := app.Save(role); err != nil {
+				t.Fatal(err)
+			}
+			user, err := app.FindRecordById("users", role.GetString("user"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			user.Set("disabled", disabled)
+			if err := app.Save(user); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	expectRole := func(want string) func(testing.TB, *tests.TestApp, *http.Response) {
+		return func(t testing.TB, app *tests.TestApp, _ *http.Response) {
+			role, err := app.FindRecordById("roles", "testrolexcng01a")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := role.GetString("role"); got != want {
+				t.Fatalf("role = %q, want %q", got, want)
+			}
+		}
+	}
+
+	scenarios := []tests.ApiScenario{
+		{
+			Name:            "last administrator cannot remove their own role",
+			Method:          http.MethodDelete,
+			URL:             lastAdminURL,
+			Headers:         adminHeaders,
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: lastAdminRefused,
+			AfterTestFunc:   expectRole("administrator"),
+		},
+		{
+			Name:            "last administrator cannot be demoted",
+			Method:          http.MethodPatch,
+			URL:             lastAdminURL,
+			Body:            strings.NewReader(`{"role":"conductor"}`),
+			Headers:         adminHeaders,
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: lastAdminRefused,
+			AfterTestFunc:   expectRole("administrator"),
+		},
+		{
+			Name:            "last administrator can save the role unchanged",
+			Method:          http.MethodPatch,
+			URL:             lastAdminURL,
+			Body:            strings.NewReader(`{"role":"administrator"}`),
+			Headers:         adminHeaders,
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"testrolexcng01a"`},
+		},
+		{
+			Name:   "conductor still gets 403, not the last-administrator error",
+			Method: http.MethodDelete,
+			URL:    lastAdminURL,
+			Headers: map[string]string{
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  403,
+			ExpectedContent: []string{`"Administrator access required."`},
+		},
+		{
+			Name:           "administrator can be removed while another administrator remains",
+			Method:         http.MethodDelete,
+			URL:            lastAdminURL,
+			Headers:        adminHeaders,
+			BeforeTestFunc: promoteConductor(false),
+			TestAppFactory: setupTestApp,
+			ExpectedStatus: 204,
+		},
+		{
+			Name:            "administrator can be demoted while another administrator remains",
+			Method:          http.MethodPatch,
+			URL:             lastAdminURL,
+			Body:            strings.NewReader(`{"role":"conductor"}`),
+			Headers:         adminHeaders,
+			BeforeTestFunc:  promoteConductor(false),
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"role":"conductor"`},
+			AfterTestFunc:   expectRole("conductor"),
+		},
+		{
+			Name:            "a disabled administrator does not count as remaining",
+			Method:          http.MethodDelete,
+			URL:             lastAdminURL,
+			Headers:         adminHeaders,
+			BeforeTestFunc:  promoteConductor(true),
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: lastAdminRefused,
+		},
+		{
+			Name:   "superuser can remove the last administrator",
+			Method: http.MethodDelete,
+			URL:    lastAdminURL,
+			Headers: map[string]string{
+				"Authorization": superuserToken,
+			},
+			TestAppFactory: setupTestApp,
+			ExpectedStatus: 204,
+		},
+	}
+
+	for _, scenario := range scenarios {
+		scenario.Test(t)
+	}
+}
+
 func TestAuthHook_CongregationsUpdateRequest(t *testing.T) {
 	adminToken, err := generateToken("admin@alpha.test")
 	if err != nil {

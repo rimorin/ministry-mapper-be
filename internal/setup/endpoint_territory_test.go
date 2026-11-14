@@ -4,6 +4,7 @@ package setup
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -239,6 +240,124 @@ func TestHandleTerritoryQuicklink(t *testing.T) {
 	betaAdminToken, err := generateToken("admin@beta.test")
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	quicklinkBody := `{"territory":"testterralpha01","coordinates":{"lat":1.3521,"lng":103.8198},"publisher":"Test Publisher"}`
+	quicklinkHeaders := map[string]string{
+		"Content-Type":  "application/json",
+		"Authorization": conductorToken,
+	}
+	// The four maps of testterralpha01.
+	const mapA, mapB, mapC, mapD = "testmapalpha01a", "testmapalpha01b", "testmapalphsc01", "testmapalphcf01"
+	atUser := map[string]float64{"lat": 1.3521, "lng": 103.8198}
+	near30m := map[string]float64{"lat": 1.35237, "lng": 103.8198}
+	away100m := map[string]float64{"lat": 1.3530, "lng": 103.8198}
+	remaining := func(notDone, notHome int) map[string]any {
+		return map[string]any{"notDone": notDone, "notHome": notHome, "done": 5, "dnc": 0, "invalid": 0, "completed": 5, "total": notDone + notHome + 5}
+	}
+	setMap := func(t testing.TB, app *tests.TestApp, id string, fields map[string]any) {
+		rec, err := app.FindRecordById("maps", id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for k, v := range fields {
+			rec.Set(k, v)
+		}
+		if err := app.SaveNoValidate(rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	assign := func(t testing.TB, app *tests.TestApp, mapID string) {
+		col, err := app.FindCollectionByNameOrId("assignments")
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec := core.NewRecord(col)
+		rec.Set("map", mapID)
+		rec.Set("congregation", "testcongalpha01")
+		rec.Set("user", "testuseralpha02")
+		rec.Set("type", "normal")
+		rec.Set("publisher", "Busy Publisher")
+		rec.Set("expiry_date", time.Now().UTC().Add(24*time.Hour).Format("2006-01-02 15:04:05.000Z"))
+		if err := app.SaveNoValidate(rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Saving through the app fires the hook that drops the cached settings, which
+	// otherwise outlive each scenario's fresh database.
+	setThreshold := func(t testing.TB, app *tests.TestApp, threshold int) {
+		cong, err := app.FindRecordById("congregations", "testcongalpha01")
+		if err != nil {
+			t.Fatal(err)
+		}
+		cong.Set("completion_threshold", threshold)
+		if err := app.Save(cong); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A is idle, where the caller stands and at progressA with addresses left; B is
+	// further away, has a publisher and plenty left. C and D are done.
+	nearlyDoneVersusBusy := func(t testing.TB, app *tests.TestApp, progressA int) {
+		setMap(t, app, mapA, map[string]any{"coordinates": atUser, "progress": progressA, "aggregates": remaining(4, 2)})
+		setMap(t, app, mapB, map[string]any{"coordinates": away100m, "progress": 40, "aggregates": remaining(30, 0)})
+		setMap(t, app, mapC, map[string]any{"coordinates": atUser, "progress": 100, "aggregates": remaining(0, 0)})
+		setMap(t, app, mapD, map[string]any{"coordinates": atUser, "progress": 100, "aggregates": remaining(0, 0)})
+		assign(t, app, mapB)
+	}
+	hoursAgo := func(h float64) string {
+		return time.Now().UTC().Add(-time.Duration(h * float64(time.Hour))).Format("2006-01-02 15:04:05.000Z")
+	}
+	// A is where the caller stands and holds one link from an earlier session,
+	// minted linkAge hours ago under the congregation's expiryHours, with the last
+	// address on A worked workAge hours ago (none when negative). B is idle, ~100 m
+	// away; C and D are in use. The caller gets B while A's link still counts
+	// towards its workload, and A once it no longer does.
+	earlierSessionLink := func(t testing.TB, app *tests.TestApp, expiryHours, linkAge, workAge float64) {
+		cong, err := app.FindRecordById("congregations", "testcongalpha01")
+		if err != nil {
+			t.Fatal(err)
+		}
+		cong.Set("expiry_hours", expiryHours)
+		if err := app.Save(cong); err != nil {
+			t.Fatal(err)
+		}
+
+		setMap(t, app, mapA, map[string]any{"coordinates": atUser})
+		for _, id := range []string{mapB, mapC, mapD} {
+			setMap(t, app, id, map[string]any{"coordinates": away100m})
+		}
+		for _, id := range []string{mapA, mapC, mapD} {
+			assign(t, app, id)
+		}
+
+		exec := func(query string, params dbx.Params) {
+			if _, err := app.DB().NewQuery(query).Bind(params).Execute(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		exec("UPDATE assignments SET created = {:created}, expiry_date = {:expiry} WHERE map = {:map}",
+			dbx.Params{"created": hoursAgo(linkAge), "expiry": hoursAgo(linkAge - expiryHours), "map": mapA})
+		exec("DELETE FROM addresses_log", nil)
+		if workAge >= 0 {
+			exec(`INSERT INTO addresses_log (id, map, congregation, old_status, new_status, created, updated)
+				VALUES ('worklogmapa0001', {:map}, 'testcongalpha01', 'not_done', 'done', {:at}, {:at})`,
+				dbx.Params{"map": mapA, "at": hoursAgo(workAge)})
+		}
+	}
+	// The link must be minted on the map the response names.
+	linkedMap := func(t testing.TB, app *tests.TestApp, res *http.Response) string {
+		raw, _ := io.ReadAll(res.Body)
+		var out struct {
+			LinkID string `json:"linkId"`
+		}
+		if err := json.Unmarshal(raw, &out); err != nil || out.LinkID == "" {
+			t.Fatalf("no linkId in response: %v body=%s", err, raw)
+		}
+		assignment, err := app.FindRecordById("assignments", out.LinkID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return assignment.GetString("map")
 	}
 
 	scenarios := []tests.ApiScenario{
@@ -491,6 +610,61 @@ func TestHandleTerritoryQuicklink(t *testing.T) {
 			ExpectedContent: []string{`"Publisher is required."`},
 		},
 		{
+			Name:            "whitespace-only publisher returns 400",
+			Method:          http.MethodPost,
+			URL:             "/territory/link",
+			Body:            strings.NewReader(`{"territory":"testterralpha01","coordinates":{"lat":1.3521,"lng":103.8198},"publisher":"   "}`),
+			Headers:         quicklinkHeaders,
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`"Publisher is required."`},
+		},
+		{
+			Name:            "publisher name is stored without surrounding spaces",
+			Method:          http.MethodPost,
+			URL:             "/territory/link",
+			Body:            strings.NewReader(`{"territory":"testterralpha01","coordinates":{"lat":1.3521,"lng":103.8198},"publisher":"  Alice  "}`),
+			Headers:         quicklinkHeaders,
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"linkId"`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				if _, err := app.FindFirstRecordByFilter("assignments", "publisher = 'Alice'"); err != nil {
+					t.Errorf("expected an assignment for publisher 'Alice': %v", err)
+				}
+			},
+		},
+		{
+			Name:            "latitude above 90 returns 400",
+			Method:          http.MethodPost,
+			URL:             "/territory/link",
+			Body:            strings.NewReader(`{"territory":"testterralpha01","coordinates":{"lat":90.01,"lng":103.8198},"publisher":"Test Publisher"}`),
+			Headers:         quicklinkHeaders,
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`"Invalid latitude value."`},
+		},
+		{
+			Name:            "longitude below -180 returns 400",
+			Method:          http.MethodPost,
+			URL:             "/territory/link",
+			Body:            strings.NewReader(`{"territory":"testterralpha01","coordinates":{"lat":1.3521,"lng":-180.01},"publisher":"Test Publisher"}`),
+			Headers:         quicklinkHeaders,
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`"Invalid longitude value."`},
+		},
+		{
+			Name:            "coordinates on the edge of the valid range are accepted",
+			Method:          http.MethodPost,
+			URL:             "/territory/link",
+			Body:            strings.NewReader(`{"territory":"testterralpha01","coordinates":{"lat":-90,"lng":180},"publisher":"Test Publisher"}`),
+			Headers:         quicklinkHeaders,
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"linkId"`},
+		},
+		{
 			Name:   "nonexistent territory returns 404",
 			Method: http.MethodPost,
 			URL:    "/territory/link",
@@ -664,6 +838,536 @@ func TestHandleTerritoryQuicklink(t *testing.T) {
 			TestAppFactory:  setupTestApp,
 			ExpectedStatus:  200,
 			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+
+		{
+			// A is finished, idle and right where the caller stands; B still has work
+			// but is further away and already has a publisher. C and D are finished too.
+			Name:    "map selection: finished map is not offered while another has work",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				setMap(t, app, mapA, map[string]any{"coordinates": atUser, "progress": 100, "aggregates": remaining(0, 0)})
+				setMap(t, app, mapB, map[string]any{"coordinates": away100m, "progress": 40, "aggregates": remaining(2, 1)})
+				setMap(t, app, mapC, map[string]any{"coordinates": atUser, "progress": 100, "aggregates": remaining(0, 0)})
+				setMap(t, app, mapD, map[string]any{"coordinates": atUser, "progress": 100, "aggregates": remaining(0, 0)})
+				assign(t, app, mapB)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`, `"not_done":2`, `"not_home":1`, `"assignees":["Busy Publisher"]`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				if got := linkedMap(t, app, res); got != mapB {
+					t.Errorf("link minted on %s, want %s", got, mapB)
+				}
+			},
+		},
+		{
+			// Nothing left anywhere: the caller still gets a link, to the closest idle map.
+			Name:    "map selection: fully finished territory still returns a map",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				setMap(t, app, mapA, map[string]any{"coordinates": away100m, "progress": 100, "aggregates": remaining(0, 0)})
+				setMap(t, app, mapB, map[string]any{"coordinates": atUser, "progress": 100, "aggregates": remaining(0, 0)})
+				setMap(t, app, mapC, map[string]any{"coordinates": atUser, "progress": 100, "aggregates": remaining(0, 0)})
+				setMap(t, app, mapD, map[string]any{"coordinates": away100m, "progress": 100, "aggregates": remaining(0, 0)})
+				assign(t, app, mapC)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+		{
+			// A (10 left, untouched) is where the caller stands; B (100 left, half done)
+			// is ~30 m away, inside the band. The larger amount of work wins.
+			Name:    "map selection: more remaining work wins within 50 m band",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				setMap(t, app, mapA, map[string]any{"coordinates": atUser, "progress": 0, "aggregates": remaining(10, 0)})
+				setMap(t, app, mapB, map[string]any{"coordinates": near30m, "progress": 50, "aggregates": remaining(90, 10)})
+				setMap(t, app, mapC, map[string]any{"coordinates": away100m, "progress": 0, "aggregates": remaining(500, 0)})
+				setMap(t, app, mapD, map[string]any{"coordinates": away100m, "progress": 0, "aggregates": remaining(500, 0)})
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+		{
+			// No map in the territory has a pin. The request must still succeed.
+			Name:    "map selection: territory without any coordinates still returns a map",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				setMap(t, app, mapA, map[string]any{"coordinates": nil, "aggregates": remaining(3, 0)})
+				setMap(t, app, mapB, map[string]any{"coordinates": nil, "aggregates": remaining(9, 0)})
+				setMap(t, app, mapC, map[string]any{"coordinates": nil, "aggregates": remaining(3, 0)})
+				setMap(t, app, mapD, map[string]any{"coordinates": nil, "aggregates": remaining(3, 0)})
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+		{
+			// B is the only idle map and has no pin; the located maps each have a
+			// publisher. Workload decides, so B is handed out.
+			Name:    "map selection: idle map without coordinates beats located busy maps",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				setMap(t, app, mapB, map[string]any{"coordinates": nil})
+				for _, id := range []string{mapA, mapC, mapD} {
+					setMap(t, app, id, map[string]any{"coordinates": atUser})
+					assign(t, app, id)
+				}
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+		{
+			// With equal workload a map without a pin ranks behind any located one,
+			// however far that one is.
+			Name:    "map selection: located map beats map without coordinates on equal workload",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				setMap(t, app, mapA, map[string]any{"coordinates": nil, "progress": 0})
+				setMap(t, app, mapB, map[string]any{"coordinates": map[string]float64{"lat": 1.40, "lng": 103.9}, "progress": 80})
+				setMap(t, app, mapC, map[string]any{"coordinates": nil, "progress": 0})
+				setMap(t, app, mapD, map[string]any{"coordinates": nil, "progress": 0})
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+
+		{
+			Name:    "completion threshold: map just below the threshold is still offered",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				setThreshold(t, app, 90)
+				nearlyDoneVersusBusy(t, app, 89)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100A"`},
+		},
+		{
+			Name:    "completion threshold: map at the threshold is set aside for one with work",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				setThreshold(t, app, 90)
+				nearlyDoneVersusBusy(t, app, 90)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, res *http.Response) {
+				if got := linkedMap(t, app, res); got != mapB {
+					t.Errorf("link minted on %s, want %s", got, mapB)
+				}
+			},
+		},
+		{
+			// The same 97% map is offered once the congregation asks for full coverage.
+			Name:    "completion threshold: raising it to 100 offers the 97% map again",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				setThreshold(t, app, 100)
+				nearlyDoneVersusBusy(t, app, 97)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100A"`},
+		},
+		{
+			// A lower threshold sets aside more: 70% is finished at a threshold of 60.
+			Name:    "completion threshold: lowering it sets aside a map that was offered before",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				setThreshold(t, app, 60)
+				nearlyDoneVersusBusy(t, app, 70)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+		{
+			// Every map is past the threshold, so the leftovers are offered again:
+			// idle before busy, then nearest, then most left. Runs last of this group
+			// so the process-wide settings cache is left at the seeded threshold.
+			Name:    "completion threshold: territory entirely past it still returns a map",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				setThreshold(t, app, 90)
+				setMap(t, app, mapA, map[string]any{"coordinates": atUser, "progress": 99, "aggregates": remaining(1, 0)})
+				setMap(t, app, mapB, map[string]any{"coordinates": near30m, "progress": 95, "aggregates": remaining(8, 2)})
+				setMap(t, app, mapC, map[string]any{"coordinates": atUser, "progress": 91, "aggregates": remaining(40, 0)})
+				setMap(t, app, mapD, map[string]any{"coordinates": away100m, "progress": 92, "aggregates": remaining(40, 0)})
+				assign(t, app, mapC)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`, `"not_done":8`, `"not_home":2`},
+		},
+
+		{
+			// A, C and D are where the caller stands and all in use; B is idle but 2 km away.
+			Name:    "detour limit: caller shares the nearby map instead of walking 2 km to an idle one",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				setMap(t, app, mapA, map[string]any{"coordinates": atUser})
+				setMap(t, app, mapB, map[string]any{"coordinates": map[string]float64{"lat": 1.370086, "lng": 103.8198}})
+				setMap(t, app, mapC, map[string]any{"coordinates": atUser})
+				setMap(t, app, mapD, map[string]any{"coordinates": atUser})
+				assign(t, app, mapA)
+				for _, id := range []string{mapC, mapC, mapD, mapD} {
+					assign(t, app, id)
+				}
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100A"`},
+		},
+		{
+			Name:    "detour limit: idle map 250 m away is still preferred over sharing",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				setMap(t, app, mapA, map[string]any{"coordinates": atUser})
+				setMap(t, app, mapB, map[string]any{"coordinates": map[string]float64{"lat": 1.354348, "lng": 103.8198}})
+				setMap(t, app, mapC, map[string]any{"coordinates": atUser})
+				setMap(t, app, mapD, map[string]any{"coordinates": atUser})
+				for _, id := range []string{mapA, mapC, mapD} {
+					assign(t, app, id)
+				}
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+
+		// --- Sessions through the day ---
+		//
+		// Production links are minted in two waves, mid-morning and evening, about
+		// ten hours apart, and the map is typically last worked under two hours
+		// after its link was minted. Congregations run 24, 12, 6, 4 and 3 hour links.
+
+		{
+			Name:    "sessions: 24 h links, fresh link counts before any address is worked",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				earlierSessionLink(t, app, 24, 1, -1)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+		{
+			Name:    "sessions: 24 h links, link just inside the 6 h cap still counts",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				earlierSessionLink(t, app, 24, 5, -1)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+		{
+			// Seven hours is inside half of the 24 h lifetime but past the cap.
+			Name:    "sessions: 24 h links, link just past the 6 h cap is not counted",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				earlierSessionLink(t, app, 24, 7, -1)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100A"`},
+		},
+
+		{
+			// Half of 24 h would keep the morning link counting; the 6 h cap does not.
+			Name:    "sessions: 24 h links, evening group gets the map the morning publisher left",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				earlierSessionLink(t, app, 24, 10, 8.2)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100A"`},
+		},
+		{
+			Name:    "sessions: 24 h links, morning publisher back at work in the evening counts again",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				earlierSessionLink(t, app, 24, 10, 0.2)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+		{
+			// Activity renews the window: last worked five hours ago, link ten hours old.
+			Name:    "sessions: 24 h links, map worked through the day keeps its link counting",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				earlierSessionLink(t, app, 24, 10, 5)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+		{
+			// The link is still valid for two more hours but its 6 h window has passed.
+			Name:    "sessions: 12 h links, evening group gets the map the morning publisher left",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				earlierSessionLink(t, app, 12, 10, 8.2)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100A"`},
+		},
+		{
+			Name:    "sessions: 12 h links, morning link counts again when the map is still being worked",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				earlierSessionLink(t, app, 12, 10, 0.5)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+		{
+			Name:    "sessions: 6 h links, morning link has expired by the evening",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				earlierSessionLink(t, app, 6, 10, 8.2)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100A"`},
+		},
+		{
+			Name:    "sessions: 3 h links, link from two hours ago with no work since is stale",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				earlierSessionLink(t, app, 3, 2, 1.8)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100A"`},
+		},
+		{
+			Name:    "sessions: 3 h links, link from an hour ago still counts",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				earlierSessionLink(t, app, 3, 1, -1)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+		{
+			// The known cost of a 6 h window: the publisher left hours ago.
+			Name:    "sessions: 24 h links, afternoon group is still steered away five hours on",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				earlierSessionLink(t, app, 24, 5, 3.2)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+		{
+			// Runs last of this group so the process-wide settings cache is left at the seeded 24 h.
+			Name:    "sessions: 24 h links, yesterday's link is stale the next morning",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				earlierSessionLink(t, app, 24, 23, 21)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100A"`},
+		},
+
+		// --- Shapes found in production data ---
+
+		{
+			Name:    "production data: personal link does not make a map look busy",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				setMap(t, app, mapA, map[string]any{"coordinates": atUser})
+				setMap(t, app, mapB, map[string]any{"coordinates": away100m})
+				setMap(t, app, mapC, map[string]any{"coordinates": away100m})
+				setMap(t, app, mapD, map[string]any{"coordinates": away100m})
+				assign(t, app, mapA)
+				if _, err := app.DB().NewQuery("UPDATE assignments SET type = 'personal' WHERE map = {:map}").Bind(dbx.Params{"map": mapA}).Execute(); err != nil {
+					t.Fatal(err)
+				}
+				assign(t, app, mapC)
+				assign(t, app, mapD)
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100A"`},
+		},
+		{
+			// Older maps store notDone and notHome as 0 beside a correct completed/total.
+			Name:    "production data: map with stale per-status counts but work left is offered",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				setMap(t, app, mapA, map[string]any{"coordinates": atUser, "progress": 0, "aggregates": map[string]any{"notDone": 0, "notHome": 0, "dnc": 0, "invalid": 0, "done": 0, "completed": 0, "total": 360}})
+				setMap(t, app, mapB, map[string]any{"coordinates": away100m, "progress": 40, "aggregates": remaining(30, 0)})
+				setMap(t, app, mapC, map[string]any{"coordinates": away100m, "progress": 100, "aggregates": remaining(0, 0)})
+				setMap(t, app, mapD, map[string]any{"coordinates": away100m, "progress": 100, "aggregates": remaining(0, 0)})
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100A"`},
+		},
+		{
+			Name:    "production data: map storing only completed and total is ranked by what is left",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				setMap(t, app, mapA, map[string]any{"coordinates": atUser, "progress": 10, "aggregates": remaining(9, 0)})
+				setMap(t, app, mapB, map[string]any{"coordinates": near30m, "progress": 30, "aggregates": map[string]any{"completed": 12, "total": 40}})
+				setMap(t, app, mapC, map[string]any{"coordinates": away100m, "progress": 0, "aggregates": remaining(500, 0)})
+				setMap(t, app, mapD, map[string]any{"coordinates": away100m, "progress": 0, "aggregates": remaining(500, 0)})
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+		{
+			Name:    "production data: newly created map without aggregates is offered",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				setMap(t, app, mapA, map[string]any{"coordinates": atUser, "progress": 0, "aggregates": nil})
+				setMap(t, app, mapB, map[string]any{"coordinates": away100m, "progress": 100, "aggregates": remaining(0, 0)})
+				setMap(t, app, mapC, map[string]any{"coordinates": away100m, "progress": 95, "aggregates": remaining(5, 0)})
+				setMap(t, app, mapD, map[string]any{"coordinates": away100m, "progress": 100, "aggregates": remaining(0, 0)})
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100A"`},
+		},
+		{
+			Name:    "production data: territory past the threshold offers a map with addresses left, not a done one",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				setMap(t, app, mapA, map[string]any{"coordinates": atUser, "progress": 100, "aggregates": remaining(0, 0)})
+				setMap(t, app, mapB, map[string]any{"coordinates": away100m, "progress": 96, "aggregates": remaining(3, 1)})
+				setMap(t, app, mapC, map[string]any{"coordinates": atUser, "progress": 100, "aggregates": remaining(0, 0)})
+				setMap(t, app, mapD, map[string]any{"coordinates": atUser, "progress": 100, "aggregates": remaining(0, 0)})
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+		},
+		{
+			// Identical pin, size and progress: the map first in the territory's order wins.
+			Name:    "production data: maps of one block sharing a pin are handed out in territory order",
+			Method:  http.MethodPost,
+			URL:     "/territory/link",
+			Body:    strings.NewReader(quicklinkBody),
+			Headers: quicklinkHeaders,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				for i, id := range []string{mapD, mapC, mapB, mapA} {
+					setMap(t, app, id, map[string]any{"coordinates": atUser, "progress": 0, "aggregates": remaining(96, 0), "sequence": i + 1})
+				}
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"mapName":"Multi Floor Blk"`},
 		},
 
 		// --- Co-assignee scenarios ---

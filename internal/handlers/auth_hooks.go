@@ -51,6 +51,41 @@ func adminOnly(e *core.RecordRequestEvent, app core.App, congId string) error {
 	return e.Next()
 }
 
+// keepLastAdministrator refuses a role update or delete that would leave the role's
+// congregation without an enabled administrator: only an administrator can grant
+// roles, so nobody but a superuser could restore access. Bind it after adminOnly so
+// a caller without access gets a 403 and learns nothing about the other roles.
+func keepLastAdministrator(e *core.RecordRequestEvent, app core.App, deleting bool) error {
+	if e.HasSuperuserAuth() {
+		return e.Next()
+	}
+	original := e.Record.Original()
+	if original.GetString("role") != "administrator" {
+		return e.Next()
+	}
+	congId := original.GetString("congregation")
+	if !deleting && e.Record.GetString("role") == "administrator" && e.Record.GetString("congregation") == congId {
+		return e.Next()
+	}
+
+	var others struct {
+		N int `db:"n"`
+	}
+	err := app.DB().NewQuery(`
+		SELECT COUNT(*) AS n FROM roles r
+		JOIN users u ON u.id = r.user
+		WHERE r.congregation = {:congregation} AND r.role = 'administrator'
+		  AND r.id != {:id} AND u.disabled = FALSE
+	`).Bind(dbx.Params{"congregation": congId, "id": original.Id}).One(&others)
+	if err != nil {
+		return newServerError(err)
+	}
+	if others.N == 0 {
+		return apis.NewBadRequestError("A congregation must keep at least one administrator", nil)
+	}
+	return e.Next()
+}
+
 // adminOrConductor authorizes if the user is an administrator or conductor for the congregation.
 func adminOrConductor(e *core.RecordRequestEvent, app core.App, congId string) error {
 	if e.HasSuperuserAuth() {
@@ -761,8 +796,14 @@ func RegisterAuthHooks(app core.App) {
 	app.OnRecordUpdateRequest("roles").BindFunc(func(e *core.RecordRequestEvent) error {
 		return adminOnly(e, app, getCongId(e, true))
 	})
+	app.OnRecordUpdateRequest("roles").BindFunc(func(e *core.RecordRequestEvent) error {
+		return keepLastAdministrator(e, app, false)
+	})
 	app.OnRecordDeleteRequest("roles").BindFunc(func(e *core.RecordRequestEvent) error {
 		return adminOnly(e, app, getCongId(e, true))
+	})
+	app.OnRecordDeleteRequest("roles").BindFunc(func(e *core.RecordRequestEvent) error {
+		return keepLastAdministrator(e, app, true)
 	})
 
 	// territories create/update/delete

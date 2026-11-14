@@ -4,6 +4,7 @@ package setup
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -36,6 +37,21 @@ func TestEndpointBodyValidation(t *testing.T) {
 			`{"territory":"testterralpha01","type":"single","floors":1,"congregation":"testcongalpha01","coordinates":"","sequence":"1"}`,
 			`"Name is required."`},
 		{"map/add empty body", "/map/add", `{}`, `"Territory is required."`},
+		{"map/add too many floors", "/map/add",
+			`{"territory":"testterralpha01","type":"multi","floors":1200,"name":"X","congregation":"testcongalpha01","sequence":"1"}`,
+			`"Floors must be at most 100."`},
+		{"map/add floor 0 start", "/map/add",
+			`{"territory":"testterralpha01","type":"multi","floors":3,"start_floor":0,"name":"X","congregation":"testcongalpha01","sequence":"1"}`,
+			`"Start_floor must be between -10 and 100, and not 0."`},
+		{"map/add start floor on houses", "/map/add",
+			`{"territory":"testterralpha01","type":"single","floors":1,"start_floor":2,"name":"X","congregation":"testcongalpha01","sequence":"1"}`,
+			`"A single map has no start floor."`},
+		{"map/add too many homes", "/map/add",
+			`{"territory":"testterralpha01","type":"multi","floors":100,"name":"X","congregation":"testcongalpha01","sequence":"` + units(60) + `"}`,
+			`"A map may have at most 5000 homes."`},
+		{"map/add duplicate unit", "/map/add",
+			`{"territory":"testterralpha01","type":"single","floors":1,"name":"X","congregation":"testcongalpha01","sequence":"1,2,1"}`,
+			`"Duplicate unit in sequence: '1'."`},
 		{"map/add wrong type for floors", "/map/add",
 			`{"territory":"testterralpha01","type":"single","floors":"lots","name":"X","congregation":"testcongalpha01","sequence":"1"}`,
 			`"Invalid request body."`},
@@ -90,4 +106,13 @@ func TestEndpointBodyValidation(t *testing.T) {
 		}
 		scenario.Test(t)
 	}
+}
+
+// units lists n unit codes, 1 to n.
+func units(n int) string {
+	codes := make([]string, n)
+	for i := range codes {
+		codes[i] = strconv.Itoa(i + 1)
+	}
+	return strings.Join(codes, ",")
 }
