@@ -65,6 +65,11 @@ func ValidImage(image string) bool {
 
 var readerTimeout = 45 * time.Second
 
+// maxReadingTokens bounds the reader's reply: a block of 96 homes took about
+// 750, so this leaves room for one several times larger. A reading cut off by
+// it is reported to the admin as a photo that could not be read.
+const maxReadingTokens = 12000
+
 // reading is what the reader saw.
 type reading struct {
 	Kind    string         `json:"kind"`
@@ -162,7 +167,8 @@ func readImage(ctx context.Context, chat Responder, question, image string) (rea
 				responses.EasyInputMessageRoleUser,
 			),
 		}},
-		Reasoning: shared.ReasoningParam{Effort: ReasoningEffort},
+		MaxOutputTokens: openai.Int(maxReadingTokens),
+		Reasoning:       shared.ReasoningParam{Effort: ReasoningEffort},
 		Text: responses.ResponseTextConfigParam{
 			Format: responses.ResponseFormatTextConfigUnionParam{OfJSONSchema: &readingFormat},
 		},

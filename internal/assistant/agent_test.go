@@ -393,3 +393,22 @@ func TestParseAnswer_KeepsTheFirstOfTwo(t *testing.T) {
 		t.Fatal("an answer that is not JSON must still fail")
 	}
 }
+
+// The prompt's own examples ("up to 3 follow-up questions", "T01") are not
+// figures the data holds, so an answer may not quote them.
+func TestAsk_DoesNotTakeFiguresFromThePromptsExamples(t *testing.T) {
+	chat := &scriptedChat{t: t, replies: []string{
+		final("3 territories are overdue.", true),
+		final("3 territories are overdue.", true),
+	}}
+	if resp := ask(t, chat, "Which territories are overdue?"); resp.Grounded {
+		t.Fatalf("an answer quoting a number only the prompt holds was accepted: %+v", resp)
+	}
+	// Today's date and the default period the prompt tells it to assume still are.
+	chat = &scriptedChat{t: t, replies: []string{
+		final("Nothing was recorded in the last 30 days, up to "+testNow.Format("2 January 2006")+".", true),
+	}}
+	if resp := ask(t, chat, "Any visits lately?"); !resp.Grounded {
+		t.Fatalf("an answer quoting today's date and the default period was dropped: %+v", resp)
+	}
+}
