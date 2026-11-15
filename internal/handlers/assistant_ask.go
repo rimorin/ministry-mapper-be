@@ -286,7 +286,7 @@ func loggedHistory(app core.App, conversationID, userID, congregationID string) 
 		// The photo is never kept, so a follow-up works from its logged reading.
 		var steps []assistant.Step
 		_ = json.Unmarshal([]byte(rows[i].Steps), &steps)
-		turns = append(turns, assistant.Turn{Question: rows[i].Question + assistant.PhotoNote(steps), Answer: answer})
+		turns = append(turns, assistant.Turn{Question: rows[i].Question, Photo: assistant.PhotoNote(steps), Answer: answer})
 	}
 	return turns, nil
 }

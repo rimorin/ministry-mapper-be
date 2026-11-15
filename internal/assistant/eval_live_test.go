@@ -128,7 +128,7 @@ func TestLiveEval(t *testing.T) {
 			// As the panel does: only grounded answers become history.
 			if err == nil && resp.Grounded {
 				// As the route does: a later question is told what the photo read.
-				history = append(history, Turn{Question: question + PhotoNote(resp.Steps), Answer: resp.Context})
+				history = append(history, Turn{Question: question, Photo: PhotoNote(resp.Steps), Answer: resp.Context})
 				maps.Copy(people, resp.People)
 			}
 			return resp, err

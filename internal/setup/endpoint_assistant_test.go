@@ -249,12 +249,15 @@ func TestAssistantAsk(t *testing.T) {
 	t.Run("a photo that is not one", func(t *testing.T) {
 		t.Setenv("ASSISTANT_ENABLED", "true")
 		useChatter(t, answeringChat{})
-		for _, image := range []string{"https://example.com/photo.jpg", "data:image/svg+xml;base64,PHN2Zz4="} {
+		for _, image := range []string{
+			"https://example.com/photo.jpg", "data:image/svg+xml;base64,PHN2Zz4=",
+			"data:image/jpeg;base64,dGhpcyBpcyBub3QgYSBqcGVnIGZpbGU=", // text called a JPEG
+		} {
 			body, _ := json.Marshal(map[string]any{
 				"congregation": "testcongalpha01", "question": "What is this?", "locale": "en", "image": image,
 			})
 			(&tests.ApiScenario{
-				Name:            "refused before any model call: " + image[:16],
+				Name:            "refused before any model call: " + image[:min(len(image), 30)],
 				Method:          http.MethodPost,
 				URL:             "/assistant/ask",
 				Body:            strings.NewReader(string(body)),
