@@ -16,8 +16,8 @@ import (
 )
 
 // unitConstants are the numbers a calculation may use without the data holding
-// them: percentages and units of time.
-const unitConstants = "1 2 7 10 12 24 30 31 52 60 100 365"
+// them: percentages and units of time, and the 4 weeks an estimate is based on.
+const unitConstants = "1 2 4 7 10 12 24 30 31 52 60 100 365"
 
 const maxExpressionLength = 200
 

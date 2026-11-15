@@ -39,6 +39,9 @@ const (
 	// MaxHistory is how many earlier turns are sent as context. Most of each
 	// request is read from OpenAI's cache, so a longer memory costs little.
 	MaxHistory = 8
+	// maxAnswerTokens bounds one reply, reasoning included: several times the
+	// longest seen (ten new maps with their units), so only a runaway reply is cut.
+	maxAnswerTokens = 6000
 )
 
 // Tools is every query function the model may call.
@@ -236,7 +239,7 @@ func Ask(ctx context.Context, chat Responder, s Scope, req Request) (Response, e
 
 	var source strings.Builder // everything the model may quote figures from
 	system := systemPrompt(s)
-	source.WriteString(system)
+	source.WriteString(quotable(s))
 	input := responses.ResponseInputParam{}
 	for _, turn := range req.History {
 		input = append(input,
@@ -280,8 +283,9 @@ func Ask(ctx context.Context, chat Responder, s Scope, req Request) (Response, e
 			Input:        responses.ResponseNewParamsInputUnion{OfInputItemList: input},
 			// The functions stay listed on every call, so the cached start of the
 			// request stays the same; tool_choice none makes the model answer.
-			Tools:     tools,
-			Reasoning: shared.ReasoningParam{Effort: ReasoningEffort},
+			Tools:           tools,
+			MaxOutputTokens: openai.Int(maxAnswerTokens),
+			Reasoning:       shared.ReasoningParam{Effort: ReasoningEffort},
 			Text: responses.ResponseTextConfigParam{
 				Format: responses.ResponseFormatTextConfigUnionParam{OfJSONSchema: &answerFormat},
 			},
@@ -332,6 +336,9 @@ func Ask(ctx context.Context, chat Responder, s Scope, req Request) (Response, e
 		for i, tc := range calls {
 			output := fmt.Sprintf(`{"error":"too many functions in one reply; call at most %d at a time"}`, maxCallsPerRound)
 			if i < maxCallsPerRound {
+				// What the model asked for is quotable too: "in the last 90
+				// days" is true of a query it made with 90.
+				source.WriteString(tc.Arguments + "\n")
 				s.seen = source.String()
 				step, out, err := runTool(s, people, tc.Name, tc.Arguments)
 				if err != nil {
