@@ -1386,5 +1386,34 @@
     "contains": [
       "77"
     ]
+  },
+  {
+    "question": "Create a map from this photo in T01",
+    "photo": "birthday.jpg",
+    "tools": [
+      "read_image"
+    ],
+    "not_tools": [
+      "propose_maps_create",
+      "propose_territory_create"
+    ]
+  },
+  {
+    "question": "Create a map from this photo in T01",
+    "photo": "receipt.jpg",
+    "tools": [
+      "read_image"
+    ],
+    "not_tools": [
+      "propose_maps_create",
+      "propose_territory_create"
+    ]
+  },
+  {
+    "question": "How is this territory doing?",
+    "photo": "birthday.jpg",
+    "tools": [
+      "read_image"
+    ]
   }
 ]

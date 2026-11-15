@@ -73,6 +73,10 @@ var NewResponder = func() Responder {
 type Turn struct {
 	Question string `json:"question"`
 	Answer   string `json:"answer"`
+	// Photo is what was read from a photo the question carried (PhotoNote), or
+	// "". It is kept apart from the question so it is never clipped with it: a
+	// reading cut short would build a map with floors missing.
+	Photo string `json:"-"`
 }
 
 type Request struct {
@@ -227,6 +231,7 @@ func Ask(ctx context.Context, chat Responder, s Scope, req Request) (Response, e
 	req.Question = s.mask.apply(req.Question, people)
 	for i := range req.History {
 		req.History[i].Question = s.mask.apply(req.History[i].Question, people)
+		req.History[i].Photo = s.mask.apply(req.History[i].Photo, people)
 	}
 
 	var source strings.Builder // everything the model may quote figures from
@@ -235,9 +240,9 @@ func Ask(ctx context.Context, chat Responder, s Scope, req Request) (Response, e
 	input := responses.ResponseInputParam{}
 	for _, turn := range req.History {
 		input = append(input,
-			responses.ResponseInputItemParamOfMessage(clip(turn.Question), responses.EasyInputMessageRoleUser),
+			responses.ResponseInputItemParamOfMessage(clip(turn.Question)+turn.Photo, responses.EasyInputMessageRoleUser),
 			responses.ResponseInputItemParamOfMessage(clip(turn.Answer), responses.EasyInputMessageRoleAssistant))
-		source.WriteString(turn.Question + "\n" + turn.Answer + "\n")
+		source.WriteString(turn.Question + turn.Photo + "\n" + turn.Answer + "\n")
 	}
 	input = append(input, responses.ResponseInputItemParamOfMessage(req.Question, responses.EasyInputMessageRoleUser))
 	source.WriteString(req.Question + "\n")
@@ -258,9 +263,13 @@ func Ask(ctx context.Context, chat Responder, s Scope, req Request) (Response, e
 		if req.OnStep != nil {
 			req.OnStep(step)
 		}
-		// A developer message, like a function result: data the admin did not type.
+		// Given to the model as a function's result, where every other piece of
+		// outside text arrives, so writing in the photo carries no more weight
+		// than a note on a home.
 		note := seen.forModel(s.mask, people)
-		input = append(input, responses.ResponseInputItemParamOfMessage(note, responses.EasyInputMessageRoleDeveloper))
+		output := responses.ResponseInputItemParamOfFunctionCallOutput(note)
+		output.OfFunctionCallOutput.CallID = param.NewOpt(readImageCallID)
+		input = append(input, responses.ResponseInputItemParamOfFunctionCall("{}", readImageCallID, readImageStep), output)
 		source.WriteString(note + "\n")
 	}
 	text := newAnswerText(req.OnText, req.OnReset, people)
