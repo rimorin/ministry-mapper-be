@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"ganigeorgiev.com/pocketbase/dbx"
+
+	"ministry-mapper/internal/authz"
 )
 
 var peopleAndRoles = Tool{
@@ -13,7 +15,7 @@ var peopleAndRoles = Tool{
 		"or read_only. Includes when each last signed in and whether their account is disabled.",
 	PersonColumns: []string{"name"},
 	Params: object(map[string]any{
-		"role": nullableEnum("Only this role, or null for everyone.", "administrator", "conductor", "read_only"),
+		"role": nullableEnum("Only this role, or null for everyone.", authz.StaffRoles...),
 		"name": nullable("string", "Only people whose name contains this text, or null."),
 	}),
 	Run: func(s Scope, raw json.RawMessage) (Result, error) {

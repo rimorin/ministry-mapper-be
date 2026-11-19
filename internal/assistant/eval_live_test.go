@@ -57,6 +57,12 @@ func TestLiveEval(t *testing.T) {
 		NeedsDetail *bool `json:"needs_detail"`
 		// MinCards is how many cards the answer must carry at least.
 		MinCards int `json:"min_cards"`
+		// MemberLinks asks as a congregation that gives links to accounts;
+		// Accounts is how many accounts its cards must have picked, and People
+		// how many people one card must name.
+		MemberLinks bool `json:"member_links"`
+		Accounts    *int `json:"accounts"`
+		People      int  `json:"people"`
 		// Chart expects the answer to draw one of its results.
 		Chart bool `json:"chart"`
 		// Role asks as a conductor or read-only user; administrator when empty.
@@ -87,17 +93,24 @@ func TestLiveEval(t *testing.T) {
 	followUpsOnly := os.Getenv("OPENAI_LIVE_FOLLOWUPS") != ""
 	// OPENAI_LIVE_PHOTOS=1 runs only the questions that carry a photo.
 	photosOnly := os.Getenv("OPENAI_LIVE_PHOTOS") != ""
+	// OPENAI_LIVE_LINKS=1 runs only the questions that give out a map.
+	linksOnly := os.Getenv("OPENAI_LIVE_LINKS") != ""
+	// OPENAI_LIVE_MEMBER_LINKS=1 asks every question as a congregation that
+	// gives links to accounts, to see that nothing else changes with it.
+	memberLinks := os.Getenv("OPENAI_LIVE_MEMBER_LINKS") != ""
 
 	passed, ran, questions := 0, 0, 0
 	var prompt, completion, cached int64
 	var elapsed time.Duration
 	for _, c := range cases {
-		if followUpsOnly && len(c.Before) == 0 || photosOnly && c.Photo == "" {
+		if followUpsOnly && len(c.Before) == 0 || photosOnly && c.Photo == "" ||
+			linksOnly && !slices.Contains(c.Tools, "propose_share_link") {
 			continue
 		}
 		ran++
 		scope := s
 		scope.Locale = c.Locale
+		scope.MemberLinks = memberLinks || c.MemberLinks
 		if c.Role != "" {
 			scope.Role = c.Role
 		}
@@ -164,6 +177,21 @@ func TestLiveEval(t *testing.T) {
 		}
 		if len(resp.Proposals) < c.MinCards {
 			problems = append(problems, fmt.Sprintf("%d cards, want at least %d", len(resp.Proposals), c.MinCards))
+		}
+		picked, named := 0, 0
+		for _, p := range resp.Proposals {
+			named = max(named, len(p.People))
+			for _, person := range p.People {
+				if person.Picked != "" {
+					picked++
+				}
+			}
+		}
+		if c.Accounts != nil && picked != *c.Accounts {
+			problems = append(problems, fmt.Sprintf("%d accounts picked, want %d", picked, *c.Accounts))
+		}
+		if named < c.People {
+			problems = append(problems, fmt.Sprintf("a card names %d people, want %d", named, c.People))
 		}
 		if c.Chart && !slices.ContainsFunc(resp.Steps, func(st Step) bool { return st.Chart != nil }) {
 			problems = append(problems, "no chart")

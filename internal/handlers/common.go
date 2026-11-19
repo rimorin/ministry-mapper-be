@@ -8,6 +8,8 @@ import (
 	"ganigeorgiev.com/pocketbase/dbx"
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
 	"ganigeorgiev.com/pocketbase/pocketbase/tools/router"
+
+	"ministry-mapper/internal/authz"
 )
 
 // serverError wraps a raw infrastructure error so PocketBase responds with HTTP 500
@@ -112,14 +114,10 @@ func fetchMapData(app core.App, mapId string) (*core.Record, error) {
 	return app.FindRecordById("maps", mapId)
 }
 
-// staffRoles are the roles that open a congregation's data. A publisher holds
-// a role row too but only works the links given to them, so "has a role" in an
-// access check always means one of these: a role added later stays shut out
-// until it is listed here.
-var staffRoles = []string{"administrator", "conductor", "read_only"}
-
-// staffRoleSQL is staffRoles as a SQL list, for queries that join roles.
-const staffRoleSQL = "('administrator', 'conductor', 'read_only')"
+var (
+	staffRoles   = authz.StaffRoles
+	staffRoleSQL = authz.StaffRoleSQL
+)
 
 // AuthorizeByRole checks if userId has one of the specified roles in the given congregation.
 // If no allowedRoles are provided, any staff role grants access.

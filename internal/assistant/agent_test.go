@@ -163,7 +163,7 @@ func TestAsk_RetriesACallThatHangs(t *testing.T) {
 
 func TestAsk_TellsTheModelWhenACardIsOverTheLimit(t *testing.T) {
 	link := func(i int) [2]string {
-		return [2]string{"propose_share_link", fmt.Sprintf(`{"map": "Blk 100B", "publisher": "Publisher %d", "type": "normal"}`, i)}
+		return [2]string{"propose_share_link", fmt.Sprintf(`{"map": "Blk 100B", "publishers": ["Publisher %d"], "type": "normal"}`, i)}
 	}
 	var replies []string
 	for first := 0; first <= maxProposals; first += maxCallsPerRound {

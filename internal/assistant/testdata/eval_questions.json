@@ -1415,5 +1415,65 @@
     "tools": [
       "read_image"
     ]
+  },
+  {
+    "question": "Give Blk 100B to Alpha Publisher",
+    "member_links": true,
+    "tools": [
+      "propose_share_link"
+    ],
+    "accounts": 1,
+    "people": 1,
+    "not_contains": [
+      "has been given",
+      "link has been created"
+    ]
+  },
+  {
+    "question": "Give Blk 100B to Alpha Publisher and Sis Ong",
+    "member_links": true,
+    "tools": [
+      "propose_share_link"
+    ],
+    "accounts": 1,
+    "people": 2,
+    "not_contains": [
+      "has been given"
+    ]
+  },
+  {
+    "question": "Give Alpha Publisher, Alpha Conductor and Bro Tan each their own link to Blk 100B",
+    "member_links": true,
+    "tools": [
+      "propose_share_link"
+    ],
+    "min_cards": 3,
+    "accounts": 2,
+    "not_contains": [
+      "has been given"
+    ]
+  },
+  {
+    "question": "Give Blk 100B to John and Mary",
+    "member_links": true,
+    "tools": [
+      "propose_share_link"
+    ],
+    "accounts": 0,
+    "people": 2,
+    "not_contains": [
+      "has been given"
+    ]
+  },
+  {
+    "question": "Give Blk 100B to Alpha Publisher",
+    "tools": [
+      "propose_share_link"
+    ],
+    "accounts": 0,
+    "not_contains": [
+      "My maps",
+      "has been given"
+    ]
   }
 ]

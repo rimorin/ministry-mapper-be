@@ -407,7 +407,7 @@ func TestTools_NeverReturnAnotherCongregation(t *testing.T) {
 		"propose_role_change":   {`{"person": "Alpha Admin", "role": "read_only"}`, `{"person": "Beta Admin", "role": "read_only"}`},
 		"propose_rename": {`{"what": "map", "name": "Blk 100A", "new_name": "New Name"}`, `{"what": "map", "name": "Blk 300A", "new_name": "New Name"}`,
 			`{"what": "territory", "name": "T01", "new_name": "New Name"}`},
-		"propose_share_link":    {`{"map": "Blk 100A", "publisher": "Someone New", "type": "normal"}`, `{"map": "Blk 300A", "publisher": "Someone New", "type": "normal"}`},
+		"propose_share_link":    {`{"map": "Blk 100A", "publishers": ["Someone New"], "type": "normal"}`, `{"map": "Blk 300A", "publishers": ["Someone New"], "type": "normal"}`},
 		"propose_pin_message":   {`{"map": "Blk 100A", "message": "Knock softly"}`, `{"map": "Blk 300A", "message": "Knock softly"}`},
 		"propose_report_email":  {`{}`},
 		"propose_mark_read":     {`{}`, `{"territory": "T01"}`},

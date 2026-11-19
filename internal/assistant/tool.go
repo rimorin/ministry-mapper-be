@@ -31,6 +31,9 @@ type Scope struct {
 	Origin *Location
 	// View is what the admin has open in the app, when they let it be used.
 	View *View
+	// MemberLinks is on where links can be given to members' accounts, so a
+	// share link's names are matched to them and the publisher role can be given.
+	MemberLinks bool
 	// seen is everything the model has been shown so far in this question, so
 	// calculate can refuse numbers that are not in the data.
 	seen string

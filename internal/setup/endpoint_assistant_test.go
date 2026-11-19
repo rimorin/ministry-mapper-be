@@ -606,6 +606,74 @@ func TestAssistantFeedback(t *testing.T) {
 			}),
 		},
 		{
+			Name:   "a link card's confirmed accounts are remembered for its names",
+			Method: http.MethodPost,
+			URL:    "/assistant/feedback",
+			Body: body(map[string]any{"proposal": "00000000000000b3", "outcome": "done", "pairs": []map[string]string{
+				{"name": "Sis Ong", "user": "testuseralpha04"}, {"name": "Not On The Card", "user": "testuseralpha04"},
+			}}),
+			Headers: jsonHeaders(adminToken),
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, e *core.ServeEvent) {
+				asked(t, app, e)
+				if _, err := app.DB().NewQuery(`UPDATE assistant_questions SET cards = {:cards} WHERE id = {:id}`).
+					Bind(dbx.Params{"id": question, "cards": `[{"proposal":{"id":"00000000000000b3","kind":"share_link",` +
+						`"people":[{"name":"Sis Ong"}]},"outcome":""}]`}).Execute(); err != nil {
+					t.Fatal(err)
+				}
+			},
+			TestAppFactory: setupTestApp,
+			ExpectedStatus: 204,
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, _ *http.Response) {
+				links, err := app.FindAllRecords("assistant_name_links")
+				if err != nil || len(links) != 1 {
+					t.Fatalf("remembered %d pairings (%v), want 1", len(links), err)
+				}
+				if links[0].GetString("alias") != "ong" || links[0].GetString("user") != "testuseralpha04" ||
+					links[0].GetString("congregation") != "testcongalpha01" {
+					t.Errorf("pairing = %v", links[0].PublicExport())
+				}
+			},
+		},
+		{
+			Name:   "undoing a link card forgets the pairing it saved",
+			Method: http.MethodPost,
+			URL:    "/assistant/feedback",
+			Body: body(map[string]any{"proposal": "00000000000000b3", "outcome": "undone",
+				"pairs": []map[string]string{{"name": "Sis Ong", "user": "testuseralpha04"}}}),
+			Headers: jsonHeaders(adminToken),
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, e *core.ServeEvent) {
+				asked(t, app, e)
+				if _, err := app.DB().NewQuery(`UPDATE assistant_questions SET cards = {:cards} WHERE id = {:id}`).
+					Bind(dbx.Params{"id": question, "cards": `[{"proposal":{"id":"00000000000000b3","kind":"share_link",` +
+						`"people":[{"name":"Sis Ong"}]},"outcome":"done"}]`}).Execute(); err != nil {
+					t.Fatal(err)
+				}
+				people := []assistant.LinkPerson{{Name: "Sis Ong"}}
+				if err := assistant.SaveNamePairs(app, "testcongalpha01", people, []assistant.NamePair{{Name: "Sis Ong", User: "testuseralpha04"}}); err != nil {
+					t.Fatal(err)
+				}
+			},
+			TestAppFactory: setupTestApp,
+			ExpectedStatus: 204,
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, _ *http.Response) {
+				if links, err := app.FindAllRecords("assistant_name_links"); err != nil || len(links) != 0 {
+					t.Errorf("%d pairings left after undo (%v)", len(links), err)
+				}
+			},
+		},
+		{
+			Name:   "a malformed account in a pairing is refused",
+			Method: http.MethodPost,
+			URL:    "/assistant/feedback",
+			Body: body(map[string]any{"proposal": "00000000000000b1", "outcome": "done",
+				"pairs": []map[string]string{{"name": "Sis Ong", "user": "../etc"}}}),
+			Headers:         jsonHeaders(adminToken),
+			BeforeTestFunc:  withCards,
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`"status":400`},
+		},
+		{
 			Name:            "a malformed link id is refused",
 			Method:          http.MethodPost,
 			URL:             "/assistant/feedback",

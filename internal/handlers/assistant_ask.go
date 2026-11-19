@@ -41,6 +41,9 @@ type assistantAskRequest struct {
 	Question     string            `json:"question"`
 	Locale       string            `json:"locale"`
 	People       map[string]string `json:"people"`
+	// MemberLinks says links can be given to members' accounts here: the
+	// publisher role is switched on for the congregation in the app.
+	MemberLinks bool `json:"memberLinks"`
 	// Conversation is the id the panel gave this conversation when it started,
 	// so even a question that fails or is stopped lands in it. One that is
 	// someone else's, or not an id, starts a new conversation instead. The
@@ -175,7 +178,7 @@ func HandleAssistantAsk(c *core.RequestEvent, app core.App, enabled func(congreg
 	ctx, cancel := context.WithTimeout(c.Request.Context(), assistantTimeout)
 	defer cancel()
 	scope := assistant.Scope{App: app, CongregationID: req.Congregation, Location: location, Now: time.Now(),
-		Locale: req.Locale, Origin: origin, UserID: c.Auth.Id, Role: role}
+		Locale: req.Locale, Origin: origin, UserID: c.Auth.Id, Role: role, MemberLinks: req.MemberLinks}
 	if req.View != nil {
 		scope.View = assistant.ResolveView(scope, req.View.Territory, req.View.Map)
 	}
@@ -326,7 +329,7 @@ type loggedQuestion struct {
 func assistantRole(app core.App, userID, congregationID string) (string, error) {
 	var role string
 	err := app.DB().NewQuery(`SELECT role FROM roles WHERE user = {:user} AND congregation = {:congregation}
-		AND role IN ('administrator', 'conductor', 'read_only') LIMIT 1`).
+		AND role IN ` + staffRoleSQL + ` LIMIT 1`).
 		Bind(dbx.Params{"user": userID, "congregation": congregationID}).Row(&role)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
