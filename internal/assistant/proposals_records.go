@@ -205,29 +205,40 @@ func publisherName(s Scope, raw string) (string, error) {
 
 var proposeShareLink = Tool{
 	Name: "propose_share_link",
-	Description: "Prepare a share link that gives a publisher a map: normal for the congregation's usual hours, " +
-		"or personal for a number of days. Nothing is created until the asker confirms on a card, which then " +
-		"lets them share the link. Use it only when the admin asks to give someone a map.",
+	Description: "Prepare a share link that gives one or more publishers a map: normal for the congregation's " +
+		"usual hours, or personal for a number of days. Nothing is created until the asker confirms on a card, " +
+		"which then lets them share the link. People with an account in the app are matched on the card and " +
+		"find the map under My maps. Use it only when the admin asks to give someone a map.",
 	Params: object(map[string]any{
 		"map":       mapArg,
 		"territory": mapTerritoryArg,
-		"publisher": map[string]any{"type": "string", "description": "Who the link is for: their token, or the name as the admin wrote it."},
-		"type":      enumOf("normal for a usual link, personal for personal territory.", "normal", "personal"),
-		"days":      nullable("integer", "With personal: how many days the link lasts, 1 to 365."),
+		"publishers": map[string]any{
+			"type": "array", "items": map[string]any{"type": "string"},
+			"description": "Who the link is for, one entry per person: their token, or the name as the admin wrote it.",
+		},
+		"type": enumOf("normal for a usual link, personal for personal territory.", "normal", "personal"),
+		"days": nullable("integer", "With personal: how many days the link lasts, 1 to 365."),
 	}),
 	Run: func(s Scope, raw json.RawMessage) (Result, error) {
 		var args struct {
 			mapRef
-			Publisher string `json:"publisher"`
-			Type      string `json:"type"`
-			Days      *int   `json:"days"`
+			Publishers []string `json:"publishers"`
+			Type       string   `json:"type"`
+			Days       *int     `json:"days"`
 		}
 		if err := decodeArgs(raw, &args); err != nil {
 			return Result{}, err
 		}
-		publisher, err := publisherName(s, args.Publisher)
-		if err != nil {
-			return Result{}, err
+		if len(args.Publishers) == 0 || len(args.Publishers) > maxLinkPeople {
+			return Result{}, badArgs("publishers must name 1 to %d people", maxLinkPeople)
+		}
+		names := make([]string, len(args.Publishers))
+		for i, raw := range args.Publishers {
+			name, err := publisherName(s, raw)
+			if err != nil {
+				return Result{}, err
+			}
+			names[i] = name
 		}
 		target, err := args.target(s)
 		if err != nil {
@@ -262,10 +273,16 @@ var proposeShareLink = Tool{
 		if active > 0 {
 			warnings = append(warnings, "already_assigned")
 		}
-		return Result{Proposal: &Proposal{
+		p := Proposal{
 			Warnings: warnings,
-			Target:   &target, Value: publisher, LinkType: args.Type, Hours: hours,
-		}}, nil
+			Target:   &target, Value: strings.Join(names, ", "), LinkType: args.Type, Hours: hours,
+		}
+		if s.MemberLinks {
+			if p.People, err = matchMembers(s, names); err != nil {
+				return Result{}, err
+			}
+		}
+		return Result{Proposal: &p}, nil
 	},
 }
 

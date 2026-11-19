@@ -20,6 +20,8 @@ type myAssignment struct {
 	// The other accounts on the same link, by name, so partners can find
 	// each other. Names only, and only for a link the caller holds.
 	Partners []string `json:"partners"`
+	// The caller made this link and put themself on it, so it is not news to them.
+	Own bool `json:"own"`
 }
 
 // HandleGetMyAssignments lists the caller's unexpired links: those given to
@@ -38,6 +40,7 @@ func HandleGetMyAssignments(c *core.RequestEvent, app core.App) error {
 		Territory        string `db:"territory"`
 		CongregationName string `db:"congregation_name"`
 		Partners         string `db:"partners"`
+		Own              bool   `db:"own"`
 	}
 	err := app.DB().NewQuery(`
 		SELECT a.id, COALESCE(a.type, '') AS type, a.expiry_date,
@@ -45,6 +48,7 @@ func HandleGetMyAssignments(c *core.RequestEvent, app core.App) error {
 		       COALESCE(m.description, '') AS map_description,
 		       COALESCE(t.code, '')        AS territory,
 		       COALESCE(c.name, '')        AS congregation_name,
+		       a.user = {:user}            AS own,
 		       COALESCE((
 		         SELECT json_group_array(p.name)
 		         FROM json_each(a.assignees) held
@@ -79,6 +83,7 @@ func HandleGetMyAssignments(c *core.RequestEvent, app core.App) error {
 			Territory:        row.Territory,
 			CongregationName: row.CongregationName,
 			Partners:         partners,
+			Own:              row.Own,
 		}
 	}
 	return c.JSON(http.StatusOK, map[string]any{"assignments": assignments})

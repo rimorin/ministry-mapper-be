@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"ministry-mapper/internal/authz"
 )
 
 // Who may use each function. The assistant follows what each role sees and
@@ -24,8 +26,9 @@ const (
 )
 
 // staffRoleSQL lists the roles the assistant works with. A publisher account
-// holds a role row too, but the assistant neither lists nor changes it.
-const staffRoleSQL = "('administrator', 'conductor', 'read_only')"
+// holds a role row too, which the assistant never lists; it can still be
+// changed or removed when the admin names the person.
+var staffRoleSQL = authz.StaffRoleSQL
 
 var roleRank = map[string]int{roleReadOnly: 1, roleConductor: 2, roleAdministrator: 3}
 

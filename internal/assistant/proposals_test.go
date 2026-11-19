@@ -59,9 +59,26 @@ func TestProposeRoleChange(t *testing.T) {
 	wantArgError(t, err, "already has the role")
 	_, err = proposeRoleChange.Run(s, json.RawMessage(`{"person": "Beta Admin", "role": "conductor"}`))
 	wantArgError(t, err, "nobody with access matches")
-	// A publisher holds a role row, but the assistant leaves it alone.
-	_, err = proposeRoleChange.Run(s, json.RawMessage(`{"person": "Alpha Publisher", "role": "conductor"}`))
-	wantArgError(t, err, "nobody with access matches")
+
+	// A publisher is in no listing, so the admin's own wording finds them.
+	promote := propose(t, s, proposeRoleChange, `{"person": "alpha publisher", "role": "conductor"}`)
+	if promote.Kind != "role_change" || promote.From != "publisher" || promote.To != "conductor" || len(promote.Candidates) != 1 {
+		t.Fatalf("promotion = %+v", promote)
+	}
+
+	// The publisher role is given only where the congregation has it on.
+	_, err = proposeRoleChange.Run(s, json.RawMessage(`{"person": "Alpha Conductor", "role": "publisher"}`))
+	wantArgError(t, err, "not available")
+	_, err = proposeRoleGrant.Run(s, json.RawMessage(`{"search": "beta", "role": "publisher"}`))
+	wantArgError(t, err, "not available")
+	s.MemberLinks = true
+	demote := propose(t, s, proposeRoleChange, `{"person": "Alpha Conductor", "role": "publisher"}`)
+	if demote.Kind != "role_change" || demote.From != "conductor" || demote.To != "publisher" {
+		t.Fatalf("demotion = %+v", demote)
+	}
+	if grant := propose(t, s, proposeRoleGrant, `{"search": "beta", "role": "publisher"}`); grant.To != "publisher" || len(grant.Candidates) == 0 {
+		t.Fatalf("grant = %+v", grant)
+	}
 }
 
 func TestPeopleAndRoles_LeavesPublishersOut(t *testing.T) {

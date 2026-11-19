@@ -3,11 +3,34 @@ package handlers
 import (
 	"net/http"
 	"slices"
+	"time"
 
 	"ganigeorgiev.com/pocketbase/dbx"
 	"ganigeorgiev.com/pocketbase/pocketbase/apis"
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/tools/subscriptions"
 )
+
+// myMapsTopic is not a collection. "My maps" follows the assignments that name
+// its account, and a link stops naming an account the moment it is taken off,
+// so that one update never reaches it. This topic carries it instead.
+const myMapsTopic = "my-maps/*"
+
+// nudgeMyMaps tells the listed accounts' open sessions to load their links again.
+func nudgeMyMaps(app core.App, users ...string) {
+	if len(users) == 0 {
+		return
+	}
+	message := subscriptions.Message{Name: myMapsTopic, Data: []byte("{}")}
+	for _, client := range app.SubscriptionsBroker().Clients() {
+		auth, _ := client.Get(apis.RealtimeClientAuthKey).(*core.Record)
+		if auth == nil || !slices.Contains(users, auth.Id) || !client.HasSubscription(myMapsTopic) {
+			continue
+		}
+		// Send waits for the session to read it; the request should not.
+		go client.Send(message)
+	}
+}
 
 // A link is worked by a car group at most; the field's own limit matches.
 const maxAssignees = 20
@@ -46,6 +69,9 @@ func HandleUpdateAssignees(c *core.RequestEvent, app core.App, notify AssigneeNo
 	if !AuthorizeByRole(app, c.Auth.Id, congregation, "administrator", "conductor") {
 		return apis.NewForbiddenError("Administrator or conductor access required", nil)
 	}
+	if !assignment.GetDateTime("expiry_date").Time().After(time.Now()) {
+		return apis.NewBadRequestError("This link has expired", nil)
+	}
 
 	assignees := []string{}
 	for _, id := range req.Assignees {
@@ -65,6 +91,9 @@ func HandleUpdateAssignees(c *core.RequestEvent, app core.App, notify AssigneeNo
 			added = append(added, id)
 		}
 	}
+	removed := slices.DeleteFunc(slices.Clone(before), func(id string) bool {
+		return slices.Contains(assignees, id)
+	})
 
 	assignment.Set("assignees", assignees)
 	if req.Publisher != "" {
@@ -74,6 +103,7 @@ func HandleUpdateAssignees(c *core.RequestEvent, app core.App, notify AssigneeNo
 		return newServerError(err)
 	}
 	writeAssignmentLog(app, assignment, c.Auth, "reassigned")
+	nudgeMyMaps(app, removed...)
 	if len(added) > 0 {
 		notify(app, assignment, added)
 	}
@@ -122,5 +152,8 @@ func RemoveFromHeldLinks(e *core.RecordEvent) {
 		if err := e.App.SaveNoValidate(assignment); err != nil {
 			e.App.Logger().Error("RemoveFromHeldLinks: save failed", "assignment", row.ID, "error", err)
 		}
+	}
+	if len(held) > 0 {
+		nudgeMyMaps(e.App, userID)
 	}
 }

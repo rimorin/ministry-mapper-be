@@ -14,6 +14,8 @@ import (
 	"ganigeorgiev.com/pocketbase/dbx"
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
 	"github.com/xuri/excelize/v2"
+
+	"ministry-mapper/internal/authz"
 )
 
 // Palette: one neutral family carries structure, status colours carry meaning,
@@ -928,7 +930,7 @@ func writeSetupSheet(app core.App, f *excelize.File, st *reportStyles, congregat
 	err = app.DB().NewQuery(`
 		SELECT COALESCE(u.name, '') AS name, r.role
 		FROM roles r JOIN users u ON u.id = r.user
-		WHERE r.congregation = {:c} AND r.role IN ('administrator', 'conductor', 'read_only')
+		WHERE r.congregation = {:c} AND r.role IN ` + authz.StaffRoleSQL + `
 		ORDER BY r.role, r.created
 	`).Bind(dbx.Params{"c": congregation.Id}).All(&roles)
 	if err != nil {

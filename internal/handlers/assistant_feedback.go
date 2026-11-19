@@ -31,6 +31,8 @@ var recordID = regexp.MustCompile(`^[A-Za-z0-9]{1,64}$`)
 const (
 	maxCardPerson = 100
 	maxCardLabel  = 200
+	// As many pairs as a link can name people.
+	maxCardPairs = 20
 )
 
 type assistantFeedbackRequest struct {
@@ -47,6 +49,8 @@ type assistantFeedbackRequest struct {
 	// Record and Label are the link a link card created and the map it picked.
 	Record string `json:"record"`
 	Label  string `json:"label"`
+	// Pairs are the accounts the asker confirmed for the names on a link card.
+	Pairs []assistant.NamePair `json:"pairs"`
 }
 
 // HandleAssistantFeedback records the asker's rating of an answer, or what
@@ -71,7 +75,14 @@ func HandleAssistantFeedback(c *core.RequestEvent, app core.App) error {
 		(req.Record != "" && !recordID.MatchString(req.Record))) {
 		return apis.NewBadRequestError("proposal, outcome, person, record or label is not valid", nil)
 	}
+	if len(req.Pairs) > maxCardPairs || slices.ContainsFunc(req.Pairs, func(pair assistant.NamePair) bool {
+		return utf8.RuneCountInString(pair.Name) > maxCardPerson || (pair.User != "" && !recordID.MatchString(pair.User))
+	}) {
+		return apis.NewBadRequestError("pairs are not valid", nil)
+	}
 
+	var congregation string
+	var people []assistant.LinkPerson
 	// Read and saved in one transaction: an answer's cards share one field, and
 	// two reports at once would otherwise each save over the other's.
 	err := app.RunInTransaction(func(tx core.App) error {
@@ -101,12 +112,26 @@ func HandleAssistantFeedback(c *core.RequestEvent, app core.App) error {
 			if req.Record != "" {
 				cards[i].Record, cards[i].Label = req.Record, req.Label
 			}
+			congregation, people = record.GetString("congregation"), cards[i].Proposal.People
 			record.Set("cards", cards)
 		}
 		return tx.Save(record)
 	})
 	if err != nil {
 		return wrapTransactionError(err)
+	}
+	// After the outcome is kept, and never failing it: the pairings are a
+	// convenience for the next link, the outcome is the record of this one.
+	if len(req.Pairs) > 0 {
+		switch req.Outcome {
+		case "done":
+			err = assistant.SaveNamePairs(app, congregation, people, req.Pairs)
+		case "undone":
+			err = assistant.ForgetNamePairs(app, congregation, people, req.Pairs)
+		}
+		if err != nil {
+			app.Logger().Error("assistant: name pairings not updated", "question", req.Question, "error", err)
+		}
 	}
 	return c.NoContent(204)
 }

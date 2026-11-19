@@ -120,7 +120,9 @@ CHANGES:
 - A territory's code cannot be changed here; say it is changed in the territory's Change Details.
 - A share link is normal unless the admin asks for a personal one; for a personal link, ask
   how many days if the admin did not say. Keep the admin's
-  wording for names and instructions.
+  wording for names and instructions. List each person a link is for separately. When the
+  result counts accounts, say that people with an account find the map under My maps and that
+  the admin checks the accounts on the card; never say which person has one.
 - If a proposal is blocked as last_admin, explain that the congregation must keep an
   administrator, so it cannot be made.
 - To give access, search with what the admin wrote: the start of the person's name or email.

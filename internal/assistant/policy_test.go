@@ -111,7 +111,7 @@ func TestPolicy_RefusesACallAboveTheRole(t *testing.T) {
 		{roleConductor, "people_and_roles", `{}`, "needs the administrator role"},
 		{roleConductor, "propose_reset", `{"what": "map", "name": "Blk 100A"}`, "needs the administrator role"},
 		{roleConductor, "change_history", `{"kind": "role", "within_days": 3650}`, "kind role needs the administrator role"},
-		{roleConductor, "propose_share_link", `{"map": "Blk 100B", "publisher": "Sis Ong", "type": "personal", "days": 7}`,
+		{roleConductor, "propose_share_link", `{"map": "Blk 100B", "publishers": ["Sis Ong"], "type": "personal", "days": 7}`,
 			"type personal needs the administrator role"},
 		{"", "find_places", `{"text": "Blk"}`, "needs the read-only role"},
 	} {
@@ -124,7 +124,7 @@ func TestPolicy_RefusesACallAboveTheRole(t *testing.T) {
 	for _, c := range []struct{ role, tool, args string }{
 		{roleReadOnly, "find_places", `{"text": "Blk"}`},
 		{roleConductor, "change_history", `{"kind": "home", "within_days": 3650}`},
-		{roleConductor, "propose_share_link", `{"map": "Blk 100B", "publisher": "Sis Ong", "type": "normal"}`},
+		{roleConductor, "propose_share_link", `{"map": "Blk 100B", "publishers": ["Sis Ong"], "type": "normal"}`},
 		{roleAdministrator, "change_history", `{"kind": "role", "within_days": 3650}`},
 	} {
 		if got := run(c.role, c.tool, c.args); strings.Contains(got, "needs the") {

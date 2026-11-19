@@ -188,8 +188,24 @@ func TestMyAssignments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	conductorToken, err := generateToken("conductor@alpha.test")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	scenarios := []tests.ApiScenario{
+		{
+			Name:           "a link its maker put themself on is marked as their own",
+			Method:         http.MethodPost,
+			URL:            "/assignments/mine",
+			Headers:        map[string]string{"Authorization": conductorToken},
+			TestAppFactory: setupTestApp,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				seedAssignment(t, app, "publinkownself1", time.Now().Add(6*time.Hour), "testuseralpha02")
+			},
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"id":"publinkownself1"`, `"own":true`},
+		},
 		{
 			Name:           "unauthenticated request is rejected",
 			Method:         http.MethodPost,
@@ -219,6 +235,7 @@ func TestMyAssignments(t *testing.T) {
 				// names nobody, and never the caller.
 				`"partners":["Alpha ReadOnly"]`,
 				`"partners":[]`,
+				`"own":false`,
 			},
 			NotExpectedContent: []string{publisherExpired, otherAssigneeID, `"Alpha Publisher"`, "readonly@alpha.test"},
 		},
@@ -385,19 +402,49 @@ func TestUpdateAssignees(t *testing.T) {
 	headers := func(token string) map[string]string {
 		return map[string]string{"Authorization": token, "Content-Type": "application/json"}
 	}
+	// What each account's open "My maps" is told, taken off the link or put on it.
+	var toldRemoved, toldAdded atomic.Int32
+	listen := func(t testing.TB, app *tests.TestApp, userID string, told *atomic.Int32) {
+		t.Helper()
+		auth, err := app.FindRecordById("users", userID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		client := subscriptions.NewDefaultClient()
+		client.Set(apis.RealtimeClientAuthKey, auth)
+		client.Subscribe("my-maps/*")
+		app.SubscriptionsBroker().Register(client)
+		go func() {
+			for range client.Channel() {
+				told.Add(1)
+			}
+		}()
+	}
 
 	scenarios := []tests.ApiScenario{
 		{
-			Name:            "a conductor swaps who holds an open link",
-			Method:          http.MethodPost,
-			URL:             "/assignment/assignees",
-			Body:            body("testuseralpha03", "testuseralpha03"),
-			Headers:         headers(conductorToken),
-			TestAppFactory:  setupTestApp,
-			BeforeTestFunc:  seedPublisherLinks,
+			Name:           "a conductor swaps who holds an open link",
+			Method:         http.MethodPost,
+			URL:            "/assignment/assignees",
+			Body:           body("testuseralpha03", "testuseralpha03"),
+			Headers:        headers(conductorToken),
+			TestAppFactory: setupTestApp,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, e *core.ServeEvent) {
+				seedPublisherLinks(t, app, e)
+				listen(t, app, publisherUserID, &toldRemoved)
+				listen(t, app, "testuseralpha03", &toldAdded)
+			},
 			ExpectedStatus:  200,
 			ExpectedContent: []string{`"assignees":["testuseralpha03"]`, `"publisher":"Alpha ReadOnly"`},
 			AfterTestFunc: func(t testing.TB, app *tests.TestApp, _ *http.Response) {
+				// The update no longer names the account taken off, so only
+				// this message tells it; the one put on hears the update.
+				for wait := 0; toldRemoved.Load() == 0 && wait < 100; wait++ {
+					time.Sleep(10 * time.Millisecond)
+				}
+				if toldRemoved.Load() != 1 || toldAdded.Load() != 0 {
+					t.Errorf("told removed %d times and added %d, want 1 and 0", toldRemoved.Load(), toldAdded.Load())
+				}
 				link, err := app.FindRecordById("assignments", publisherLinkID)
 				if err != nil {
 					t.Fatal(err)
@@ -424,6 +471,17 @@ func TestUpdateAssignees(t *testing.T) {
 			BeforeTestFunc:  seedPublisherLinks,
 			ExpectedStatus:  400,
 			ExpectedContent: []string{`"An assignee is not a member of this congregation."`},
+		},
+		{
+			Name:            "an expired link takes no new members",
+			Method:          http.MethodPost,
+			URL:             "/assignment/assignees",
+			Body:            strings.NewReader(`{"assignment":"` + publisherExpired + `","assignees":["testuseralpha03"]}`),
+			Headers:         headers(conductorToken),
+			TestAppFactory:  setupTestApp,
+			BeforeTestFunc:  seedPublisherLinks,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`"This link has expired."`},
 		},
 		{
 			Name:            "staff of another congregation cannot change it",

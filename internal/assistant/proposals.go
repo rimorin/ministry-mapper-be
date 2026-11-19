@@ -9,6 +9,8 @@ import (
 	"unicode/utf8"
 
 	"ganigeorgiev.com/pocketbase/dbx"
+
+	"ministry-mapper/internal/authz"
 )
 
 // A Proposal is a change the assistant prepared but did not make. The panel
@@ -39,6 +41,9 @@ type Proposal struct {
 	// Share links: normal or personal, lasting Hours.
 	LinkType string `json:"linkType,omitempty"`
 	Hours    int    `json:"hours,omitempty"`
+	// The people a share link names and the accounts they may be, where links
+	// can be given to accounts.
+	People []LinkPerson `json:"people,omitempty"`
 	// The records a change touches: messages, links or homes.
 	Items []Item `json:"items,omitempty"`
 	// What the card shows for changes to a map's structure or many homes:
@@ -81,7 +86,16 @@ const (
 	minUserSearchRunes = 3
 )
 
-var assignableRoles = []string{"administrator", "conductor", "read_only"}
+var assignableRoles = slices.Concat(authz.StaffRoles, []string{"publisher"})
+
+// publisherRoleOff refuses the publisher role where the congregation's screens
+// do not offer it either.
+func publisherRoleOff(s Scope, role string) error {
+	if role == "publisher" && !s.MemberLinks {
+		return badArgs("the publisher role is not available in this congregation")
+	}
+	return nil
+}
 
 // Card is a prepared change as the question log keeps it, so a conversation
 // reopened from history shows it again and, if it was never acted on, can still
@@ -138,18 +152,30 @@ func proposalView(p Proposal) string {
 	if p.LinkType != "" {
 		view["link_type"], view["hours"] = p.LinkType, p.Hours
 	}
+	// How the names fared against the members' accounts, never which is whose.
+	if len(p.People) > 0 {
+		matched, toCheck := 0, 0
+		for _, person := range p.People {
+			if person.Picked != "" {
+				matched++
+			} else if len(person.Suggested) > 0 {
+				toCheck++
+			}
+		}
+		view["people"], view["account_matched"], view["account_to_check_on_card"] = len(p.People), matched, toCheck
+	}
 	out, _ := json.Marshal(view)
 	return string(out)
 }
 
 var proposeRoleChange = Tool{
 	Name: "propose_role_change",
-	Description: "Prepare a change to the access of someone who already has a role in this congregation: a new " +
+	Description: "Prepare a change to the access of someone who already has a role in this congregation, the publisher role included: a new " +
 		"role, or role none to remove their access. Nothing changes until the asker confirms on a card. " +
 		"Use it only when the admin asks for the change.",
 	Params: object(map[string]any{
-		"person": map[string]any{"type": "string", "description": "The person's token as shown in results, such as Person QXWBKDMR."},
-		"role":   enumOf("The new role, or none to remove access.", slices.Concat(assignableRoles, []string{"none"})...),
+		"person": map[string]any{"type": "string", "description": "The person's token as shown in results, such as Person QXWBKDMR. For a publisher, who is not in those results, the name as the admin wrote it."},
+		"role":   enumOf("The new role, or none to remove access. A publisher only works the maps given to them.", slices.Concat(assignableRoles, []string{"none"})...),
 	}),
 	Run: func(s Scope, raw json.RawMessage) (Result, error) {
 		var args struct {
@@ -157,6 +183,9 @@ var proposeRoleChange = Tool{
 			Role   string `json:"role"`
 		}
 		if err := decodeArgs(raw, &args); err != nil {
+			return Result{}, err
+		}
+		if err := publisherRoleOff(s, args.Role); err != nil {
 			return Result{}, err
 		}
 		var roles []struct {
@@ -170,7 +199,7 @@ var proposeRoleChange = Tool{
 		err := s.App.DB().NewQuery(`
 			SELECT r.id AS role_id, u.id AS user_id, COALESCE(u.name, '') AS name, u.email, r.role, u.disabled
 			FROM roles r JOIN users u ON u.id = r.user
-			WHERE r.congregation = {:congregation} AND r.role IN ` + staffRoleSQL + `
+			WHERE r.congregation = {:congregation}
 		`).Bind(dbx.Params{"congregation": s.CongregationID}).All(&roles)
 		if err != nil {
 			return Result{}, err
@@ -237,7 +266,7 @@ var proposeRoleGrant = Tool{
 		"person and confirms on a card. Use it only when the admin asks to give someone access.",
 	Params: object(map[string]any{
 		"search": map[string]any{"type": "string", "description": "The start of the person's name or email, as the admin wrote it; at least 3 characters."},
-		"role":   enumOf("The role to give.", assignableRoles...),
+		"role":   enumOf("The role to give. A publisher only works the maps given to them.", assignableRoles...),
 	}),
 	Run: func(s Scope, raw json.RawMessage) (Result, error) {
 		var args struct {
@@ -245,6 +274,9 @@ var proposeRoleGrant = Tool{
 			Role   string `json:"role"`
 		}
 		if err := decodeArgs(raw, &args); err != nil {
+			return Result{}, err
+		}
+		if err := publisherRoleOff(s, args.Role); err != nil {
 			return Result{}, err
 		}
 		search := strings.TrimSpace(args.Search)
@@ -283,7 +315,7 @@ var proposeRoleGrant = Tool{
 		}
 		if len(p.Candidates) == 0 {
 			if alreadyIn > 0 {
-				return Result{}, badArgs("everyone matching %q already has a role here; use propose_role_change to change it", search)
+				return Result{}, badArgs("everyone matching %q already has a role here; use propose_role_change with the name as the admin wrote it", search)
 			}
 			return Result{}, badArgs("no account matches %q; the person must sign up in the app first", search)
 		}

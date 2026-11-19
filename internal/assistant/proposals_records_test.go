@@ -66,7 +66,7 @@ func TestProposeTerritoryRename(t *testing.T) {
 func TestProposeShareLink(t *testing.T) {
 	s := adminScope(t, alphaCong, "testuseralpha01")
 
-	normal := propose(t, s, proposeShareLink, `{"map": "Blk 100B", "publisher": "Sis Ong", "type": "normal"}`)
+	normal := propose(t, s, proposeShareLink, `{"map": "Blk 100B", "publishers": ["Sis Ong"], "type": "normal"}`)
 	if normal.Kind != "share_link" || normal.LinkType != "normal" || normal.Hours != 24 ||
 		normal.Value != "Sis Ong" || len(normal.Warnings) != 0 || normal.Target.ID != "testmapalpha01b" {
 		t.Fatalf("normal link = %+v", normal)
@@ -74,19 +74,19 @@ func TestProposeShareLink(t *testing.T) {
 
 	// The model refers to a known publisher by token; the card shows the name.
 	token := newPseudonyms(alphaCong).token("Test Publisher Alpha")
-	personal := propose(t, s, proposeShareLink, `{"map": "Blk 100A", "publisher": "`+token+`", "type": "personal", "days": 14}`)
+	personal := propose(t, s, proposeShareLink, `{"map": "Blk 100A", "publishers": ["`+token+`"], "type": "personal", "days": 14}`)
 	if personal.Value != "Test Publisher Alpha" || personal.Hours != 14*24 ||
 		strings.Join(personal.Warnings, ",") != "already_assigned" {
 		t.Fatalf("personal link = %+v", personal)
 	}
 
-	_, err := proposeShareLink.Run(s, json.RawMessage(`{"map": "Blk 100A", "publisher": "Sis Ong", "type": "personal"}`))
+	_, err := proposeShareLink.Run(s, json.RawMessage(`{"map": "Blk 100A", "publishers": ["Sis Ong"], "type": "personal"}`))
 	wantArgError(t, err, "needs days")
-	_, err = proposeShareLink.Run(s, json.RawMessage(`{"map": "Blk 100A", "publisher": "Sis Ong", "type": "personal", "days": 400}`))
+	_, err = proposeShareLink.Run(s, json.RawMessage(`{"map": "Blk 100A", "publishers": ["Sis Ong"], "type": "personal", "days": 400}`))
 	wantArgError(t, err, "needs days")
 	// Another congregation's publisher is not known here.
 	other := newPseudonyms(alphaCong).token("Test Publisher Beta")
-	_, err = proposeShareLink.Run(s, json.RawMessage(`{"map": "Blk 100A", "publisher": "`+other+`", "type": "normal"}`))
+	_, err = proposeShareLink.Run(s, json.RawMessage(`{"map": "Blk 100A", "publishers": ["`+other+`"], "type": "normal"}`))
 	wantArgError(t, err, "write the publisher's name")
 }
 
@@ -110,7 +110,7 @@ func TestProposeReportEmail(t *testing.T) {
 
 func TestProposalView_HidesWhatIsStored(t *testing.T) {
 	s := adminScope(t, alphaCong, "testuseralpha01")
-	p := propose(t, s, proposeShareLink, `{"map": "Blk 100B", "publisher": "Sis Ong", "type": "normal"}`)
+	p := propose(t, s, proposeShareLink, `{"map": "Blk 100B", "publishers": ["Sis Ong"], "type": "normal"}`)
 	if view := proposalView(p); strings.Contains(view, "Sis Ong") || strings.Contains(view, "testmapalpha01b") {
 		t.Fatalf("the model's view must not hold the publisher or ids: %s", view)
 	}
