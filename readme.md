@@ -33,7 +33,7 @@
 <table>
   <tr>
     <td>🔐 <b>Auth & Access Control</b></td>
-    <td>JWT auth with role-based permissions (administrator / conductor / read_only)</td>
+    <td>JWT auth with role-based permissions (administrator / conductor / read_only), plus a publisher role that only sees the links given to its account</td>
   </tr>
   <tr>
     <td>🌍 <b>Territory Management</b></td>
@@ -53,7 +53,7 @@
   </tr>
   <tr>
     <td>📧 <b>Email Digests</b></td>
-    <td>Message, instruction, notes, and new-address digests via MailerSend</td>
+    <td>Message, instruction, notes, and new-address digests via MailerSend, plus an email to each account a link is given to</td>
   </tr>
   <tr>
     <td>📑 <b>Monthly Excel Reports</b></td>
@@ -345,7 +345,7 @@ All seeded IDs are stable and safe to hard-code in tests:
 | Congregations | `testcongalpha01`, `testcongbeta001` |
 | Territories | `testterralpha01`, `testterralpha02`, `testterrbeta001` |
 | Maps | `testmapalpha01a`, `testmapalpha01b`, `testmapalpha02a`, `testmapalpha02b`, `testmapbeta001a`, `testmapbeta001b` |
-| Users (password: `Test1234!`) | `admin@alpha.test` (administrator), `conductor@alpha.test` (conductor), `readonly@alpha.test` (read_only), `admin@beta.test`, `xcong@beta.test` |
+| Users (password: `Test1234!`) | `admin@alpha.test` (administrator), `conductor@alpha.test` (conductor), `readonly@alpha.test` (read_only), `publisher@alpha.test` (publisher), `admin@beta.test`, `xcong@beta.test` |
 
 </details>
 
@@ -416,17 +416,24 @@ pb.collection("addresses").subscribe("*", (e) => {
 |----------|------|-------------|
 | `POST /territory/reset` | Administrator or Conductor | Reset all maps in a territory |
 | `POST /territory/delete` | Administrator or Conductor | Delete a territory and all its maps |
+| `POST /assignment/assignees` | Administrator or Conductor of the link's congregation | Changes which accounts an open link is given to (`assignment`, `assignees`, optional `publisher`); members added are emailed |
 
-#### Any Congregation Member
+#### Any Staff Member
 
 | Endpoint | Role | Description |
 |----------|------|-------------|
-| `POST /territory/link` | Any role in the territory's congregation | Smart map assignment (Quicklink) |
+| `POST /territory/link` | Administrator, conductor or read_only in the territory's congregation | Smart map assignment (Quicklink) |
+
+#### Any Signed-in Account
+
+| Endpoint | Role | Description |
+|----------|------|-------------|
+| `POST /assignments/mine` | Any account, publishers included | The caller's unexpired links (those whose `assignees` include their account), with map and congregation names and the names of the other accounts on each link |
 
 <details>
 <summary>📬 Quicklink algorithm details</summary>
 
-The caller must hold a role — any role, including `read_only` — in the congregation that owns the territory. Candidate maps are restricted to that same congregation.
+The caller must hold a staff role (administrator, conductor or `read_only`) in the congregation that owns the territory; a publisher account is given links and cannot mint its own. Candidate maps are restricted to that same congregation.
 
 A map is **finished** once its progress reaches the congregation's `completion_threshold` (the setting that also completes a territory, 90 by default), or it has nothing left to work (`total` minus `completed` in its aggregates is zero; the per-status counts are not used, as they are stale on older maps). Finished maps are set aside; they are only considered when every map in the territory is finished, and then those with addresses left come before those with none. A map whose counts were never calculated is treated as having work.
 

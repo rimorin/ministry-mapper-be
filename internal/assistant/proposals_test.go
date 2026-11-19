@@ -59,6 +59,22 @@ func TestProposeRoleChange(t *testing.T) {
 	wantArgError(t, err, "already has the role")
 	_, err = proposeRoleChange.Run(s, json.RawMessage(`{"person": "Beta Admin", "role": "conductor"}`))
 	wantArgError(t, err, "nobody with access matches")
+	// A publisher holds a role row, but the assistant leaves it alone.
+	_, err = proposeRoleChange.Run(s, json.RawMessage(`{"person": "Alpha Publisher", "role": "conductor"}`))
+	wantArgError(t, err, "nobody with access matches")
+}
+
+func TestPeopleAndRoles_LeavesPublishersOut(t *testing.T) {
+	s := adminScope(t, alphaCong, "testuseralpha01")
+	r := run(t, s, peopleAndRoles, `{"role": null, "name": null}`)
+	if len(r.Rows) != 3 {
+		t.Fatalf("listed %d people, want the 3 staff: %v", len(r.Rows), r.Rows)
+	}
+	for _, role := range column(r, "role") {
+		if role == "publisher" {
+			t.Fatalf("a publisher was listed: %v", r.Rows)
+		}
+	}
 }
 
 func TestProposeRoleChange_LastAdminIsBlockedAndWarned(t *testing.T) {

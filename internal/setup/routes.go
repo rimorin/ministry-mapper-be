@@ -83,6 +83,16 @@ func RegisterRoutes(app core.App) {
 			return handlers.HandleTerritoryQuicklink(c, app)
 		})
 
+		// Links given to the caller's account
+		authRoute("/assignments/mine", func(c *core.RequestEvent) error {
+			return handlers.HandleGetMyAssignments(c, app)
+		})
+
+		// The accounts an open link is given to
+		authRoute("/assignment/assignees", func(c *core.RequestEvent) error {
+			return handlers.HandleUpdateAssignees(c, app, jobs.NotifyAssignees)
+		})
+
 		// Options
 		authRoute("/options/update", func(c *core.RequestEvent) error {
 			return handlers.HandleOptionUpdate(c, app)

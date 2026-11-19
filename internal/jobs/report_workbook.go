@@ -919,7 +919,8 @@ func writeSetupSheet(app core.App, f *excelize.File, st *reportStyles, congregat
 	}
 	row++
 
-	// Names only: the workbook is forwarded, so personal emails stay out of it.
+	// Names only: the workbook is forwarded, so personal emails stay out of it,
+	// and so do publishers, who would turn the sheet into a membership list.
 	var roles []struct {
 		Name string `db:"name"`
 		Role string `db:"role"`
@@ -927,7 +928,7 @@ func writeSetupSheet(app core.App, f *excelize.File, st *reportStyles, congregat
 	err = app.DB().NewQuery(`
 		SELECT COALESCE(u.name, '') AS name, r.role
 		FROM roles r JOIN users u ON u.id = r.user
-		WHERE r.congregation = {:c}
+		WHERE r.congregation = {:c} AND r.role IN ('administrator', 'conductor', 'read_only')
 		ORDER BY r.role, r.created
 	`).Bind(dbx.Params{"c": congregation.Id}).All(&roles)
 	if err != nil {

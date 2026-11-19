@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 
 	"ganigeorgiev.com/pocketbase/dbx"
@@ -255,17 +256,33 @@ func hasRoleAnywhere(app core.App, userId string, roles ...string) bool {
 	return err == nil
 }
 
-// sharesCongregation reports whether two users hold a role in a common congregation.
-func sharesCongregation(app core.App, userA, userB string) bool {
+// holdsAnyRole reports whether userId is a member of the congregation in any
+// role, publisher included. It answers "is this person one of ours", never
+// "may this person see our data": that is AuthorizeByRole.
+func holdsAnyRole(app core.App, userId, congregationId string) bool {
+	var v struct {
+		V int `db:"v"`
+	}
+	err := app.DB().NewQuery(`
+		SELECT 1 AS v FROM roles WHERE user = {:user} AND congregation = {:congregation} LIMIT 1
+	`).Bind(dbx.Params{"user": userId, "congregation": congregationId}).One(&v)
+	return err == nil
+}
+
+// sharesCongregation reports whether viewer holds a staff role in a congregation
+// where subject holds any role. It is one-way on purpose: staff see the
+// publishers on their roster, and a publisher sees no user record. The names
+// of a publisher's partners come from /assignments/mine instead.
+func sharesCongregation(app core.App, viewer, subject string) bool {
 	var v struct {
 		V int `db:"v"`
 	}
 	err := app.DB().NewQuery(`
 		SELECT 1 AS v FROM roles a
 		JOIN roles b ON b.congregation = a.congregation
-		WHERE a.user = {:a} AND b.user = {:b}
+		WHERE a.user = {:viewer} AND a.role IN ` + staffRoleSQL + ` AND b.user = {:subject}
 		LIMIT 1
-	`).Bind(dbx.Params{"a": userA, "b": userB}).One(&v)
+	`).Bind(dbx.Params{"viewer": viewer, "subject": subject}).One(&v)
 	return err == nil
 }
 
@@ -284,7 +301,7 @@ func userInLinkCongregation(app core.App, linkId, userId string) bool {
 	return err == nil
 }
 
-// authorizedForAllCongregations checks that the user has a role in every congregation listed.
+// authorizedForAllCongregations checks that the user has a staff role in every congregation listed.
 // Returns false for an empty list.
 func authorizedForAllCongregations(app core.App, userId string, congIds []string) bool {
 	if len(congIds) == 0 {
@@ -593,6 +610,35 @@ func RegisterAuthHooks(app core.App) {
 		)
 	})
 
+	// assignments: a record's id is the link token, and nothing else scopes a
+	// realtime subscription to this collection, so without this any signed-in
+	// account could listen for other congregations' links. Open to the
+	// congregation's staff, to the accounts on the link, and to its holder.
+	app.OnRecordEnrich("assignments").BindFunc(func(e *core.RecordEnrichEvent) error {
+		record := e.Record
+		congId := record.GetString("congregation")
+		return scopeEnrich(e,
+			func(auth *core.Record) bool {
+				return auth.Id == record.GetString("user") || slices.Contains(record.GetStringSlice("assignees"), auth.Id) ||
+					(congId != "" && AuthorizeByRole(app, auth.Id, congId))
+			},
+			func(linkId string) bool { return linkId == record.Id },
+		)
+	})
+
+	// roles: the same scope as the roles list, a member's own row or the roster
+	// of a congregation they are staff in.
+	app.OnRecordEnrich("roles").BindFunc(func(e *core.RecordEnrichEvent) error {
+		record := e.Record
+		congId := record.GetString("congregation")
+		return scopeEnrich(e,
+			func(auth *core.Record) bool {
+				return auth.Id == record.GetString("user") || (congId != "" && AuthorizeByRole(app, auth.Id, congId))
+			},
+			func(string) bool { return false },
+		)
+	})
+
 	// options LIST: validate auth user has role in every congregation in the filter,
 	// or link-id belongs to the single congregation queried.
 	app.OnRecordsListRequest("options").BindFunc(func(e *core.RecordsListRequestEvent) error {
@@ -642,7 +688,7 @@ func RegisterAuthHooks(app core.App) {
 		)
 	})
 
-	// roles LIST: auth user must have a role in every congregation referenced by the filter.
+	// roles LIST: auth user must have a staff role in every congregation referenced by the filter.
 	app.OnRecordsListRequest("roles").BindFunc(func(e *core.RecordsListRequestEvent) error {
 		if e.HasSuperuserAuth() {
 			return e.Next()
@@ -738,7 +784,7 @@ func RegisterAuthHooks(app core.App) {
 
 	// --- Create/Update/Delete hooks (pre-operation authorization) ---
 
-	// Pattern A: Any role OR link access
+	// Pattern A: Any staff role OR link access
 	// messages create
 	// (addresses/address_options create/update/delete go through the custom
 	// /address/* routes, not this generic API — their createRule/updateRule/
@@ -826,6 +872,21 @@ func RegisterAuthHooks(app core.App) {
 	// assignments create/delete
 	app.OnRecordCreateRequest("assignments").BindFunc(func(e *core.RecordRequestEvent) error {
 		return adminOrConductor(e, app, getCongId(e, false))
+	})
+	// A link can only be given to a member of its congregation, publishers
+	// included: an assignee's "My maps" would otherwise reach a map in a
+	// congregation that never added them.
+	app.OnRecordCreateRequest("assignments").BindFunc(func(e *core.RecordRequestEvent) error {
+		if e.HasSuperuserAuth() {
+			return e.Next()
+		}
+		congId := getCongId(e, false)
+		for _, assignee := range e.Record.GetStringSlice("assignees") {
+			if !holdsAnyRole(app, assignee, congId) {
+				return apis.NewBadRequestError("An assignee is not a member of this congregation", nil)
+			}
+		}
+		return e.Next()
 	})
 	app.OnRecordDeleteRequest("assignments").BindFunc(func(e *core.RecordRequestEvent) error {
 		return adminOrConductor(e, app, getCongId(e, true))

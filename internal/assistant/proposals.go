@@ -170,7 +170,7 @@ var proposeRoleChange = Tool{
 		err := s.App.DB().NewQuery(`
 			SELECT r.id AS role_id, u.id AS user_id, COALESCE(u.name, '') AS name, u.email, r.role, u.disabled
 			FROM roles r JOIN users u ON u.id = r.user
-			WHERE r.congregation = {:congregation}
+			WHERE r.congregation = {:congregation} AND r.role IN ` + staffRoleSQL + `
 		`).Bind(dbx.Params{"congregation": s.CongregationID}).All(&roles)
 		if err != nil {
 			return Result{}, err

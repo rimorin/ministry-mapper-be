@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"ministry-mapper/internal/handlers"
+	"ministry-mapper/internal/jobs"
 
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
 )
@@ -92,6 +93,7 @@ func RegisterDomainHooks(app core.App) {
 			return err
 		}
 		handlers.LogAssignmentCreated(e)
+		jobs.NotifyAssignees(e.App, e.Record, nil)
 		return nil
 	})
 
@@ -128,9 +130,11 @@ func RegisterDomainHooks(app core.App) {
 		return nil
 	})
 
-	// Stamp unprovisioned_since when a user's last role is deleted
+	// Stamp unprovisioned_since when a user's last role is deleted, and take
+	// them off the links they held in that congregation
 	app.OnRecordAfterDeleteSuccess("roles").BindFunc(func(e *core.RecordEvent) error {
 		handlers.HandleRoleDelete(e)
+		handlers.RemoveFromHeldLinks(e)
 		return e.Next()
 	})
 }

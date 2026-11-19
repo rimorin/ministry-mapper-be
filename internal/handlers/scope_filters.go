@@ -52,13 +52,13 @@ func filterListResults(e *core.RecordsListRequestEvent, keep func(*core.Record) 
 	}
 }
 
-// userCongregationIDs returns every congregation the user holds any role in.
+// userCongregationIDs returns every congregation the user holds a staff role in.
 func userCongregationIDs(app core.App, userId string) ([]string, error) {
 	var rows []struct {
 		Congregation string `db:"congregation"`
 	}
 	err := app.DB().NewQuery(`
-		SELECT DISTINCT congregation FROM roles WHERE user = {:userId}
+		SELECT DISTINCT congregation FROM roles WHERE user = {:userId} AND role IN ` + staffRoleSQL + `
 	`).Bind(dbx.Params{"userId": userId}).All(&rows)
 	if err != nil {
 		return nil, err
@@ -70,7 +70,7 @@ func userCongregationIDs(app core.App, userId string) ([]string, error) {
 	return ids, nil
 }
 
-// userMapIDs returns every map in every congregation the user holds any role in.
+// userMapIDs returns every map in every congregation the user holds a staff role in.
 func userMapIDs(app core.App, userId string) ([]string, error) {
 	var rows []struct {
 		Id string `db:"id"`
@@ -78,7 +78,7 @@ func userMapIDs(app core.App, userId string) ([]string, error) {
 	err := app.DB().NewQuery(`
 		SELECT DISTINCT m.id FROM maps m
 		JOIN roles r ON r.congregation = m.congregation
-		WHERE r.user = {:userId}
+		WHERE r.user = {:userId} AND r.role IN ` + staffRoleSQL + `
 	`).Bind(dbx.Params{"userId": userId}).All(&rows)
 	if err != nil {
 		return nil, err
@@ -92,7 +92,7 @@ func userMapIDs(app core.App, userId string) ([]string, error) {
 
 // resolveMapScopeIDs returns the maps a request may access: the single map
 // behind a valid, non-expired link-id, or every map in every congregation
-// the auth user holds a role in.
+// the auth user holds a staff role in.
 func resolveMapScopeIDs(app core.App, auth *core.Record, linkId string) ([]string, error) {
 	if linkId != "" {
 		var result struct {
@@ -177,7 +177,7 @@ func filterEscapesMapScope(
 }
 
 // congregationScopeKeep returns a predicate matching every congregation the
-// user holds any role in.
+// user holds a staff role in.
 func congregationScopeKeep(app core.App, userId string) (func(*core.Record) bool, error) {
 	ids, err := userCongregationIDs(app, userId)
 	if err != nil || len(ids) == 0 {
@@ -188,8 +188,8 @@ func congregationScopeKeep(app core.App, userId string) (func(*core.Record) bool
 }
 
 // rolesScopeKeep matches the user's own role records, plus every role
-// record in a congregation they hold any role in — any congregation member
-// may list the full roster, not just admins.
+// record in a congregation they hold a staff role in — any staff member may
+// list the full roster, not just admins. A publisher sees only their own row.
 func rolesScopeKeep(app core.App, userId string) (func(*core.Record) bool, error) {
 	congIds, err := userCongregationIDs(app, userId)
 	if err != nil {
@@ -202,7 +202,7 @@ func rolesScopeKeep(app core.App, userId string) (func(*core.Record) bool, error
 }
 
 // assignmentsScopeKeep matches the user's own assignment history, every
-// assignment for a map they hold a role for, and — for global
+// assignment for a map they hold a staff role for, and — for global
 // administrators/conductors — the other user's assignments named in
 // clientFilter, mirroring the "admin/conductor may look up any publisher's
 // history" behavior.

@@ -17,12 +17,13 @@ type Recipient struct {
 	Email string `db:"email"`
 }
 
-// fetchCongregationRecipients returns the users holding (adminOnly) or not holding
-// (!adminOnly) the administrator role in the given congregation.
+// fetchCongregationRecipients returns the congregation's administrators
+// (adminOnly) or its conductors and read-only users (!adminOnly). Publishers
+// are never emailed: they read instructions on the map they are given.
 func fetchCongregationRecipients(app core.App, congregationId string, adminOnly bool) ([]Recipient, error) {
 	roleCond := "roles.role = 'administrator'"
 	if !adminOnly {
-		roleCond = "roles.role != 'administrator'"
+		roleCond = "roles.role IN ('conductor', 'read_only')"
 	}
 	recipients := []Recipient{}
 	err := app.DB().Select("users.*").From("users").
