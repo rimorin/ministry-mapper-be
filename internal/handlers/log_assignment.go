@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"log"
+	"strings"
 
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
 	"github.com/getsentry/sentry-go"
@@ -35,6 +36,13 @@ func writeAssignmentLog(app core.App, record *core.Record, actor *core.Record, a
 	logRecord.Set("map", record.Get("map"))
 	logRecord.Set("user", record.Get("user"))
 	logRecord.Set("user_email", userEmail(app, record.GetString("user")))
+	assignees := record.GetStringSlice("assignees")
+	assigneeEmails := make([]string, len(assignees))
+	for i, id := range assignees {
+		assigneeEmails[i] = userEmail(app, id)
+	}
+	logRecord.Set("assignees", assignees)
+	logRecord.Set("assignee_emails", strings.Join(assigneeEmails, ", "))
 	logRecord.Set("publisher", record.Get("publisher"))
 	logRecord.Set("type", record.Get("type"))
 	logRecord.Set("action", action)

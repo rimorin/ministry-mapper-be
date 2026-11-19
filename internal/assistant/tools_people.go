@@ -44,7 +44,7 @@ var peopleAndRoles = Tool{
 		err := s.App.DB().NewQuery(`
 			SELECT COALESCE(u.name, '') AS name, r.role, COALESCE(u.last_login, '') AS last_login, u.disabled
 			FROM roles r JOIN users u ON u.id = r.user
-			WHERE r.congregation = {:congregation}
+			WHERE r.congregation = {:congregation} AND r.role IN ` + staffRoleSQL + `
 			  AND ({:role} = '' OR r.role = {:role})
 			  AND ({:name} = '' OR instr(lower(u.name), lower({:name})) > 0)
 			ORDER BY CASE r.role WHEN 'administrator' THEN 0 WHEN 'conductor' THEN 1 ELSE 2 END, lower(u.name)

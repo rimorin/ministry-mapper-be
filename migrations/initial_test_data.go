@@ -95,6 +95,7 @@ func init() {
 			{"testuseralpha01", "admin@alpha.test", "Alpha Admin"},
 			{"testuseralpha02", "conductor@alpha.test", "Alpha Conductor"},
 			{"testuseralpha03", "readonly@alpha.test", "Alpha ReadOnly"},
+			{"testuseralpha04", "publisher@alpha.test", "Alpha Publisher"},
 			{"testuserbeta001", "admin@beta.test", "Beta Admin"},
 			{"testuserbeta002", "xcong@beta.test", "Beta Xcong"},
 		} {
@@ -123,6 +124,7 @@ func init() {
 			{"testrolexcng01a", seedAlphaCongID, "testuseralpha01", "administrator"},
 			{"testrolexcng01b", seedAlphaCongID, "testuseralpha02", "conductor"},
 			{"testrolexcng01c", seedAlphaCongID, "testuseralpha03", "read_only"},
+			{"testrolexcng01d", seedAlphaCongID, "testuseralpha04", "publisher"},
 			{"testrolexcng02a", seedBetaCongID, "testuserbeta001", "administrator"},
 			{"testrolexcng02b", seedBetaCongID, "testuserbeta002", "conductor"},
 		} {
@@ -475,7 +477,7 @@ func init() {
 			}
 		}
 		for _, email := range []string{
-			"admin@alpha.test", "conductor@alpha.test", "readonly@alpha.test",
+			"admin@alpha.test", "conductor@alpha.test", "readonly@alpha.test", "publisher@alpha.test",
 			"admin@beta.test", "xcong@beta.test",
 		} {
 			if r, err := app.FindAuthRecordByEmail("users", email); err == nil {

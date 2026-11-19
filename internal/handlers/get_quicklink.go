@@ -101,8 +101,8 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 	userId := c.Auth.Id
 
 	// The assignment minted below grants publisher access to the selected map, so
-	// the caller must hold a role in the territory's congregation. Any role is
-	// enough — read_only publishers legitimately use quicklinks.
+	// the caller must hold a staff role in the territory's congregation. A
+	// publisher account is given links and does not mint its own.
 	congregationId := getTerritoryCongregation(app, territoryId)
 	if congregationId == "" {
 		return apis.NewNotFoundError("Territory not found", nil)

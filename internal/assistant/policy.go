@@ -23,6 +23,10 @@ const (
 	roleAdministrator = "administrator"
 )
 
+// staffRoleSQL lists the roles the assistant works with. A publisher account
+// holds a role row too, but the assistant neither lists nor changes it.
+const staffRoleSQL = "('administrator', 'conductor', 'read_only')"
+
 var roleRank = map[string]int{roleReadOnly: 1, roleConductor: 2, roleAdministrator: 3}
 
 // atLeast reports whether role ranks at or above min. An unknown role ranks

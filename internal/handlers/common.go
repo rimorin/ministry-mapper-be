@@ -112,20 +112,24 @@ func fetchMapData(app core.App, mapId string) (*core.Record, error) {
 	return app.FindRecordById("maps", mapId)
 }
 
+// staffRoles are the roles that open a congregation's data. A publisher holds
+// a role row too but only works the links given to them, so "has a role" in an
+// access check always means one of these: a role added later stays shut out
+// until it is listed here.
+var staffRoles = []string{"administrator", "conductor", "read_only"}
+
+// staffRoleSQL is staffRoles as a SQL list, for queries that join roles.
+const staffRoleSQL = "('administrator', 'conductor', 'read_only')"
+
 // AuthorizeByRole checks if userId has one of the specified roles in the given congregation.
-// If no allowedRoles are provided, any role grants access.
+// If no allowedRoles are provided, any staff role grants access.
 func AuthorizeByRole(app core.App, userId string, congregationId string, allowedRoles ...string) bool {
 	var v struct {
 		V int `db:"v"`
 	}
 
 	if len(allowedRoles) == 0 {
-		err := app.DB().NewQuery(`
-			SELECT 1 as v FROM roles
-			WHERE user = {:userId} AND congregation = {:congId}
-			LIMIT 1
-		`).Bind(dbx.Params{"userId": userId, "congId": congregationId}).One(&v)
-		return err == nil
+		allowedRoles = staffRoles
 	}
 
 	params := dbx.Params{"userId": userId, "congId": congregationId}
@@ -204,7 +208,7 @@ func resolveActor(c *core.RequestEvent, app core.App) string {
 	return assignment.GetString("publisher")
 }
 
-// authorizeUserForMap checks if userId has any role in the map's congregation.
+// authorizeUserForMap checks if userId has a staff role in the map's congregation.
 func authorizeUserForMap(app core.App, userId string, mapId string) bool {
 	var v struct {
 		V int `db:"v"`
@@ -212,13 +216,13 @@ func authorizeUserForMap(app core.App, userId string, mapId string) bool {
 	err := app.DB().NewQuery(`
 		SELECT 1 as v FROM roles r
 		JOIN maps m ON m.congregation = r.congregation
-		WHERE m.id = {:mapId} AND r.user = {:userId}
+		WHERE m.id = {:mapId} AND r.user = {:userId} AND r.role IN ` + staffRoleSQL + `
 		LIMIT 1
 	`).Bind(dbx.Params{"mapId": mapId, "userId": userId}).One(&v)
 	return err == nil
 }
 
-// authorizeUserForMaps checks if userId has a role in the congregation of every
+// authorizeUserForMaps checks if userId has a staff role in the congregation of every
 // map in mapIds using a single query. Returns true only if all maps are authorized.
 func authorizeUserForMaps(app core.App, userId string, mapIds []string) bool {
 	if len(mapIds) == 0 {
@@ -243,7 +247,7 @@ func authorizeUserForMaps(app core.App, userId string, mapIds []string) bool {
 	err := app.DB().NewQuery(
 		`SELECT COUNT(DISTINCT m.id) as cnt FROM roles r
 		JOIN maps m ON m.congregation = r.congregation
-		WHERE m.id IN (` + strings.Join(placeholders, ",") + `) AND r.user = {:userId}`,
+		WHERE m.id IN (` + strings.Join(placeholders, ",") + `) AND r.user = {:userId} AND r.role IN ` + staffRoleSQL,
 	).Bind(params).One(&result)
 	return err == nil && result.Cnt == len(unique)
 }
