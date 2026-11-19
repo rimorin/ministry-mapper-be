@@ -52,6 +52,10 @@ func TestEnrichScope_Expand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	outsiderToken, err := generateToken("xcong@beta.test")
+	if err != nil {
+		t.Fatal(err)
+	}
 	superuserToken, err := generateSuperuserToken("testing_account@ministry-mapper.com")
 	if err != nil {
 		t.Fatal(err)
@@ -136,6 +140,20 @@ func TestEnrichScope_Expand(t *testing.T) {
 			TestAppFactory:  setupTestApp,
 			ExpectedStatus:  200,
 			ExpectedContent: []string{`"Blk 100A"`},
+		},
+		{
+			// Expanding a user needs an account, so this is the reach of
+			// anyone signed in who holds the link, whatever their congregation.
+			Name:   "a link shows its staff and hides the publishers it was given to",
+			Method: http.MethodGet,
+			URL: "/api/collections/assignments/records/" + sharedLinkID + "?expand=user,assignees&fields=" +
+				url.QueryEscape("id,expand.user.email,expand.assignees.email"),
+			Headers:            map[string]string{"Authorization": outsiderToken, "link-id": sharedLinkID},
+			TestAppFactory:     setupTestApp,
+			BeforeTestFunc:     seedPublisherLinks,
+			ExpectedStatus:     200,
+			ExpectedContent:    []string{`"conductor@alpha.test"`, `"readonly@alpha.test"`},
+			NotExpectedContent: []string{publisherEmail},
 		},
 		{
 			Name:            "superuser expand is not scoped",

@@ -286,8 +286,9 @@ func sharesCongregation(app core.App, viewer, subject string) bool {
 	return err == nil
 }
 
-// userInLinkCongregation reports whether userId holds a role in the congregation of
-// the unexpired assignment linkId.
+// userInLinkCongregation reports whether userId holds a staff role in the
+// congregation of the unexpired assignment linkId. A link shows who made it
+// and who wrote its messages, never the publishers it was given to.
 func userInLinkCongregation(app core.App, linkId, userId string) bool {
 	var v struct {
 		V int `db:"v"`
@@ -296,6 +297,7 @@ func userInLinkCongregation(app core.App, linkId, userId string) bool {
 		SELECT 1 AS v FROM assignments a
 		JOIN roles r ON r.congregation = a.congregation
 		WHERE a.id = {:link} AND a.expiry_date > datetime('now') AND r.user = {:user}
+			AND r.role IN ` + staffRoleSQL + `
 		LIMIT 1
 	`).Bind(dbx.Params{"link": linkId, "user": userId}).One(&v)
 	return err == nil
