@@ -414,7 +414,7 @@ func TestTools_NeverReturnAnotherCongregation(t *testing.T) {
 		"propose_unpin_message": {`{"map": "Blk 100A"}`, `{"map": "Blk 300A"}`},
 		"propose_map_location":  {`{"map": "Blk 100A"}`, `{"map": "Blk 300A"}`},
 		"propose_link_revoke":   {`{"map": "Blk 100A"}`, `{"map": "Blk 300A"}`},
-		"propose_quick_link":    {`{"territory": "T01", "publisher": "Someone New"}`},
+		"propose_quick_link":    {`{"territory": "T01", "publishers": ["Someone New"], "near_me": false}`},
 		"propose_home_update":   {`{"map": "Blk 100A", "unit": "1", "status": "done"}`, `{"map": "Blk 300A", "unit": "60", "status": "done"}`},
 		"propose_reset":         {`{"what": "map", "name": "Blk 100A"}`, `{"what": "map", "name": "Blk 300A"}`, `{"what": "territory", "name": "T01"}`},
 		"propose_tries_reset":   {`{}`},

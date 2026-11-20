@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -61,7 +62,13 @@ type MapAggregates struct {
 
 // HandleTerritoryQuicklink automatically assigns the best available map to a user
 // based on workload balance, proximity, and completion progress.
-func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
+//
+// The Quick Link screen sends a territory, one name and where the caller
+// stands, and that is still all the route needs. Two things are optional on
+// top, both sent by the assistant's cards: assignees, the members' accounts
+// the link is given to, and leaving coordinates out, for a map picked ahead of
+// time by workload alone.
+func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App, notify AssigneeNotifierFn) error {
 	requestInfo, _ := c.RequestInfo()
 	data := requestInfo.Body
 
@@ -70,26 +77,30 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 		return apis.NewBadRequestError("Territory ID is required", nil)
 	}
 
-	coordinates, ok := data["coordinates"].(map[string]interface{})
-	if !ok || coordinates == nil {
-		return apis.NewBadRequestError("Coordinates are required", nil)
-	}
+	var origin *Coordinates
+	if data["coordinates"] != nil {
+		coordinates, ok := data["coordinates"].(map[string]interface{})
+		if !ok {
+			return apis.NewBadRequestError("Coordinates are required", nil)
+		}
 
-	latValue, latExists := coordinates["lat"]
-	longValue, longExists := coordinates["lng"]
+		latValue, latExists := coordinates["lat"]
+		longValue, longExists := coordinates["lng"]
 
-	if !latExists || !longExists {
-		return apis.NewBadRequestError("Both lat and long coordinates are required", nil)
-	}
+		if !latExists || !longExists {
+			return apis.NewBadRequestError("Both lat and long coordinates are required", nil)
+		}
 
-	currentLat, ok := latValue.(float64)
-	if !ok || currentLat < -90 || currentLat > 90 {
-		return apis.NewBadRequestError("Invalid latitude value", nil)
-	}
+		currentLat, ok := latValue.(float64)
+		if !ok || currentLat < -90 || currentLat > 90 {
+			return apis.NewBadRequestError("Invalid latitude value", nil)
+		}
 
-	currentLong, ok := longValue.(float64)
-	if !ok || currentLong < -180 || currentLong > 180 {
-		return apis.NewBadRequestError("Invalid longitude value", nil)
+		currentLong, ok := longValue.(float64)
+		if !ok || currentLong < -180 || currentLong > 180 {
+			return apis.NewBadRequestError("Invalid longitude value", nil)
+		}
+		origin = &Coordinates{Lat: currentLat, Lng: currentLong}
 	}
 
 	publisher, _ := data["publisher"].(string)
@@ -111,6 +122,25 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 		return apis.NewForbiddenError("Unauthorized", nil)
 	}
 
+	// The accounts the link is given to, held to what a link made by hand is:
+	// members of this congregation, and no more than a link can carry.
+	given := []string{}
+	if raw, ok := data["assignees"].([]interface{}); ok {
+		if len(raw) > maxAssignees {
+			return apis.NewBadRequestError("Too many assignees", nil)
+		}
+		for _, value := range raw {
+			id, _ := value.(string)
+			if id == "" || slices.Contains(given, id) {
+				continue
+			}
+			if !holdsAnyRole(app, id, congregationId) {
+				return apis.NewBadRequestError("An assignee is not a member of this congregation", nil)
+			}
+			given = append(given, id)
+		}
+	}
+
 	settings, err := getQuicklinkSettings(app, congregationId)
 	if err != nil {
 		return newServerError(err)
@@ -124,6 +154,7 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 	// one at a time, so each request sees the links minted before it. Otherwise a
 	// group tapping at the same moment reads the same counts and piles onto one map.
 	var bestMap *MapWithDistance
+	var link *core.Record
 	var assignmentId string
 	var assignees []string
 	err = app.RunInTransaction(func(txApp core.App) error {
@@ -135,18 +166,22 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App) error {
 			return apis.NewNotFoundError("No maps found for territory", nil)
 		}
 
-		bestMap = findBestMap(maps, currentLat, currentLong, settings.completionThreshold)
+		bestMap = findBestMapFrom(maps, origin, settings.completionThreshold)
 
-		assignmentId, err = createAssignment(txApp, bestMap.ID, c.Auth, publisher, congregationId, settings.expiryHours)
+		link, err = createAssignment(txApp, bestMap.ID, c.Auth, publisher, congregationId, settings.expiryHours, given)
 		if err != nil {
 			return err
 		}
+		assignmentId = link.Id
 
 		assignees, err = getMapAssignees(txApp, bestMap.ID, assignmentId)
 		return err
 	})
 	if err != nil {
 		return wrapTransactionError(err)
+	}
+	if len(given) > 0 {
+		notify(app, link, nil)
 	}
 
 	var aggregates MapAggregates
@@ -283,6 +318,14 @@ func mapTier(m *MapWithDistance, completionThreshold int) (tier, remaining int) 
 // Uses separate passes to avoid order-dependent results that a single greedy pass
 // produces when the 50m proximity window straddles multiple maps at different distances.
 func findBestMap(maps []MapWithDistance, currentLat, currentLong float64, completionThreshold int) *MapWithDistance {
+	return findBestMapFrom(maps, &Coordinates{Lat: currentLat, Lng: currentLong}, completionThreshold)
+}
+
+// findBestMapFrom is findBestMap for a caller who may not have said where they
+// stand. With no origin every map is as far as any other, so the choice falls
+// to the rest of the order: fewest assignments, most addresses left, lowest
+// progress, territory map order.
+func findBestMapFrom(maps []MapWithDistance, origin *Coordinates, completionThreshold int) *MapWithDistance {
 	// Pass 1: locate and classify each map.
 	lowestTier := tierDone
 	for i := range maps {
@@ -296,7 +339,9 @@ func findBestMap(maps []MapWithDistance, currentLat, currentLong float64, comple
 		}
 		m.Distance = math.Inf(1)
 		if err := json.Unmarshal([]byte(m.Coordinates), &coords); err == nil && coords.Lat != nil && coords.Lng != nil {
-			m.Distance = haversineDistance(currentLat, currentLong, *coords.Lat, *coords.Lng)
+			if origin != nil {
+				m.Distance = haversineDistance(origin.Lat, origin.Lng, *coords.Lat, *coords.Lng)
+			}
 			m.ParsedCoords = &Coordinates{Lat: *coords.Lat, Lng: *coords.Lng}
 		}
 
@@ -379,10 +424,10 @@ func getQuicklinkSettings(app core.App, congregationId string) (quicklinkSetting
 }
 
 // createAssignment creates a new assignment record linking a user to a map with expiry.
-func createAssignment(app core.App, mapId string, user *core.Record, publisher, congId string, expiryHours float64) (string, error) {
+func createAssignment(app core.App, mapId string, user *core.Record, publisher, congId string, expiryHours float64, assignees []string) (*core.Record, error) {
 	collection, err := app.FindCollectionByNameOrId("assignments")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	assignment := core.NewRecord(collection)
@@ -391,17 +436,20 @@ func createAssignment(app core.App, mapId string, user *core.Record, publisher, 
 	assignment.Set("type", "normal")
 	assignment.Set("publisher", publisher)
 	assignment.Set("congregation", congId)
+	if len(assignees) > 0 {
+		assignment.Set("assignees", assignees)
+	}
 
 	// Multiply before converting: expiry_hours may be fractional.
 	expiryDate := time.Now().UTC().Add(time.Duration(expiryHours * float64(time.Hour)))
 	assignment.Set("expiry_date", expiryDate)
 
 	if err := app.Save(assignment); err != nil {
-		return "", err
+		return nil, err
 	}
 	writeAssignmentLog(app, assignment, user, "assigned")
 
-	return assignment.Id, nil
+	return assignment, nil
 }
 
 // getMapAssignees gets all publishers currently assigned to a map.

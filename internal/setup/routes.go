@@ -80,7 +80,7 @@ func RegisterRoutes(app core.App) {
 			return handlers.HandleDeleteTerritory(c, app)
 		})
 		authRoute("/territory/link", func(c *core.RequestEvent) error {
-			return handlers.HandleTerritoryQuicklink(c, app)
+			return handlers.HandleTerritoryQuicklink(c, app, jobs.NotifyAssignees)
 		})
 
 		// Links given to the caller's account

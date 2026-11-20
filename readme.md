@@ -422,7 +422,7 @@ pb.collection("addresses").subscribe("*", (e) => {
 
 | Endpoint | Role | Description |
 |----------|------|-------------|
-| `POST /territory/link` | Administrator, conductor or read_only in the territory's congregation | Smart map assignment (Quicklink) |
+| `POST /territory/link` | Administrator, conductor or read_only in the territory's congregation | Smart map assignment (Quicklink). Body: `territory`, `publisher`, `coordinates`; optional `assignees` (member accounts the link is given to), and `coordinates` may be left out to pick by workload alone |
 
 #### Any Signed-in Account
 

@@ -210,14 +210,11 @@ var proposeShareLink = Tool{
 		"which then lets them share the link. People with an account in the app are matched on the card and " +
 		"find the map under My maps. Use it only when the admin asks to give someone a map.",
 	Params: object(map[string]any{
-		"map":       mapArg,
-		"territory": mapTerritoryArg,
-		"publishers": map[string]any{
-			"type": "array", "items": map[string]any{"type": "string"},
-			"description": "Who the link is for, one entry per person: their token, or the name as the admin wrote it, in full when the admin gave it in full.",
-		},
-		"type": enumOf("normal for a usual link, personal for personal territory.", "normal", "personal"),
-		"days": nullable("integer", "With personal: how many days the link lasts, 1 to 365."),
+		"map":        mapArg,
+		"territory":  mapTerritoryArg,
+		"publishers": publishersArg,
+		"type":       enumOf("normal for a usual link, personal for personal territory.", "normal", "personal"),
+		"days":       nullable("integer", "With personal: how many days the link lasts, 1 to 365."),
 	}),
 	Run: func(s Scope, raw json.RawMessage) (Result, error) {
 		var args struct {
@@ -229,16 +226,9 @@ var proposeShareLink = Tool{
 		if err := decodeArgs(raw, &args); err != nil {
 			return Result{}, err
 		}
-		if len(args.Publishers) == 0 || len(args.Publishers) > maxLinkPeople {
-			return Result{}, badArgs("publishers must name 1 to %d people", maxLinkPeople)
-		}
-		names := make([]string, len(args.Publishers))
-		for i, raw := range args.Publishers {
-			name, err := publisherName(s, raw)
-			if err != nil {
-				return Result{}, err
-			}
-			names[i] = name
+		names, err := linkNames(s, args.Publishers)
+		if err != nil {
+			return Result{}, err
 		}
 		target, err := args.target(s)
 		if err != nil {
@@ -277,13 +267,43 @@ var proposeShareLink = Tool{
 			Warnings: warnings,
 			Target:   &target, Value: strings.Join(names, ", "), LinkType: args.Type, Hours: hours,
 		}
-		if s.MemberLinks {
-			if p.People, err = matchMembers(s, names); err != nil {
-				return Result{}, err
-			}
+		if p.People, err = linkPeople(s, names); err != nil {
+			return Result{}, err
 		}
 		return Result{Proposal: &p}, nil
 	},
+}
+
+// publishersArg is who a link is for, on both kinds of link.
+var publishersArg = map[string]any{
+	"type": "array", "items": map[string]any{"type": "string"},
+	"description": "Who the link is for, one entry per person: their token, or the name as the admin wrote it, in full when the admin gave it in full.",
+}
+
+// linkNames reads who a link is for as the model listed them, tokens put back
+// to names.
+func linkNames(s Scope, publishers []string) ([]string, error) {
+	if len(publishers) == 0 || len(publishers) > maxLinkPeople {
+		return nil, badArgs("publishers must name 1 to %d people", maxLinkPeople)
+	}
+	names := make([]string, len(publishers))
+	for i, raw := range publishers {
+		name, err := publisherName(s, raw)
+		if err != nil {
+			return nil, err
+		}
+		names[i] = name
+	}
+	return names, nil
+}
+
+// linkPeople matches a link's names to members' accounts, where the
+// congregation gives links to accounts; nil where it does not.
+func linkPeople(s Scope, names []string) ([]LinkPerson, error) {
+	if !s.MemberLinks {
+		return nil, nil
+	}
+	return matchMembers(s, names)
 }
 
 var proposePinMessage = Tool{
