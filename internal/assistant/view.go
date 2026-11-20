@@ -61,7 +61,8 @@ func viewPrompt(v *View) string {
 	}
 	fmt.Fprintf(&b, `. "This territory", "here" and "these maps" mean %s`, v.TerritoryCode)
 	if v.MapName != "" {
-		fmt.Fprintf(&b, `; "this map", "this block" and "this street" mean %s in %s`, v.MapName, v.TerritoryCode)
+		fmt.Fprintf(&b, `; "this map", "this block" and "this street" mean %s in %s, and "near here" or `+
+			`"around here" means near that map: give it as the place to start from`, v.MapName, v.TerritoryCode)
 	}
 	b.WriteString(". Use the view only when the question refers to it; a question naming another place is about that place.")
 	return b.String()

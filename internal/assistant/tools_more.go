@@ -29,11 +29,18 @@ func withinDays(v *int, def int) (int, error) {
 	return *v, nil
 }
 
+// accountsSQL counts the members' accounts on a link aliased alias. The field
+// is empty, not an empty list, on a link given to nobody.
+func accountsSQL(alias string) string {
+	return "(CASE WHEN json_valid(" + alias + ".assignees) THEN json_array_length(" + alias + ".assignees) ELSE 0 END)"
+}
+
 var assignments = Tool{
 	Name: "assignments",
 	Description: "Share links given to publishers. \"active\" lists links that are open now, with when each " +
 		"expires; \"given\" lists links handed out in the last within_days days. Personal territory is a link " +
-		"held for longer than a normal one.",
+		"held for longer than a normal one. accounts is how many members' accounts the link was given to; " +
+		"0 means it was only sent as a link.",
 	PersonColumns: []string{"publisher"},
 	Params: object(map[string]any{
 		"which":                 enumOf("active for open links now, given for links handed out recently.", "active", "given"),
@@ -42,6 +49,7 @@ var assignments = Tool{
 		"type":                  nullableEnum("Only normal or only personal links, or null for both.", "normal", "personal"),
 		"expiring_within_hours": nullable("integer", "With active: only links expiring within this many hours."),
 		"within_days":           nullable("integer", "With given: how many days back, default 30."),
+		"by_me":                 nullable("boolean", "True for only the links the asker made: \"my links\", \"the ones I gave out\"."),
 		"limit":                 limitParam(),
 	}),
 	Run: func(s Scope, raw json.RawMessage) (Result, error) {
@@ -52,6 +60,7 @@ var assignments = Tool{
 			Type      *string `json:"type"`
 			Expiring  *int    `json:"expiring_within_hours"`
 			Within    *int    `json:"within_days"`
+			ByMe      *bool   `json:"by_me"`
 			Limit     *int    `json:"limit"`
 		}
 		if err := decodeArgs(raw, &args); err != nil {
@@ -65,7 +74,12 @@ var assignments = Tool{
 		if args.Type != nil {
 			kind = *args.Type
 		}
-		params := dbx.Params{"congregation": s.CongregationID, "territory": territoryID, "map": mapID, "type": kind, "now": dbTime(s.Now)}
+		by := ""
+		if args.ByMe != nil && *args.ByMe {
+			by = s.UserID
+		}
+		params := dbx.Params{"congregation": s.CongregationID, "territory": territoryID, "map": mapID, "type": kind,
+			"now": dbTime(s.Now), "by": by}
 
 		var rows []struct {
 			TerritoryID string `db:"territory_id"`
@@ -76,6 +90,7 @@ var assignments = Tool{
 			Type        string `db:"type"`
 			Given       string `db:"given"`
 			Expires     string `db:"expires"`
+			Accounts    int    `db:"accounts"`
 		}
 		var query string
 		switch args.Which {
@@ -89,11 +104,12 @@ var assignments = Tool{
 			}
 			params["until"] = dbTime(until)
 			query = `SELECT t.id AS territory_id, t.code AS territory, m.id AS map_id, m.description AS map,
-			       COALESCE(a.publisher, '') AS publisher, a.type, a.created AS given, a.expiry_date AS expires
+			       COALESCE(a.publisher, '') AS publisher, a.type, a.created AS given, a.expiry_date AS expires,
+			       ` + accountsSQL("a") + ` AS accounts
 			FROM assignments a JOIN maps m ON m.id = a.map JOIN territories t ON t.id = m.territory
 			WHERE a.congregation = {:congregation} AND a.expiry_date > {:now} AND a.expiry_date <= {:until}
 			  AND ({:territory} = '' OR t.id = {:territory}) AND ({:map} = '' OR m.id = {:map})
-			  AND ({:type} = '' OR a.type = {:type})
+			  AND ({:type} = '' OR a.type = {:type}) AND ({:by} = '' OR a.user = {:by})
 			ORDER BY a.expiry_date`
 		case "given":
 			days, err := withinDays(args.Within, 30)
@@ -102,11 +118,12 @@ var assignments = Tool{
 			}
 			params["since"] = daysAgo(s, days)
 			query = `SELECT t.id AS territory_id, t.code AS territory, m.id AS map_id, m.description AS map,
-			       COALESCE(l.publisher, '') AS publisher, l.type, l.created AS given, l.expiry_date AS expires
+			       COALESCE(l.publisher, '') AS publisher, l.type, l.created AS given, l.expiry_date AS expires,
+			       ` + accountsSQL("l") + ` AS accounts
 			FROM assignments_log l JOIN maps m ON m.id = l.map JOIN territories t ON t.id = m.territory
 			WHERE l.congregation = {:congregation} AND l.action = 'assigned' AND l.created >= {:since}
 			  AND ({:territory} = '' OR t.id = {:territory}) AND ({:map} = '' OR m.id = {:map})
-			  AND ({:type} = '' OR l.type = {:type})
+			  AND ({:type} = '' OR l.type = {:type}) AND ({:by} = '' OR l.user = {:by})
 			ORDER BY l.created DESC`
 		default:
 			return Result{}, badArgs("which must be active or given")
@@ -115,13 +132,13 @@ var assignments = Tool{
 			return Result{}, err
 		}
 		r := Result{
-			Columns: []string{"territory", "map", "publisher", "type", "given", "expires"},
+			Columns: []string{"territory", "map", "publisher", "type", "accounts", "given", "expires"},
 			Note:    "Links from the quick-assign button are recorded only from November 2026.",
 		}
 		for _, a := range rows {
 			r.Rows = append(r.Rows, map[string]any{
-				"territory_id": a.TerritoryID, "territory": a.Territory, "map_id": a.MapID, "map": a.Map,
-				"publisher": a.Publisher, "type": a.Type,
+				"territory_id": a.TerritoryID, "territory": a.Territory, "map_id": a.MapID,
+				"map": resolveLocalized(a.Map, s.Locale), "publisher": a.Publisher, "type": a.Type, "accounts": a.Accounts,
 				"given": localTime(s, a.Given, dateTimeLayout), "expires": localTime(s, a.Expires, dateTimeLayout),
 			})
 		}

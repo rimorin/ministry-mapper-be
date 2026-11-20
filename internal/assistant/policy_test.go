@@ -25,7 +25,7 @@ func TestPolicy_FollowsTheScreens(t *testing.T) {
 		roleReadOnly: {"activity", "calculate", "data_quality", "feedback", "find_places",
 			"homes", "map_details", "map_overview", "maps_near", "territory_overview",
 			"territory_rounds"},
-		roleConductor: {"assignments", "change_history", "congregation_settings", "propose_home_update",
+		roleConductor: {"assignments", "change_history", "congregation_settings", "members", "propose_home_update",
 			"propose_homes_status", "propose_link_revoke", "propose_quick_link", "propose_share_link", "propose_tries_reset", "who_worked"},
 	}
 	for role, names := range want {

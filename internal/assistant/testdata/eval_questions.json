@@ -1531,5 +1531,46 @@
       "share your location",
       "link has been created"
     ]
+  },
+  {
+    "question": "Who has not been given a map yet?",
+    "tools": [
+      "members"
+    ],
+    "member_links": true
+  },
+  {
+    "question": "Which links did I give out this week?",
+    "tools": [
+      "assignments"
+    ]
+  },
+  {
+    "question": "Give everyone who has no map yet a map in T01",
+    "tools": [
+      "members",
+      "propose_quick_link"
+    ],
+    "not_tools": [
+      "propose_share_link"
+    ],
+    "member_links": true,
+    "min_cards": 1,
+    "not_contains": [
+      "link has been created"
+    ]
+  },
+  {
+    "question": "Which maps are near here?",
+    "view": {
+      "territory": "T01",
+      "map": "Blk 100A"
+    },
+    "tools": [
+      "maps_near"
+    ],
+    "not_contains": [
+      "share your location"
+    ]
   }
 ]
