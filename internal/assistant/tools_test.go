@@ -400,6 +400,7 @@ func TestTools_NeverReturnAnotherCongregation(t *testing.T) {
 		"homes": {`{"group_by": "home", "limit": 100}`, `{"group_by": "map"}`, `{"group_by": "territory"}`,
 			`{"group_by": "household_type"}`, `{"map": "Blk 300A", "group_by": "home"}`, `{"territory": "T01", "group_by": "total"}`},
 		"congregation_settings": {`{}`},
+		"members":               {`{}`, `{"without_link": true}`},
 		"assignments":           {`{"which": "active"}`, `{"which": "given", "within_days": 3650}`},
 		"feedback":              {`{"kind": "both", "within_days": 3650}`},
 		"data_quality":          {`{"check": "maps_without_location"}`, `{"check": "territories_without_boundary"}`, `{"check": "empty_maps"}`},
@@ -453,7 +454,7 @@ func TestTools_NeverReturnAnotherCongregation(t *testing.T) {
 	check := func(congregation string, forbidden ...string) {
 		s := scopeFor(t, app, congregation)
 		s.Origin = &Location{Lat: 1.30, Lng: 103.80}
-		s.Role = "administrator"
+		s.Role, s.MemberLinks = "administrator", true
 		returned := 0
 		for _, tool := range Tools {
 			for _, args := range broad[tool.Name] {

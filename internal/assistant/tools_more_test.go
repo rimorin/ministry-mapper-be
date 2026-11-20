@@ -3,6 +3,7 @@
 package assistant
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +27,68 @@ func TestAssignments_ActiveAndExpiring(t *testing.T) {
 	soon := run(t, s, assignments, `{"which": "active", "expiring_within_hours": 24}`)
 	if len(soon.Rows) != 1 || soon.Rows[0]["publisher"] != "Sis Lim" || soon.Rows[0]["expires"] != "2026-11-06 14:00" {
 		t.Fatalf("expiring = %v", soon.Rows)
+	}
+}
+
+// The asker's own links can be told from everyone's, and a link says how many
+// accounts it was given to; members shows the same from the people's side.
+func TestAssignmentsAndMembers_KnowWhoseLinksAreWhose(t *testing.T) {
+	app := newTestApp(t)
+	insert := func(id, mapID, by, publisher, assignees string) {
+		exec(t, app, `INSERT INTO assignments (id, congregation, map, user, publisher, type, assignees, expiry_date, created, updated)
+			VALUES ({:id}, {:cong}, {:map}, {:by}, {:publisher}, 'normal', {:assignees}, {:soon}, {:now}, {:now})`,
+			dbx.Params{"id": id, "cong": alphaCong, "map": mapID, "by": by, "publisher": publisher, "assignees": assignees,
+				"soon": dbTime(testNow.Add(2 * time.Hour)), "now": dbTime(testNow)})
+	}
+	insert("testassignmine1", "testmapalpha01a", "testuseralpha02", "Alpha Publisher", `["testuseralpha04"]`)
+	insert("testassigntheir", "testmapalpha02a", "testuseralpha01", "Sis Lim", "")
+	s := scopeFor(t, app, alphaCong)
+	s.UserID, s.MemberLinks = "testuseralpha02", true
+
+	all := run(t, s, assignments, `{"which": "active"}`)
+	mine := run(t, s, assignments, `{"which": "active", "by_me": true}`)
+	if all.Total <= mine.Total || mine.Total != 1 || mine.Rows[0]["map"] != "Blk 100A" || mine.Rows[0]["accounts"] != 1 {
+		t.Fatalf("all = %v, mine = %v", all.Rows, mine.Rows)
+	}
+	for _, row := range all.Rows {
+		if row["publisher"] == "Sis Lim" && row["accounts"] != 0 {
+			t.Fatalf("a link sent only as a link counts accounts: %v", row)
+		}
+	}
+
+	everyone := run(t, s, members, `{}`)
+	var holder map[string]any
+	for _, row := range everyone.Rows {
+		if row["name"] == "Alpha Publisher" {
+			holder = row
+		}
+	}
+	if holder == nil || holder["open_links"] != 1 || holder["maps"] != "Blk 100A" || holder["role"] != "publisher" {
+		t.Fatalf("members = %v", everyone.Rows)
+	}
+	free := run(t, s, members, `{"without_link": true}`)
+	if free.Total != everyone.Total-1 || strings.Contains(fmt.Sprint(free.Rows), "Alpha Publisher") {
+		t.Fatalf("without a link = %v", free.Rows)
+	}
+	if elsewhere := run(t, s, members, `{"without_link": true, "territory": "T02"}`); elsewhere.Total != everyone.Total {
+		t.Fatalf("a link in T01 counted in T02: %v", elsewhere.Rows)
+	}
+	// Where links are not given to accounts there is nobody to list.
+	s.MemberLinks = false
+	if off := run(t, s, members, `{}`); off.Total != 0 || off.Note == "" {
+		t.Fatalf("members with the feature off = %+v", off)
+	}
+}
+
+func TestCardNote_NamesTheMapAQuickLinkPicked(t *testing.T) {
+	if got := (Card{Outcome: "done", Label: "Blk 412"}).Note("en"); got != "The admin confirmed this change. The map picked was Blk 412." {
+		t.Fatalf("note = %q", got)
+	}
+	if got := (Card{Outcome: "cancelled", Label: "Blk 412"}).Note("en"); strings.Contains(got, "Blk 412") {
+		t.Fatalf("a cancelled card named a map: %q", got)
+	}
+	if got := (Card{}).Note("en"); got != "" {
+		t.Fatalf("an undecided card has a note: %q", got)
 	}
 }
 

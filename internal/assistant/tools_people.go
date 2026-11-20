@@ -64,6 +64,79 @@ var peopleAndRoles = Tool{
 	},
 }
 
+var members = Tool{
+	Name: "members",
+	Description: "The members who can be given a map on their own account, publishers and staff alike, with how " +
+		"many open links each holds now and on which maps. Use it for who has no map yet, who is on which map, or " +
+		"to give the rest a map: pass each person's token to the link function as it is. It lists nobody where " +
+		"links are not given to accounts.",
+	PersonColumns: []string{"name"},
+	Params: object(map[string]any{
+		"without_link": nullable("boolean", "True for only members holding no open link."),
+		"territory":    nullable("string", "Count only links in this territory code, or null for every territory."),
+	}),
+	Run: func(s Scope, raw json.RawMessage) (Result, error) {
+		var args struct {
+			WithoutLink *bool   `json:"without_link"`
+			Territory   *string `json:"territory"`
+		}
+		if err := decodeArgs(raw, &args); err != nil {
+			return Result{}, err
+		}
+		r := Result{Columns: []string{"name", "role", "open_links", "maps"}}
+		if !s.MemberLinks {
+			r.Note = "This congregation does not give links to members' accounts."
+			return r, nil
+		}
+		territoryID, err := territoryIDByCode(s, args.Territory)
+		if err != nil {
+			return Result{}, err
+		}
+		// The same accounts a link's names are matched to (see matchMembers).
+		var people []struct {
+			ID   string `db:"id"`
+			Name string `db:"name"`
+			Role string `db:"role"`
+		}
+		err = s.App.DB().NewQuery(`
+			SELECT u.id, u.name, MIN(r.role) AS role FROM roles r JOIN users u ON u.id = r.user
+			WHERE r.congregation = {:congregation} AND u.disabled = FALSE AND TRIM(COALESCE(u.name, '')) != ''
+			GROUP BY u.id ORDER BY lower(u.name), u.id
+		`).Bind(dbx.Params{"congregation": s.CongregationID}).All(&people)
+		if err != nil {
+			return Result{}, err
+		}
+		var held []struct {
+			User string `db:"user"`
+			Map  string `db:"map"`
+		}
+		err = s.App.DB().NewQuery(`
+			SELECT j.value AS user, COALESCE(m.description, '') AS map
+			FROM assignments a JOIN json_each(a.assignees) j JOIN maps m ON m.id = a.map
+			WHERE a.congregation = {:congregation} AND a.expiry_date > {:now} AND json_valid(a.assignees)
+			  AND ({:territory} = '' OR m.territory = {:territory})
+			ORDER BY a.created
+		`).Bind(dbx.Params{"congregation": s.CongregationID, "now": dbTime(s.Now), "territory": territoryID}).All(&held)
+		if err != nil {
+			return Result{}, err
+		}
+		maps := map[string][]string{}
+		for _, h := range held {
+			maps[h.User] = append(maps[h.User], resolveLocalized(h.Map, s.Locale))
+		}
+		for _, p := range people {
+			links := maps[p.ID]
+			if args.WithoutLink != nil && *args.WithoutLink && len(links) > 0 {
+				continue
+			}
+			r.Rows = append(r.Rows, map[string]any{
+				"name": p.Name, "role": p.Role, "open_links": len(links), "maps": strings.Join(links, ", "),
+			})
+		}
+		return truncate(r, maxLimit), nil
+	},
+}
+
 // DefaultCompletionThreshold is the progress a territory needs to count as
 // completed when the congregation has not chosen its own. Below 100 because
 // territories rarely reach it: not-homes short of max tries, and homes that

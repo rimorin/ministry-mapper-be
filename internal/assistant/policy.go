@@ -56,6 +56,7 @@ var toolRoles = map[string]string{
 	// Conductors run the field service: who holds which map and who came out.
 	"assignments":           roleConductor,
 	"who_worked":            roleConductor,
+	"members":               roleConductor,
 	"change_history":        roleConductor, // role changes need administrator; see argRoles
 	"congregation_settings": roleConductor,
 	"propose_share_link":    roleConductor, // personal links need administrator; see argRoles

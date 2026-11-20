@@ -113,6 +113,26 @@ type Card struct {
 	Label  string `json:"label,omitempty"`
 }
 
+// What the next question tells the model became of each card.
+var cardOutcomeNotes = map[string]string{
+	"done":      "The admin confirmed this change.",
+	"cancelled": "The admin cancelled this change.",
+	"undone":    "The admin confirmed this change, then undid it.",
+	"failed":    "The change failed and was not made.",
+	"stale":     "The change was not made because the record had changed since it was prepared.",
+}
+
+// Note is what the next question tells the model became of the card, or "".
+// A quick link's map is picked on Confirm, after the answer was written, so
+// the note names it: "the map next to hers" then has a map to mean.
+func (c Card) Note(locale string) string {
+	note := cardOutcomeNotes[c.Outcome]
+	if c.Outcome == "done" && c.Label != "" {
+		note += " The map picked was " + resolveLocalized(c.Label, locale) + "."
+	}
+	return note
+}
+
 // Cards turns an answer's proposals into the records history keeps.
 func Cards(proposals []Proposal) []Card {
 	cards := make([]Card, len(proposals))

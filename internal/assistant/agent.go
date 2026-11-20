@@ -49,7 +49,7 @@ const (
 var Tools = []Tool{
 	findPlaces, territoryOverview, mapOverview, mapDetails, homesTool, mapsNear, activity, whoWorked, territoryRounds,
 	assignments, feedback, dataQuality,
-	changeHistory, peopleAndRoles, congregationSettings, calculate,
+	changeHistory, peopleAndRoles, members, congregationSettings, calculate,
 	proposeRoleChange, proposeRoleGrant,
 	proposeRename, proposeShareLink, proposePinMessage, proposeReportEmail,
 	proposeMarkRead, proposeUnpinMessage, proposeMapLocation, proposeLinkRevoke, proposeQuickLink, proposeHomeUpdate,

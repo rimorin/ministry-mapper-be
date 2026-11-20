@@ -25,6 +25,9 @@ func TestResolveView(t *testing.T) {
 	if v := ResolveView(s, "testterralpha01", "testmapalpha02a"); v == nil || v.MapName != "" {
 		t.Fatalf("map from another territory = %+v", v)
 	}
+	if !strings.Contains(prompt, `"near here"`) {
+		t.Fatalf("a map in view is not offered as the place to start from: %s", prompt)
+	}
 	if strings.Contains(viewPrompt(ResolveView(s, "testterralpha01", "")), "this map") {
 		t.Error("without a map in view, the prompt must not define this map")
 	}

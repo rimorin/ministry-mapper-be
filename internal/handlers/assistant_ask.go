@@ -143,7 +143,7 @@ func HandleAssistantAsk(c *core.RequestEvent, app core.App, enabled func(congreg
 	if askedByUser >= assistantUserDailyCap {
 		return apis.NewTooManyRequestsError("You have reached today's question limit", nil)
 	}
-	history, err := loggedHistory(app, req.Conversation, c.Auth.Id, req.Congregation)
+	history, err := loggedHistory(app, req.Conversation, c.Auth.Id, req.Congregation, req.Locale)
 	if err != nil {
 		return newServerError(err)
 	}
@@ -244,21 +244,12 @@ func endQuestion(userID string) {
 	}
 }
 
-// What the next question tells the model became of each card.
-var cardOutcomeNotes = map[string]string{
-	"done":      "The admin confirmed this change.",
-	"cancelled": "The admin cancelled this change.",
-	"undone":    "The admin confirmed this change, then undid it.",
-	"failed":    "The change failed and was not made.",
-	"stale":     "The change was not made because the record had changed since it was prepared.",
-}
-
 // loggedHistory is the earlier turns of the asker's conversation, oldest
 // first, as the log holds them: the answers the model really gave (people as
 // tokens) and what became of their cards. Reading them here rather than from
 // the request means nobody can put words or figures in the model's mouth.
 // Questions that failed, were stopped or had their answer dropped are left out.
-func loggedHistory(app core.App, conversationID, userID, congregationID string) ([]assistant.Turn, error) {
+func loggedHistory(app core.App, conversationID, userID, congregationID, locale string) ([]assistant.Turn, error) {
 	conversation, _, err := askerConversation(app, conversationID, userID, congregationID)
 	if err != nil || conversation == nil {
 		return nil, err
@@ -283,7 +274,7 @@ func loggedHistory(app core.App, conversationID, userID, congregationID string) 
 		var cards []assistant.Card
 		_ = json.Unmarshal([]byte(rows[i].Cards), &cards) // a question without cards has none
 		for _, card := range cards {
-			if note := cardOutcomeNotes[card.Outcome]; note != "" {
+			if note := card.Note(locale); note != "" {
 				answer += " " + note
 			}
 		}
