@@ -214,7 +214,7 @@ var proposeShareLink = Tool{
 		"territory": mapTerritoryArg,
 		"publishers": map[string]any{
 			"type": "array", "items": map[string]any{"type": "string"},
-			"description": "Who the link is for, one entry per person: their token, or the name as the admin wrote it.",
+			"description": "Who the link is for, one entry per person: their token, or the name as the admin wrote it, in full when the admin gave it in full.",
 		},
 		"type": enumOf("normal for a usual link, personal for personal territory.", "normal", "personal"),
 		"days": nullable("integer", "With personal: how many days the link lasts, 1 to 365."),

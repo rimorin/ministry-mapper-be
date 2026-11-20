@@ -11,22 +11,21 @@ import (
 )
 
 func TestMatchKind(t *testing.T) {
-	ong := member{id: "u1", name: nameWords("Ong Mei Ling"), email: nameWords("meiling.ong88")}
+	ong := nameWords("Ong Mei Ling")
 	for _, c := range []struct {
 		typed string
 		want  int
 	}{
-		{"Mei Ling Ong", matchSameWords},
-		{"Sis Ong", matchWholeWords},
-		{"mei ling", matchWholeWords},
-		{"Mei L", matchNone}, // a start needs three letters
-		{"Mei Lin", matchWordStarts},
-		{"meiling", matchJoined},
-		{"Meiling Ong", matchJoined},
+		{"Mei Ling Ong", matchExact},
+		{"Sis Ong", matchPart},
+		{"mei ling", matchPart},
+		{"meiling", matchPart},
+		{"Meiling Ong", matchPart},
 		{"Meiling Tan", matchNone},
-		{"ong88", matchEmail},
-		{"Ong Mei Lang", matchNearMiss},
-		{"Wong", matchNearMiss},
+		{"Mei L", matchNone}, // a start needs three letters
+		{"Mei Lin", matchStart},
+		{"Ong Mei Lang", matchNear},
+		{"Wong", matchNear},
 		{"Tan", matchNone},
 		{"Ong Tan", matchNone},
 	} {
@@ -37,8 +36,7 @@ func TestMatchKind(t *testing.T) {
 }
 
 func TestMatchMembers(t *testing.T) {
-	app := newTestApp(t)
-	s := scopeFor(t, app, alphaCong)
+	s := scopeFor(t, newTestApp(t), alphaCong)
 	const publisher = "testuseralpha04"
 
 	match := func(names ...string) []LinkPerson {
@@ -50,34 +48,26 @@ func TestMatchMembers(t *testing.T) {
 		return people
 	}
 
-	// A full name that fits one member is picked; one word is only suggested,
-	// however few members it fits.
-	people := match("Alpha Publisher", "Sis Publisher", "Alpha", "Alpha Publsher", "Sis Ong", "Alpha Read")
-	if people[0].Picked != publisher {
-		t.Errorf("full name: %+v", people[0])
+	// The only member a name fits is picked, whether it is their full name,
+	// one word of it or the start of it.
+	for name, want := range map[string]string{
+		"Alpha Publisher": publisher,
+		"Sis Publisher":   publisher,
+		"Alpha Read":      "testuseralpha03",
+	} {
+		if got := match(name)[0]; got.Picked != want || got.Suggested != nil {
+			t.Errorf("%q: %+v, want %s picked", name, got, want)
+		}
 	}
-	if people[1].Picked != "" || !slices.Equal(people[1].Suggested, []string{publisher}) {
-		t.Errorf("one word: %+v", people[1])
+	// Several members, or a likely typo, are left to the admin.
+	if shared := match("Alpha")[0]; shared.Picked != "" || len(shared.Suggested) != 4 {
+		t.Errorf("a word four members share: %+v", shared)
 	}
-	if people[2].Picked != "" || len(people[2].Suggested) != 4 {
-		t.Errorf("a word four members share: %+v", people[2])
+	if typo := match("Alpha Publsher")[0]; typo.Picked != "" || !slices.Equal(typo.Suggested, []string{publisher}) {
+		t.Errorf("a typo is never picked outright: %+v", typo)
 	}
-	if people[3].Picked != "" || !slices.Equal(people[3].Suggested, []string{publisher}) {
-		t.Errorf("a typo is never picked outright: %+v", people[3])
-	}
-	if people[4].Picked != "" || people[4].Suggested != nil {
-		t.Errorf("nobody's name: %+v", people[4])
-	}
-	if people[5].Picked != "" || !slices.Equal(people[5].Suggested, []string{"testuseralpha03"}) {
-		t.Errorf("part of a name is never picked outright: %+v", people[5])
-	}
-
-	// Of several members a name fits, the one last given a map comes first.
-	exec(t, app, `INSERT INTO assignments_log (id, congregation, action, assignees, created)
-		VALUES ('testgivenlog001', {:congregation}, 'assigned', '["testuseralpha03"]', '2026-11-01 00:00:00.000Z')`,
-		dbx.Params{"congregation": alphaCong})
-	if first := match("Alpha")[0].Suggested[0]; first != "testuseralpha03" {
-		t.Errorf("first suggestion = %q, want the member last given a map", first)
+	if nobody := match("Sis Ong")[0]; nobody.Picked != "" || nobody.Suggested != nil {
+		t.Errorf("nobody's name: %+v", nobody)
 	}
 
 	// One account is picked for one name only.
@@ -118,10 +108,6 @@ func TestSaveNamePairs_RemembersWhatTheAdminConfirmed(t *testing.T) {
 	if got := picked("sis ong"); got != publisher {
 		t.Errorf("confirmed pairing picked %q", got)
 	}
-	// The card is told the pick rests on an earlier choice, not on the name.
-	if people, _ := matchMembers(s, []string{"Sis Ong", "Alpha Publisher"}); !people[0].Remembered || people[1].Remembered {
-		t.Errorf("remembered = %v, %v; want only the first", people[0].Remembered, people[1].Remembered)
-	}
 
 	// Undoing the link forgets what its card saved, unless the name has since
 	// been paired with someone else.
@@ -154,13 +140,11 @@ func TestSaveNamePairs_RemembersWhatTheAdminConfirmed(t *testing.T) {
 		t.Errorf("forgotten pairing still picked %q", got)
 	}
 
-	// A member whose full name was typed outranks a pairing with someone
-	// else: neither is picked, and the remembered one is offered first.
+	// What the admin confirmed outranks what the name fits.
 	card = append(card, LinkPerson{Name: "Alpha Publisher"})
 	save(NamePair{"Alpha Publisher", "testuseralpha03"})
-	if people, _ := matchMembers(s, []string{"Alpha Publisher"}); people[0].Picked != "" ||
-		!slices.Equal(people[0].Suggested, []string{"testuseralpha03", publisher}) {
-		t.Errorf("full name against an older pairing: %+v", people[0])
+	if got := picked("Alpha Publisher"); got != "testuseralpha03" {
+		t.Errorf("a confirmed pairing lost to the name: %q", got)
 	}
 	save(NamePair{"Alpha Publisher", ""})
 
@@ -185,12 +169,10 @@ func TestProposeShareLink_MatchesAccountsOnlyWhereSwitchedOn(t *testing.T) {
 	if len(p.People) != 2 || p.People[0].Picked != "testuseralpha04" || p.People[1].Picked != "" {
 		t.Fatalf("switched on: %+v", p.People)
 	}
-	// The model learns how the names fared, never whose account is whose.
+	// The model learns how each name fared, never whose account is whose.
 	view := proposalView(p)
-	for _, want := range []string{`"people":2`, `"account_matched":1`, `"account_to_check_on_card":0`} {
-		if !strings.Contains(view, want) {
-			t.Errorf("model view %s lacks %s", view, want)
-		}
+	if want := `"accounts":["matched","none"]`; !strings.Contains(view, want) {
+		t.Errorf("model view %s lacks %s", view, want)
 	}
 	if strings.Contains(view, "testuseralpha04") || strings.Contains(view, "Alpha Publisher") {
 		t.Errorf("model view names an account: %s", view)
