@@ -114,6 +114,9 @@ func RegisterRoutes(app core.App) {
 			return handlers.HandleAssistantHistory(c, app)
 		})
 
+		// Apple's reply to a sign-in, posted by the person's browser: no session yet.
+		e.Router.POST("/auth/apple/callback", middleware.WrapHandler(handlers.HandleAppleCallback))
+
 		// Health check
 		e.Router.GET("/api/db-health", func(c *core.RequestEvent) error {
 			return handlers.HandleDBHealth(c, app)
