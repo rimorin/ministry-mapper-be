@@ -2,6 +2,7 @@ package assistant
 
 import (
 	"encoding/json"
+	"errors"
 	"math"
 	"sort"
 	"strings"
@@ -34,10 +35,21 @@ func distanceMeters(a, b point) float64 {
 
 // placeOrigin resolves a named place to a point: a map's location, or a
 // territory's centre (its boundary's centre, else the average of its maps).
-// mapID is set when the place is a map.
-func placeOrigin(s Scope, name string) (origin point, mapID string, err error) {
+// mapID is set when the place is a map. territory tells apart maps that share
+// a name.
+func placeOrigin(s Scope, name string, territory *string) (origin point, mapID string, err error) {
 	name = strings.TrimSpace(name)
-	if mapID, err := mapIDByName(s, "", &name); err == nil {
+	mapTerritory, err := territoryIDByCode(s, territory)
+	if err != nil {
+		return point{}, "", err
+	}
+	mapID, err = mapIDByName(s, mapTerritory, &name)
+	// Only "no such map" falls through to a territory of that name: several
+	// maps sharing it is the model's to settle, and a failed query is a failure.
+	if bad := (argError{}); err != nil && (!errors.As(err, &bad) || strings.HasPrefix(bad.msg, "several")) {
+		return point{}, "", err
+	}
+	if err == nil {
 		var location string
 		if err := s.App.DB().NewQuery(`SELECT COALESCE(coordinates, '') FROM maps WHERE id = {:id}`).
 			Bind(dbx.Params{"id": mapID}).Row(&location); err != nil {
@@ -100,15 +112,17 @@ var mapsNear = Tool{
 	Params: object(map[string]any{
 		"from":            enumOf("my_location for the admin's position, place for a named map or territory.", "my_location", "place"),
 		"place":           nullable("string", "With place: an exact map name or territory code. Use find_places first if unsure."),
+		"territory":       nullable("string", "With a map as the place: its territory code, when several maps share the name."),
 		"within_meters":   nullable("integer", "Only maps within this straight-line distance, at most 20000."),
 		"unassigned_only": nullable("boolean", "Only maps with no active share link."),
 		"min_not_done":    nullable("integer", "Only maps with at least this many homes not done."),
-		"limit":           limitParam(),
+		"limit":           limitParam(10),
 	}),
 	Run: func(s Scope, raw json.RawMessage) (Result, error) {
 		var args struct {
 			From           string  `json:"from"`
 			Place          *string `json:"place"`
+			Territory      *string `json:"territory"`
 			WithinMeters   *int    `json:"within_meters"`
 			UnassignedOnly *bool   `json:"unassigned_only"`
 			MinNotDone     *int    `json:"min_not_done"`
@@ -134,7 +148,7 @@ var mapsNear = Tool{
 				return Result{}, badArgs("place is required with from place")
 			}
 			// "Maps near Blk 412" should not list Blk 412 itself first.
-			p, mapID, err := placeOrigin(s, *args.Place)
+			p, mapID, err := placeOrigin(s, *args.Place, args.Territory)
 			if err != nil {
 				return Result{}, err
 			}

@@ -38,6 +38,7 @@ var assignments = Tool{
 	Params: object(map[string]any{
 		"which":                 enumOf("active for open links now, given for links handed out recently.", "active", "given"),
 		"territory":             nullable("string", "Exact territory code, or null for every territory."),
+		"map":                   nullable("string", "Exact map name, for one map's links, or null for every map."),
 		"type":                  nullableEnum("Only normal or only personal links, or null for both.", "normal", "personal"),
 		"expiring_within_hours": nullable("integer", "With active: only links expiring within this many hours."),
 		"within_days":           nullable("integer", "With given: how many days back, default 30."),
@@ -47,6 +48,7 @@ var assignments = Tool{
 		var args struct {
 			Which     string  `json:"which"`
 			Territory *string `json:"territory"`
+			Map       *string `json:"map"`
 			Type      *string `json:"type"`
 			Expiring  *int    `json:"expiring_within_hours"`
 			Within    *int    `json:"within_days"`
@@ -55,7 +57,7 @@ var assignments = Tool{
 		if err := decodeArgs(raw, &args); err != nil {
 			return Result{}, err
 		}
-		territoryID, err := territoryIDByCode(s, args.Territory)
+		mapID, territoryID, err := placeScope(s, args.Map, args.Territory)
 		if err != nil {
 			return Result{}, err
 		}
@@ -63,7 +65,7 @@ var assignments = Tool{
 		if args.Type != nil {
 			kind = *args.Type
 		}
-		params := dbx.Params{"congregation": s.CongregationID, "territory": territoryID, "type": kind, "now": dbTime(s.Now)}
+		params := dbx.Params{"congregation": s.CongregationID, "territory": territoryID, "map": mapID, "type": kind, "now": dbTime(s.Now)}
 
 		var rows []struct {
 			TerritoryID string `db:"territory_id"`
@@ -90,7 +92,8 @@ var assignments = Tool{
 			       COALESCE(a.publisher, '') AS publisher, a.type, a.created AS given, a.expiry_date AS expires
 			FROM assignments a JOIN maps m ON m.id = a.map JOIN territories t ON t.id = m.territory
 			WHERE a.congregation = {:congregation} AND a.expiry_date > {:now} AND a.expiry_date <= {:until}
-			  AND ({:territory} = '' OR t.id = {:territory}) AND ({:type} = '' OR a.type = {:type})
+			  AND ({:territory} = '' OR t.id = {:territory}) AND ({:map} = '' OR m.id = {:map})
+			  AND ({:type} = '' OR a.type = {:type})
 			ORDER BY a.expiry_date`
 		case "given":
 			days, err := withinDays(args.Within, 30)
@@ -102,7 +105,8 @@ var assignments = Tool{
 			       COALESCE(l.publisher, '') AS publisher, l.type, l.created AS given, l.expiry_date AS expires
 			FROM assignments_log l JOIN maps m ON m.id = l.map JOIN territories t ON t.id = m.territory
 			WHERE l.congregation = {:congregation} AND l.action = 'assigned' AND l.created >= {:since}
-			  AND ({:territory} = '' OR t.id = {:territory}) AND ({:type} = '' OR l.type = {:type})
+			  AND ({:territory} = '' OR t.id = {:territory}) AND ({:map} = '' OR m.id = {:map})
+			  AND ({:type} = '' OR l.type = {:type})
 			ORDER BY l.created DESC`
 		default:
 			return Result{}, badArgs("which must be active or given")

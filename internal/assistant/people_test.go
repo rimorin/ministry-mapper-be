@@ -26,6 +26,7 @@ func TestNameMask(t *testing.T) {
 		{"first word of a longer name", "Did Tan Ah Kow come?", []string{"Tan"}, "Did Tan Ah Kow come?"},
 		{"honorific is not part of the name", "what did Sis Ong do? Mr. Ong too", []string{"Ong"}, "what did Sis " + tok("Ong") + " do? Mr. " + tok("Ong") + " too"},
 		{"names in a list", "Did Lim, Ong and Tan come", []string{"Lim", "Ong", "Tan"}, "Did " + tok("Lim") + ", " + tok("Ong") + " and " + tok("Tan") + " come"},
+		{"full name before a place", "Give Tan Ah Kow Blk 412", []string{"Tan Ah Kow"}, "Give " + tok("Tan Ah Kow") + " Blk 412"},
 		{"known multi-word name inside a longer one", "give it to Bro Tan Ah Kow", []string{"Bro Tan"}, "give it to Bro Tan Ah Kow"},
 		{"regex characters in a name", "did J. (Joe) Ong come", []string{"J. (Joe) Ong"}, "did " + tok("J. (Joe) Ong") + " come"},
 	}

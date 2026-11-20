@@ -22,7 +22,8 @@ import (
 )
 
 const (
-	maxAssistantQuestionLength = 500
+	// Room for a pasted arrangement: a dozen maps with the people on each.
+	maxAssistantQuestionLength = 1000
 	// assistantDailyCap bounds model spend per congregation per rolling day.
 	assistantDailyCap = 300
 	// assistantUserDailyCap keeps one person from using up the congregation's day.

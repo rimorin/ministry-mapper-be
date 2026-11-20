@@ -34,8 +34,9 @@ var ReasoningEffort = shared.ReasoningEffortLow
 const (
 	// maxRounds bounds model calls per question: tool rounds plus the final answer.
 	maxRounds = 6
-	// maxCallsPerRound bounds the functions one model reply may request.
-	maxCallsPerRound = 4
+	// maxCallsPerRound bounds the functions one model reply may request: a
+	// group's maps given out in one reply, without a round trip per few cards.
+	maxCallsPerRound = 8
 	// MaxHistory is how many earlier turns are sent as context. Most of each
 	// request is read from OpenAI's cache, so a longer memory costs little.
 	MaxHistory = 8

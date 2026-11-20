@@ -58,7 +58,7 @@ func TestProposeHomesStatus(t *testing.T) {
 	s.Role, s.UserID = "conductor", "testuseralpha02"
 
 	// Blk 100A has 10 and 11 not done (11 now invalid), 12 and 13 nobody home, 14 done.
-	p := propose(t, s, proposeHomesStatus, `{"map": "Blk 100A", "status": "done", "from_floor": 1, "to_floor": 1}`)
+	p := propose(t, s, proposeHomesStatus, `{"map": "Blk 100A", "status": "done", "floor_from": 1, "floor_to": 1}`)
 	var labels []string
 	for _, it := range p.Items {
 		labels = append(labels, it.Label)
@@ -75,11 +75,11 @@ func TestProposeHomesStatus(t *testing.T) {
 		t.Fatalf("proposal = %+v; only the named units, starting at one try", p)
 	}
 
-	_, err := proposeHomesStatus.Run(s, json.RawMessage(`{"map": "Blk 100A", "status": "done", "from_floor": 2, "to_floor": 5}`))
+	_, err := proposeHomesStatus.Run(s, json.RawMessage(`{"map": "Blk 100A", "status": "done", "floor_from": 2, "floor_to": 5}`))
 	wantArgError(t, err, "no home there would change")
 	_, err = proposeHomesStatus.Run(s, json.RawMessage(`{"map": "Blk 100A", "status": "do_not_call"}`))
 	wantArgError(t, err, "one home at a time")
-	_, err = proposeHomesStatus.Run(s, json.RawMessage(`{"map": "Blk 100A", "status": "done", "from_floor": 5, "to_floor": 1}`))
+	_, err = proposeHomesStatus.Run(s, json.RawMessage(`{"map": "Blk 100A", "status": "done", "floor_from": 5, "floor_to": 1}`))
 	wantArgError(t, err, "above")
 }
 

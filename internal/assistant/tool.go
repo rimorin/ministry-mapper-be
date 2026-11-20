@@ -134,8 +134,14 @@ const (
 	maxLimit     = 100
 )
 
-func limitParam() map[string]any {
-	return nullable("integer", fmt.Sprintf("Most rows to return, default %d, at most %d.", defaultLimit, maxLimit))
+// limitParam describes a function's limit. Its default is defaultLimit unless
+// the function has one of its own.
+func limitParam(ownDefault ...int) map[string]any {
+	def := defaultLimit
+	if len(ownDefault) > 0 {
+		def = ownDefault[0]
+	}
+	return nullable("integer", fmt.Sprintf("Most rows to return, default %d, at most %d.", def, maxLimit))
 }
 
 func clampLimit(limit *int) int {

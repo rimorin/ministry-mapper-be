@@ -10,12 +10,20 @@ import (
 	"ganigeorgiev.com/pocketbase/pocketbase/tools/types"
 )
 
-// maxPeriodDays bounds a period so one question cannot scan years of logs.
-const maxPeriodDays = 400
+// maxPeriodDays bounds a period so one question cannot scan years of the
+// homes' log. maxRoundsDays is for rounds, which are a few rows a territory.
+const (
+	maxPeriodDays = 400
+	maxRoundsDays = 3650
+)
 
 // period reads from/to as inclusive local dates and returns the stored-datetime
 // bounds [start, end).
 func period(s Scope, from, to string) (start, end string, err error) {
+	return periodWithin(s, from, to, maxPeriodDays)
+}
+
+func periodWithin(s Scope, from, to string, maxDays int) (start, end string, err error) {
 	f, err := parseLocalDate(s, "from", from)
 	if err != nil {
 		return "", "", err
@@ -27,8 +35,8 @@ func period(s Scope, from, to string) (start, end string, err error) {
 	if t.Before(f) {
 		return "", "", badArgs("to must not be before from")
 	}
-	if t.Sub(f) > maxPeriodDays*24*time.Hour {
-		return "", "", badArgs("the period must be at most %d days", maxPeriodDays)
+	if t.Sub(f) > time.Duration(maxDays)*24*time.Hour {
+		return "", "", badArgs("the period must be at most %d days", maxDays)
 	}
 	return dbTime(f), dbTime(t.AddDate(0, 0, 1)), nil
 }
@@ -221,7 +229,7 @@ var whoWorked = Tool{
 			"from":  from,
 			"to":    to,
 			"sort":  nullableEnum("name (default) lists people alphabetically; days_out puts those who came out most often first.", "name", "days_out"),
-			"limit": limitParam(),
+			"limit": limitParam(maxLimit),
 		})
 	}(),
 	Run: func(s Scope, raw json.RawMessage) (Result, error) {

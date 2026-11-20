@@ -197,19 +197,19 @@ var proposeHomesStatus = Tool{
 		"map":        mapArg,
 		"territory":  mapTerritoryArg,
 		"status":     enumOf("The new status.", bulkStatuses...),
-		"from_floor": nullable("integer", "The lowest floor to change, or null for the lowest."),
-		"to_floor":   nullable("integer", "The highest floor to change, or null for the highest."),
+		"floor_from": nullable("integer", "The lowest floor to change, or null for the lowest."),
+		"floor_to":   nullable("integer", "The highest floor to change, or null for the highest."),
 		"units": map[string]any{
 			"type": []string{"array", "null"}, "items": map[string]any{"type": "string"},
-			"description": "Only these unit numbers on each floor, such as [\"1\", \"2\"], or null for all.",
+			"description": "Only these units: a number such as \"12\" for that unit on each floor, or a home as results show it, such as \"#05-12\". Null for all.",
 		},
 	}),
 	Run: func(s Scope, raw json.RawMessage) (Result, error) {
 		var args struct {
 			mapRef
 			Status    string   `json:"status"`
-			FromFloor *int     `json:"from_floor"`
-			ToFloor   *int     `json:"to_floor"`
+			FromFloor *int     `json:"floor_from"`
+			ToFloor   *int     `json:"floor_to"`
 			Units     []string `json:"units"`
 		}
 		if err := decodeArgs(raw, &args); err != nil {
@@ -223,7 +223,7 @@ var proposeHomesStatus = Tool{
 		if err != nil {
 			return Result{}, err
 		}
-		from, to := 0, 1<<30
+		from, to := -1<<30, 1<<30
 		if args.FromFloor != nil {
 			from = *args.FromFloor
 		}
@@ -231,18 +231,15 @@ var proposeHomesStatus = Tool{
 			to = *args.ToFloor
 		}
 		if from > to {
-			return Result{}, badArgs("from_floor is above to_floor")
+			return Result{}, badArgs("floor_from is above floor_to")
 		}
-		units := make([]string, 0, len(args.Units))
-		for _, u := range args.Units {
-			if _, code := parseUnit(u); code != "" {
-				units = append(units, code)
-			}
+		params := dbx.Params{"map": target.ID, "from": from, "to": to, "status": args.Status}
+		where := `a.map = {:map} AND COALESCE(a.floor, 0) BETWEEN {:from} AND {:to}
+			AND a.status NOT IN ('do_not_call', 'invalid', {:status})`
+		if units := unitCondition(args.Units, params); units != "" {
+			where += " AND " + units
 		}
-		items, more, err := bulkHomes(s, `a.map = {:map} AND COALESCE(a.floor, 0) BETWEEN {:from} AND {:to}
-			AND a.status NOT IN ('do_not_call', 'invalid', {:status})
-			AND ({:units} = '' OR instr(',' || {:units} || ',', ',' || a.code || ',') > 0)`,
-			dbx.Params{"map": target.ID, "from": from, "to": to, "status": args.Status, "units": strings.Join(units, ",")})
+		items, more, err := bulkHomes(s, where, params)
 		if err != nil {
 			return Result{}, err
 		}
