@@ -25,7 +25,8 @@ var territoryOverview = Tool{
 		"not_worked_within_days":    nullable("integer", "Only territories with no visit recorded in this many days."),
 		"min_progress":              nullable("integer", "Only territories at or above this progress percentage."),
 		"max_progress":              nullable("integer", "Only territories at or below this progress percentage."),
-		"sort":                      nullableEnum("Sort order, default by code.", "code", "progress", "last_completed", "last_worked", "homes"),
+		"sort":                      nullableEnum("Sort order, default by code. progress puts the least complete first, the dates the longest ago (never first), homes the most first.", "code", "progress", "last_completed", "last_worked", "homes"),
+		"reverse":                   nullable("boolean", "True to turn the sort around: most complete first, most recent first, fewest homes first."),
 		"limit":                     limitParam(),
 	}),
 	Run: func(s Scope, raw json.RawMessage) (Result, error) {
@@ -36,6 +37,7 @@ var territoryOverview = Tool{
 			MinProgress    *int    `json:"min_progress"`
 			MaxProgress    *int    `json:"max_progress"`
 			Sort           *string `json:"sort"`
+			Reverse        *bool   `json:"reverse"`
 			Limit          *int    `json:"limit"`
 		}
 		if err := decodeArgs(raw, &args); err != nil {
@@ -132,7 +134,7 @@ var territoryOverview = Tool{
 				"last_worked": localDate(s, t.LastWorked), "has_boundary": t.HasBoundary,
 			})
 		}
-		sortRows(r.Rows, args.Sort, "territory")
+		sortRows(r.Rows, args.Sort, args.Reverse, "territory")
 		return truncate(r, clampLimit(args.Limit)), nil
 	},
 }
@@ -150,7 +152,8 @@ var mapOverview = Tool{
 		"unassigned_only":          nullable("boolean", "Only maps with no active share link."),
 		"not_assigned_within_days": nullable("integer", "Only maps nobody was given a share link for in this many days, including never."),
 		"min_not_done":             nullable("integer", "Only maps with at least this many homes not done."),
-		"sort":                     nullableEnum("Sort order, default by territory then map.", "code", "progress", "last_worked", "last_assigned", "homes", "not_done"),
+		"sort":                     nullableEnum("Sort order, default by territory then map. progress puts the least complete first, the dates the longest ago (never first), homes and not_done the most first.", "code", "progress", "last_worked", "last_assigned", "homes", "not_done"),
+		"reverse":                  nullable("boolean", "True to turn the sort around: most complete first, most recent first, fewest first."),
 		"limit":                    limitParam(),
 	}),
 	Run: func(s Scope, raw json.RawMessage) (Result, error) {
@@ -163,6 +166,7 @@ var mapOverview = Tool{
 			NotAssignedIn  *int    `json:"not_assigned_within_days"`
 			MinNotDone     *int    `json:"min_not_done"`
 			Sort           *string `json:"sort"`
+			Reverse        *bool   `json:"reverse"`
 			Limit          *int    `json:"limit"`
 		}
 		if err := decodeArgs(raw, &args); err != nil {
@@ -250,7 +254,7 @@ var mapOverview = Tool{
 				"active_links": m.ActiveLinks, "has_location": m.HasLocation,
 			})
 		}
-		sortRows(r.Rows, args.Sort, "map")
+		sortRows(r.Rows, args.Sort, args.Reverse, "map")
 		return truncate(r, clampLimit(args.Limit)), nil
 	},
 }
@@ -269,7 +273,7 @@ var aggAtTryLimit = "(" + agg("completed") + " - " + agg("done") + ")"
 // sortRows orders rows by the requested key. Dates sort oldest first with empty
 // (never) first, so "least recently" questions read top-down; counts sort largest
 // first; codes sort naturally.
-func sortRows(rows []map[string]any, by *string, nameKey string) {
+func sortRows(rows []map[string]any, by *string, reverse *bool, nameKey string) {
 	key := "code"
 	if by != nil {
 		key = *by
@@ -284,6 +288,10 @@ func sortRows(rows []map[string]any, by *string, nameKey string) {
 		less = func(a, b map[string]any) bool { return a[key].(string) < b[key].(string) }
 	case "homes", "not_done":
 		less = func(a, b map[string]any) bool { return a[key].(int) > b[key].(int) }
+	}
+	if reverse != nil && *reverse {
+		forward := less
+		less = func(a, b map[string]any) bool { return forward(b, a) }
 	}
 	sort.SliceStable(rows, func(i, j int) bool { return less(rows[i], rows[j]) })
 }

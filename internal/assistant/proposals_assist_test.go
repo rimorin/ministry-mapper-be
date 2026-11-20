@@ -5,6 +5,7 @@ package assistant
 import (
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -148,9 +149,46 @@ func TestProposeHomeUpdate_FindsTheRightHome(t *testing.T) {
 	_, err = proposeHomeUpdate.Run(s, json.RawMessage(`{"map": "Blk 100A", "unit": "14"}`))
 	wantArgError(t, err, "say what changes")
 	_, err = proposeHomeUpdate.Run(s, json.RawMessage(`{"map": "Blk 100A", "unit": "14", "household_type": "Martian"}`))
-	wantArgError(t, err, "no household type")
+	wantArgError(t, err, "no one household type")
 	_, err = proposeHomeUpdate.Run(s, json.RawMessage(`{"map": "Blk 100A", "unit": "14", "notes_action": "add"}`))
 	wantArgError(t, err, "notes is required")
+	// Part of a type's name is enough when it fits one, as it is when listing homes.
+	typed := propose(t, s, proposeHomeUpdate, `{"map": "Blk 100A", "unit": "14", "household_type": "language"}`)
+	if _, after := homeStates(t, typed); len(after.TypeNames) != 1 || after.TypeNames[0] != "Language Note" {
+		t.Fatalf("household type by part of its name: %+v", after)
+	}
+}
+
+// A home is found however it is written, basements included: what one
+// function prints, the others accept.
+func TestUnits_AreReadTheSameEverywhere(t *testing.T) {
+	app := newTestApp(t)
+	exec(t, app, `UPDATE addresses SET floor = -1 WHERE id = 'testalphcf01003'`, nil)
+	exec(t, app, `UPDATE addresses SET code = '12-A' WHERE id = 'testalpha01a001'`, nil)
+	s := scopeFor(t, app, alphaCong)
+	s.Role, s.UserID = "administrator", "testuseralpha01"
+
+	basement := propose(t, s, proposeHomeUpdate, `{"map": "Multi Floor Blk", "unit": "#-1-1", "status": "done"}`)
+	if basement.Items[0].ID != "testalphcf01003" {
+		t.Fatalf("basement home: %+v", basement.Items[0])
+	}
+	// A street's own hyphenated number is a code, not a floor and a unit.
+	street := propose(t, s, proposeHomeUpdate, `{"map": "Blk 100A", "unit": "12-a", "status": "done"}`)
+	if street.Items[0].ID != "testalpha01a001" {
+		t.Fatalf("hyphenated house number: %+v", street.Items[0])
+	}
+	if r := run(t, s, homesTool, `{"map": "Multi Floor Blk", "unit": "#-01-01", "group_by": "home"}`); len(r.Rows) != 1 {
+		t.Fatalf("homes by a printed unit: %d rows", len(r.Rows))
+	}
+	// With no floors named, every floor counts, below ground too.
+	all := propose(t, s, proposeHomesStatus, `{"map": "Multi Floor Blk", "status": "done"}`)
+	if !slices.ContainsFunc(all.Items, func(it Item) bool { return it.ID == "testalphcf01003" }) {
+		t.Fatalf("the basement home was left out: %+v", all.Items)
+	}
+	one := propose(t, s, proposeHomesStatus, `{"map": "Multi Floor Blk", "status": "done", "units": ["#-1-1"]}`)
+	if len(one.Items) != 1 || one.Items[0].ID != "testalphcf01003" {
+		t.Fatalf("a unit named with its floor: %+v", one.Items)
+	}
 }
 
 func TestProposeHomeUpdate_WarnsWhenLeavingDoNotCall(t *testing.T) {

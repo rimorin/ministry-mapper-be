@@ -52,7 +52,7 @@ var territoryRounds = Tool{
 		if args.To != nil {
 			to = *args.To
 		}
-		start, end, err := period(s, from, to)
+		start, end, err := periodWithin(s, from, to, maxRoundsDays)
 		if err != nil {
 			return Result{}, err
 		}

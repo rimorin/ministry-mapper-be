@@ -65,6 +65,9 @@ func TestMapsNear_MyLocationNeedsSharing(t *testing.T) {
 	placeMaps(t, app)
 	s := scopeFor(t, app, alphaCong)
 
+	// Two maps sharing a name are the model's to tell apart, not "no such place".
+	_, shared := mapsNear.Run(scopeWithSharedName(t), json.RawMessage(`{"from": "place", "place": "Blk 100A"}`))
+	wantArgError(t, shared, "several maps")
 	_, err := mapsNear.Run(s, json.RawMessage(`{"from": "my_location"}`))
 	if !errors.As(err, &needLocationError{}) {
 		t.Fatalf("err = %v, want needLocationError", err)
@@ -115,4 +118,11 @@ func TestAsk_AsksToShareLocationAndNeverSendsIt(t *testing.T) {
 	if resp.NeedsLocation || strings.Contains(chat.sent(), "1.30291") || strings.Contains(chat.sent(), "103.80017") {
 		t.Fatalf("the admin's location reached the model: %s", chat.sent())
 	}
+}
+
+func scopeWithSharedName(t *testing.T) Scope {
+	t.Helper()
+	app := newTestApp(t)
+	exec(t, app, `UPDATE maps SET description = 'Blk 100A' WHERE id = 'testmapalpha02a'`, nil)
+	return scopeFor(t, app, alphaCong)
 }

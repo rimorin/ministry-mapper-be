@@ -58,7 +58,11 @@ func TestProposeRoleChange(t *testing.T) {
 	_, err := proposeRoleChange.Run(s, json.RawMessage(`{"person": "`+token+`", "role": "conductor"}`))
 	wantArgError(t, err, "already has the role")
 	_, err = proposeRoleChange.Run(s, json.RawMessage(`{"person": "Beta Admin", "role": "conductor"}`))
-	wantArgError(t, err, "nobody with access matches")
+	wantArgError(t, err, "nobody with a role here matches")
+	// The start of a name finds the person, as it does when giving a role.
+	if byStart := propose(t, s, proposeRoleChange, `{"person": "alpha pub", "role": "conductor"}`); len(byStart.Candidates) != 1 || byStart.From != "publisher" {
+		t.Fatalf("by the start of a name: %+v", byStart)
+	}
 
 	// A publisher is in no listing, so the admin's own wording finds them.
 	promote := propose(t, s, proposeRoleChange, `{"person": "alpha publisher", "role": "conductor"}`)

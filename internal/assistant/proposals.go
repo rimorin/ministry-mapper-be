@@ -131,13 +131,21 @@ func proposalID() string {
 // proposalView is the model's copy: no names, emails or ids.
 func proposalView(p Proposal) string {
 	view := map[string]any{
-		"proposal":   "prepared; the admin must confirm it on the card, nothing has changed yet",
-		"kind":       p.Kind,
-		"from":       p.From,
-		"to":         p.To,
-		"candidates": len(p.Candidates),
-		"warnings":   p.Warnings,
-		"blocked":    p.Blocked,
+		"proposal": "prepared; the admin must confirm it on the card, nothing has changed yet",
+		"kind":     p.Kind,
+	}
+	// Only what this card has: most kinds change no role and pick no person.
+	if p.From != "" || p.To != "" {
+		view["from"], view["to"] = p.From, p.To
+	}
+	if len(p.Candidates) > 0 {
+		view["candidates"] = len(p.Candidates)
+	}
+	if len(p.Warnings) > 0 {
+		view["warnings"] = p.Warnings
+	}
+	if p.Blocked != "" {
+		view["blocked"] = p.Blocked
 	}
 	if p.Target != nil {
 		view["target"] = p.Target.Name
@@ -219,8 +227,17 @@ var proposeRoleChange = Tool{
 				matches = append(matches, i)
 			}
 		}
+		// Failing the whole name, the start of it, as giving a role searches:
+		// the card has the admin pick when it fits several.
+		if len(matches) == 0 && utf8.RuneCountInString(want) >= minUserSearchRunes {
+			for i, r := range roles {
+				if strings.HasPrefix(strings.ToLower(strings.TrimSpace(r.Name)), strings.ToLower(want)) {
+					matches = append(matches, i)
+				}
+			}
+		}
 		if len(matches) == 0 {
-			return Result{}, badArgs("nobody with access matches %q; use people_and_roles to find them", args.Person)
+			return Result{}, badArgs("nobody with a role here matches %q; give the name, or the start of it, as the admin wrote it", args.Person)
 		}
 
 		p := Proposal{To: args.Role}
@@ -250,7 +267,9 @@ var proposeRoleChange = Tool{
 					c.Blocked = "last_admin"
 				}
 			}
-			p.Candidates = append(p.Candidates, c)
+			if len(p.Candidates) < maxCandidates {
+				p.Candidates = append(p.Candidates, c)
+			}
 		}
 		switch len(p.Candidates) {
 		case 0:

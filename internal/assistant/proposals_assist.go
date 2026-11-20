@@ -270,16 +270,37 @@ type homeState struct {
 	TypeNames []string `json:"type_names"`
 }
 
-// parseUnit reads "#05-12", "05-12" or "12" into a floor (0 when not given)
-// and a code.
-func parseUnit(unit string) (int, string) {
-	u := strings.TrimPrefix(strings.TrimSpace(unit), "#")
-	if before, after, ok := strings.Cut(u, "-"); ok {
-		if floor, err := strconv.Atoi(strings.TrimSpace(before)); err == nil {
-			return floor, strings.TrimSpace(after)
+// normalCodeSQL is normalCode in SQL, for a home aliased a.
+const normalCodeSQL = `(CASE WHEN ltrim(lower(a.code), '0') = '' THEN lower(a.code) ELSE ltrim(lower(a.code), '0') END)`
+
+// unitCondition is the SQL that finds the homes the units name, for a home
+// aliased a, or "" for no units. A unit is its code alone ("12", or "12-A" on
+// a street) or, as results print a building's home, its floor and code
+// ("#05-12", "#-1-12"); leading zeros do not matter. Every function that
+// takes a unit reads it here, so what one prints another accepts.
+func unitCondition(units []string, params dbx.Params) string {
+	var any []string
+	for i, unit := range units {
+		u := strings.TrimPrefix(strings.TrimSpace(unit), "#")
+		if u == "" {
+			continue
 		}
+		whole := fmt.Sprintf("unit%d", i)
+		params[whole] = normalCode(u)
+		condition := normalCodeSQL + " = {:" + whole + "}"
+		// The floor ends at the first hyphen after any minus sign of its own.
+		if cut := strings.Index(u[1:], "-") + 1; cut > 0 {
+			if floor, err := strconv.Atoi(strings.TrimSpace(u[:cut])); err == nil {
+				params[whole+"floor"], params[whole+"code"] = floor, normalCode(u[cut+1:])
+				condition += " OR (COALESCE(a.floor, 0) = {:" + whole + "floor} AND " + normalCodeSQL + " = {:" + whole + "code})"
+			}
+		}
+		any = append(any, condition)
 	}
-	return 0, u
+	if len(any) == 0 {
+		return ""
+	}
+	return "(" + strings.Join(any, " OR ") + ")"
 }
 
 var proposeHomeUpdate = Tool{
@@ -315,8 +336,9 @@ var proposeHomeUpdate = Tool{
 			return Result{}, err
 		}
 
-		floor, code := parseUnit(args.Unit)
-		if code == "" {
+		params := dbx.Params{"map": target.ID}
+		unit := unitCondition([]string{args.Unit}, params)
+		if unit == "" {
 			return Result{}, badArgs("unit is required, such as #05-12")
 		}
 		var homes []struct {
@@ -334,25 +356,20 @@ var proposeHomeUpdate = Tool{
 			       COALESCE(a.status, '') AS status, COALESCE(a.notes, '') AS notes,
 			       COALESCE(a.not_home_tries, 0) AS tries, COALESCE(a.dnc_time, '') AS dnc_time
 			FROM addresses a JOIN maps m ON m.id = a.map
-			WHERE a.map = {:map} AND ({:floor} = 0 OR a.floor = {:floor})`).
-			Bind(dbx.Params{"map": target.ID, "floor": floor}).All(&homes)
+			WHERE a.map = {:map} AND ` + unit + ` ORDER BY a.floor`).
+			Bind(params).All(&homes)
 		if err != nil {
 			return Result{}, err
 		}
-		match := -1
-		for i, h := range homes {
-			if normalCode(h.Code) != normalCode(code) {
-				continue
-			}
-			if match >= 0 {
-				return Result{}, badArgs("%s has %s on several floors; give the floor, such as #05-%s", target.Name, code, code)
-			}
-			match = i
-		}
-		if match < 0 {
+		switch len(homes) {
+		case 0:
 			return Result{}, badArgs("%s has no home %s", target.Name, args.Unit)
+		case 1:
+		default:
+			return Result{}, badArgs("%s has %s on several floors; give the floor, as in %s",
+				target.Name, args.Unit, home(homes[0].MapType, homes[0].Floor, homes[0].Code))
 		}
-		h := homes[match]
+		h := homes[0]
 
 		var options []struct {
 			ID          string `db:"id"`
@@ -429,8 +446,18 @@ var proposeHomeUpdate = Tool{
 					break
 				}
 			}
+			// Part of a name is enough when it fits one type, as it is for homes.
+			types := make([]householdOption, len(options))
+			for i, o := range options {
+				types[i] = householdOption{ID: o.ID, Code: o.Code, Description: o.Description}
+			}
+			if matches := matchingOptions(types, want); !found && len(matches) == 1 {
+				o := matches[0]
+				after.Types, after.TypeNames = []string{o.ID}, []string{resolveLocalized(o.Description, s.Locale)}
+				found = true
+			}
 			if !found {
-				return Result{}, badArgs("no household type is named %q; use congregation_settings to list them", want)
+				return Result{}, badArgs("no one household type is named %q; the congregation's types are %s", want, optionLabels(types))
 			}
 		}
 
@@ -442,7 +469,7 @@ var proposeHomeUpdate = Tool{
 			warnings = append(warnings, "leaves_do_not_call")
 		}
 		label := home(h.MapType, h.Floor, h.Code)
-		if floor > 0 && h.MapType != "multi" {
+		if _, namedFloor := params["unit0floor"]; namedFloor && h.Floor != 0 && h.MapType != "multi" {
 			// The admin had to name the floor, so the card does too.
 			label = fmt.Sprintf("#%02d-%s", h.Floor, h.Code)
 		}

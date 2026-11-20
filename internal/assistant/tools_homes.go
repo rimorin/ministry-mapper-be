@@ -154,8 +154,11 @@ var homesTool = Tool{
 		if args.FloorTo != nil {
 			add("COALESCE(a.floor, 0) <= {:floor_to}", dbx.Params{"floor_to": *args.FloorTo})
 		}
-		if args.Unit != nil && strings.TrimSpace(*args.Unit) != "" {
-			add("lower(a.code) = lower({:unit})", dbx.Params{"unit": strings.TrimSpace(*args.Unit)})
+		if args.Unit != nil {
+			unit := dbx.Params{}
+			if condition := unitCondition([]string{*args.Unit}, unit); condition != "" {
+				add(condition, unit)
+			}
 		}
 		if len(args.Status) > 0 {
 			names := make([]string, len(args.Status))

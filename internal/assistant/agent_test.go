@@ -256,11 +256,11 @@ func TestAsk_ArgumentErrorGoesBackToTheModel(t *testing.T) {
 }
 
 func TestAsk_RoundsAndCallsAreBounded(t *testing.T) {
-	five := make([][2]string, 5)
-	for i := range five {
-		five[i] = [2]string{"congregation_settings", `{}`}
+	tooMany := make([][2]string, maxCallsPerRound+1)
+	for i := range tooMany {
+		tooMany[i] = [2]string{"congregation_settings", `{}`}
 	}
-	replies := []string{toolCalls(five...)}
+	replies := []string{toolCalls(tooMany...)}
 	for range maxRounds - 2 {
 		replies = append(replies, toolCalls([2]string{"congregation_settings", `{}`}))
 	}
@@ -275,7 +275,7 @@ func TestAsk_RoundsAndCallsAreBounded(t *testing.T) {
 		t.Error("only the last call may stop the model calling functions, so it has to answer")
 	}
 	if want := maxCallsPerRound + maxRounds - 2; len(resp.Steps) != want {
-		t.Errorf("steps = %d, want %d (the fifth call in one reply is refused)", len(resp.Steps), want)
+		t.Errorf("steps = %d, want %d (the call over the limit in one reply is refused)", len(resp.Steps), want)
 	}
 }
 

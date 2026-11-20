@@ -36,14 +36,18 @@ func knownPeople(s Scope) ([]string, error) {
 // A name of several words is matched in any case, since admins type "bro tan".
 // A single-word name is matched only as written, so a publisher called "Will"
 // or "May" does not swallow those ordinary words. Longer names go first, so
-// "Bro Tan Ah Kow" is not cut short by "Bro Tan". A match inside a longer name
-// the admin typed is left alone: "Test" in "Bro QA Test" is someone new, and
-// masking it would hand the model half a name.
+// "Bro Tan Ah Kow" is not cut short by "Bro Tan". A match of one word (titles
+// aside) inside a longer name the admin typed is left alone: "Test" in "Bro QA
+// Test" is someone new, and masking it would hand the model half a name. A
+// fuller name is masked wherever it stands, since the word after it is as
+// likely a place: "give Tan Ah Kow Blk 412".
 type nameMask []namePattern
 
 type namePattern struct {
 	name string
 	re   *regexp.Regexp
+	// oneWord is set when the name is a single word once titles are dropped.
+	oneWord bool
 }
 
 func newNameMask(names []string) nameMask {
@@ -69,7 +73,7 @@ func newNameMask(names []string) nameMask {
 		if len(strings.Fields(name)) > 1 {
 			pattern = `(?i)` + pattern
 		}
-		mask = append(mask, namePattern{name: name, re: regexp.MustCompile(pattern)})
+		mask = append(mask, namePattern{name: name, re: regexp.MustCompile(pattern), oneWord: len(nameWords(name)) < 2})
 	}
 	return mask
 }
@@ -79,7 +83,7 @@ func (mask nameMask) apply(text string, people *pseudonyms) string {
 		var out strings.Builder
 		last := 0
 		for _, m := range n.re.FindAllStringIndex(text, -1) {
-			if insideLongerName(text, m[0], m[1]) {
+			if n.oneWord && insideLongerName(text, m[0], m[1]) {
 				continue
 			}
 			out.WriteString(text[last:m[0]])

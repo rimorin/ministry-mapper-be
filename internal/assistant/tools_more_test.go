@@ -20,6 +20,9 @@ func TestAssignments_ActiveAndExpiring(t *testing.T) {
 	if r := run(t, s, assignments, `{"which": "active", "type": "normal"}`); r.Total != 1 || r.Rows[0]["publisher"] != "Sis Lim" {
 		t.Fatalf("active normal links = %v, want Sis Lim's", r.Rows)
 	}
+	if r := run(t, s, assignments, `{"which": "active", "map": "Blk 200B"}`); r.Total != 0 {
+		t.Fatalf("another map's links were listed: %v", r.Rows)
+	}
 	soon := run(t, s, assignments, `{"which": "active", "expiring_within_hours": 24}`)
 	if len(soon.Rows) != 1 || soon.Rows[0]["publisher"] != "Sis Lim" || soon.Rows[0]["expires"] != "2026-11-06 14:00" {
 		t.Fatalf("expiring = %v", soon.Rows)

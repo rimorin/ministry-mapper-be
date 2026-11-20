@@ -98,13 +98,15 @@ func TestLiveEval(t *testing.T) {
 	// OPENAI_LIVE_MEMBER_LINKS=1 asks every question as a congregation that
 	// gives links to accounts, to see that nothing else changes with it.
 	memberLinks := os.Getenv("OPENAI_LIVE_MEMBER_LINKS") != ""
+	// OPENAI_LIVE_QUESTION=text runs only the questions containing that text.
+	only := os.Getenv("OPENAI_LIVE_QUESTION")
 
 	passed, ran, questions := 0, 0, 0
 	var prompt, completion, cached int64
 	var elapsed time.Duration
 	for _, c := range cases {
 		if followUpsOnly && len(c.Before) == 0 || photosOnly && c.Photo == "" ||
-			linksOnly && !slices.Contains(c.Tools, "propose_share_link") {
+			linksOnly && !slices.Contains(c.Tools, "propose_share_link") || !strings.Contains(c.Question, only) {
 			continue
 		}
 		ran++

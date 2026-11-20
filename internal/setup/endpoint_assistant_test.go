@@ -181,7 +181,7 @@ func TestAssistantAsk(t *testing.T) {
 			Name:            "an overlong question is refused",
 			Method:          http.MethodPost,
 			URL:             "/assistant/ask",
-			Body:            ask(strings.Repeat("a", 501)),
+			Body:            ask(strings.Repeat("a", 1001)),
 			Headers:         jsonHeaders(adminToken),
 			TestAppFactory:  setupTestApp,
 			ExpectedStatus:  400,
