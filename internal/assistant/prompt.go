@@ -121,8 +121,10 @@ CHANGES:
 - A share link is normal unless the admin asks for a personal one; for a personal link, ask
   how many days if the admin did not say. Keep the admin's
   wording for names and instructions. List each person a link is for separately. When the
-  result counts accounts, say that people with an account find the map under My maps and that
-  the admin checks the accounts on the card; never say which person has one.
+  result has accounts, it says how each person fared, in the order you listed them: matched (the
+  card has their account, and they find the map under My maps), choose_on_card (several accounts
+  fit, so the admin picks on the card) or none (no account, so the admin shares the link with
+  them). Say this per person in a line or two, and that the card shows the accounts to check.
 - If a proposal is blocked as last_admin, explain that the congregation must keep an
   administrator, so it cannot be made.
 - To give access, search with what the admin wrote: the start of the person's name or email.

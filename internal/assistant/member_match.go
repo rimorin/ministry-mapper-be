@@ -20,13 +20,10 @@ const (
 // name may stand for. Picked is an account chosen without asking; Suggested
 // are offered on the card for the admin to add. Both are user ids: the card
 // looks the people up itself, so no name or email of theirs travels here.
-// Remembered marks a pick that rests on what the admin chose before and not
-// on the name itself, so the card can say so.
 type LinkPerson struct {
-	Name       string   `json:"name"`
-	Picked     string   `json:"picked,omitempty"`
-	Remembered bool     `json:"remembered,omitempty"`
-	Suggested  []string `json:"suggested,omitempty"`
+	Name      string   `json:"name"`
+	Picked    string   `json:"picked,omitempty"`
+	Suggested []string `json:"suggested,omitempty"`
 }
 
 // NamePair says which account the admin confirmed for a name they typed, or
@@ -34,11 +31,6 @@ type LinkPerson struct {
 type NamePair struct {
 	Name string `json:"name"`
 	User string `json:"user"`
-}
-
-type member struct {
-	id          string
-	name, email []string
 }
 
 // nameWords reduces a person's name to comparable words: lower case, without
@@ -52,42 +44,36 @@ func nameWords(name string) []string {
 
 func aliasOf(name string) string { return strings.Join(nameWords(name), " ") }
 
-// The ways a typed name can match a member, strictest first. Only the first
-// kind that matches anyone is used, so a real Ong is never joined by a Wong
-// that is one typo away.
+// The ways a typed name can match a member's, strictest first. Only the
+// strictest kind that matches anyone is used, so a member called Ann is not
+// joined by an Anna, nor a real Ong by a Wong one typo away.
 const (
-	matchNone = iota
-	matchSameWords
-	matchWholeWords
-	matchJoined
-	matchWordStarts
-	matchEmail
-	matchNearMiss
+	matchNone  = iota
+	matchExact // the same words, in any order
+	matchPart  // some of the member's words: a first name, or "Meiling" for "Mei Ling"
+	matchStart // the start of their words: "Chris" for "Christopher"
+	matchNear  // a likely typo
 )
 
-func matchKind(typed []string, m member) int {
-	every := func(words []string, ok func(typed, word string) bool) bool {
-		return len(words) > 0 && !slices.ContainsFunc(typed, func(t string) bool {
-			return !slices.ContainsFunc(words, func(w string) bool { return ok(t, w) })
+func matchKind(typed, name []string) int {
+	every := func(ok func(typed, word string) bool) bool {
+		return !slices.ContainsFunc(typed, func(t string) bool {
+			return !slices.ContainsFunc(name, func(w string) bool { return ok(t, w) })
 		})
 	}
 	equal := func(t, w string) bool { return t == w }
 	starts := func(t, w string) bool { return len([]rune(t)) >= 3 && strings.HasPrefix(w, t) }
 	switch {
-	case len(typed) == len(m.name) && every(m.name, equal):
-		return matchSameWords
-	case every(m.name, equal):
-		return matchWholeWords
-	case joinedMatch(typed, m.name) || joinedMatch(m.name, typed):
-		return matchJoined
-	case every(m.name, starts):
-		return matchWordStarts
-	case every(m.email, starts):
-		return matchEmail
+	case len(typed) == len(name) && every(equal):
+		return matchExact
+	case every(equal) || joinedMatch(typed, name) || joinedMatch(name, typed):
+		return matchPart
+	case every(starts):
+		return matchStart
 	// wordDistance counts any start as a match, however short; here a start
 	// still needs its three letters.
-	case every(m.name, func(t, w string) bool { return t == w || starts(t, w) || wordDistance(t, w) > 0 }):
-		return matchNearMiss
+	case every(func(t, w string) bool { return t == w || starts(t, w) || wordDistance(t, w) > 0 }):
+		return matchNear
 	}
 	return matchNone
 }
@@ -112,58 +98,41 @@ func joinedMatch(words, others []string) bool {
 }
 
 // matchMembers finds, for each name a link is for, the member accounts it may
-// stand for. An account is picked outright only where a wrong guess is
-// unlikely: a pairing the admin confirmed before, or the member's full name of
-// two words or more. Anything looser is only suggested, most recently given a
-// map first: a first name, or part of a name, often fits one member with an
-// account and several people without. A count of real links showed more than
-// half of such lone matches had a namesake in the same congregation.
+// stand for. One account is picked when the admin confirmed it for that name
+// before, or when it is the only member the name fits. Several members, or a
+// name that fits only as a typo, are suggested for the admin to choose from.
+// The card shows every pick before anything is made, which is what lets a
+// first name be picked at all.
 func matchMembers(s Scope, names []string) ([]LinkPerson, error) {
-	var rows []struct {
-		ID    string `db:"id"`
-		Name  string `db:"name"`
-		Email string `db:"email"`
+	var members []struct {
+		ID   string `db:"id"`
+		Name string `db:"name"`
 	}
 	err := s.App.DB().NewQuery(`
-		SELECT DISTINCT u.id, u.name, u.email FROM roles r JOIN users u ON u.id = r.user
+		SELECT DISTINCT u.id, u.name FROM roles r JOIN users u ON u.id = r.user
 		WHERE r.congregation = {:congregation} AND u.disabled = FALSE AND TRIM(COALESCE(u.name, '')) != ''
-	`).Bind(dbx.Params{"congregation": s.CongregationID}).All(&rows)
+		ORDER BY u.name, u.id
+	`).Bind(dbx.Params{"congregation": s.CongregationID}).All(&members)
 	if err != nil {
 		return nil, err
 	}
-	members := make([]member, len(rows))
-	for i, r := range rows {
-		local, _, _ := strings.Cut(r.Email, "@")
-		members[i] = member{id: r.ID, name: nameWords(r.Name), email: nameWords(local)}
-	}
 
+	// A pairing only holds while the account is still a member.
 	var learned []struct {
 		Alias string `db:"alias"`
 		User  string `db:"user"`
 	}
-	err = s.App.DB().NewQuery(`SELECT alias, user FROM assistant_name_links WHERE congregation = {:congregation}`).
-		Bind(dbx.Params{"congregation": s.CongregationID}).All(&learned)
-	if err != nil {
-		return nil, err
-	}
-
-	// When each member was last given a map, to offer the likelier ones first.
-	var given []struct {
-		User string `db:"user"`
-		At   string `db:"at"`
-	}
 	err = s.App.DB().NewQuery(`
-		SELECT held.value AS user, MAX(l.created) AS at
-		FROM assignments_log l, json_each(CASE WHEN json_valid(l.assignees) THEN l.assignees ELSE '[]' END) held
-		WHERE l.congregation = {:congregation} AND l.action = 'assigned'
-		GROUP BY held.value
-	`).Bind(dbx.Params{"congregation": s.CongregationID}).All(&given)
+		SELECT l.alias, l.user FROM assistant_name_links l
+		WHERE l.congregation = {:congregation}
+		  AND EXISTS (SELECT 1 FROM roles r WHERE r.user = l.user AND r.congregation = l.congregation)
+	`).Bind(dbx.Params{"congregation": s.CongregationID}).All(&learned)
 	if err != nil {
 		return nil, err
 	}
-	lastGiven := make(map[string]string, len(given))
-	for _, g := range given {
-		lastGiven[g.User] = g.At
+	remembered := make(map[string]string, len(learned))
+	for _, l := range learned {
+		remembered[l.Alias] = l.User
 	}
 
 	people := make([]LinkPerson, len(names))
@@ -174,42 +143,25 @@ func matchMembers(s Scope, names []string) ([]LinkPerson, error) {
 		if len(typed) == 0 {
 			continue
 		}
-		remembered := ""
-		for _, l := range learned {
-			// A pairing only holds while the account is still a member.
-			if l.Alias == strings.Join(typed, " ") && slices.ContainsFunc(members, func(m member) bool { return m.id == l.User }) {
-				remembered = l.User
-			}
-		}
 		best, hits := matchNone, []string(nil)
 		for _, m := range members {
-			switch kind := matchKind(typed, m); {
+			switch kind := matchKind(typed, nameWords(m.Name)); {
 			case kind == matchNone:
 			case best == matchNone || kind < best:
-				best, hits = kind, []string{m.id}
+				best, hits = kind, []string{m.ID}
 			case kind == best:
-				hits = append(hits, m.id)
+				hits = append(hits, m.ID)
 			}
 		}
-		slices.SortStableFunc(hits, func(a, b string) int { return strings.Compare(lastGiven[b], lastGiven[a]) })
-
-		fullName := best == matchSameWords && len(typed) > 1
-		pick := ""
-		switch {
-		// A member whose full name this is outranks an older pairing with
-		// someone else: the admin is asked which they mean.
-		case remembered != "" && !(fullName && !slices.Contains(hits, remembered)):
-			pick = remembered
-		case remembered == "" && fullName && len(hits) == 1:
+		pick := remembered[strings.Join(typed, " ")]
+		if pick == "" && len(hits) == 1 && best != matchNear {
 			pick = hits[0]
 		}
+		// One account is picked for one name only.
 		if pick != "" && !slices.Contains(picked, pick) {
-			people[i].Picked, people[i].Remembered = pick, pick == remembered
+			people[i].Picked = pick
 			picked = append(picked, pick)
 			continue
-		}
-		if remembered != "" {
-			hits = slices.Insert(slices.DeleteFunc(hits, func(id string) bool { return id == remembered }), 0, remembered)
 		}
 		people[i].Suggested = hits[:min(len(hits), maxSuggested)]
 	}

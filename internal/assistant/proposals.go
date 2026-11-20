@@ -152,17 +152,21 @@ func proposalView(p Proposal) string {
 	if p.LinkType != "" {
 		view["link_type"], view["hours"] = p.LinkType, p.Hours
 	}
-	// How the names fared against the members' accounts, never which is whose.
+	// How each name fared against the members' accounts, in the order the
+	// model gave them: it can say so per person without learning whose is whose.
 	if len(p.People) > 0 {
-		matched, toCheck := 0, 0
-		for _, person := range p.People {
-			if person.Picked != "" {
-				matched++
-			} else if len(person.Suggested) > 0 {
-				toCheck++
+		accounts := make([]string, len(p.People))
+		for i, person := range p.People {
+			switch {
+			case person.Picked != "":
+				accounts[i] = "matched"
+			case len(person.Suggested) > 0:
+				accounts[i] = "choose_on_card"
+			default:
+				accounts[i] = "none"
 			}
 		}
-		view["people"], view["account_matched"], view["account_to_check_on_card"] = len(p.People), matched, toCheck
+		view["accounts"] = accounts
 	}
 	out, _ := json.Marshal(view)
 	return string(out)
