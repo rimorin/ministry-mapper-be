@@ -422,6 +422,7 @@ pb.collection("addresses").subscribe("*", (e) => {
 
 | Endpoint | Role | Description |
 |----------|------|-------------|
+| `POST /auth/apple/callback` | None (Apple's form post, sent by the browser) | Hands Apple's sign-in reply to the web app: redirects to `PB_APP_URL/auth/callback` with `code`, `state` and, on a first sign-in, `name`. Stores nothing. |
 | `POST /territory/link` | Administrator, conductor or read_only in the territory's congregation | Smart map assignment (Quicklink). Body: `territory`, `publisher`, `coordinates`; optional `assignees` (member accounts the link is given to), and `coordinates` may be left out to pick by workload alone |
 
 #### Any Signed-in Account
