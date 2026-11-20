@@ -1129,10 +1129,6 @@
   },
   {
     "question": "assign block 100b",
-    "tools": [
-      "find_places",
-      "propose_share_link"
-    ],
     "needs_detail": true
   },
   {
@@ -1474,6 +1470,36 @@
     "not_contains": [
       "My maps",
       "has been given"
+    ]
+  },
+  {
+    "question": "Give Alpha Publisher and Sis Ong a map in T01, and Bro Tan another one",
+    "tools": [
+      "propose_quick_link"
+    ],
+    "not_tools": [
+      "propose_share_link"
+    ],
+    "min_cards": 2,
+    "member_links": true,
+    "accounts": 1,
+    "people": 2,
+    "not_contains": [
+      "link has been created"
+    ]
+  },
+  {
+    "question": "Give Sis Ong any map in T02 for tomorrow",
+    "tools": [
+      "propose_quick_link"
+    ],
+    "not_tools": [
+      "maps_near"
+    ],
+    "min_cards": 1,
+    "not_contains": [
+      "share your location",
+      "link has been created"
     ]
   }
 ]

@@ -225,18 +225,22 @@ var proposeLinkRevoke = Tool{
 
 var proposeQuickLink = Tool{
 	Name: "propose_quick_link",
-	Description: "Prepare a share link for the best map in a territory near where the admin is standing, as " +
-		"Quick Link does: the app picks the map when the asker confirms. Call it even if no location has been " +
-		"shared: the call is what lets the admin share it. Use it only when the admin asks for a map near them " +
-		"for a publisher.",
+	Description: "Prepare a share link for a map the app picks in a territory, as Quick Link does, for when the " +
+		"admin names a territory and not a map: the map still needing work with the fewest people on it, the " +
+		"nearest first when near_me is set. The map is picked when the asker confirms, so it is not known " +
+		"yet. To give several groups a map each, call it once for each group: confirmed in turn, each gets a " +
+		"different map. With near_me, call it even if no location has been shared: the call is what lets the " +
+		"admin share it. Use it only when the admin asks to give out a map without saying which.",
 	Params: object(map[string]any{
-		"territory": map[string]any{"type": "string", "description": "The territory's exact code."},
-		"publisher": map[string]any{"type": "string", "description": "Who the link is for: their token, or the name as the admin wrote it."},
+		"territory":  map[string]any{"type": "string", "description": "The territory's exact code."},
+		"publishers": publishersArg,
+		"near_me":    map[string]any{"type": "boolean", "description": "True when the admin asks for a map near them or where they are standing; false to pick by workload alone, as when planning ahead."},
 	}),
 	Run: func(s Scope, raw json.RawMessage) (Result, error) {
 		var args struct {
-			Territory string `json:"territory"`
-			Publisher string `json:"publisher"`
+			Territory  string   `json:"territory"`
+			Publishers []string `json:"publishers"`
+			NearMe     bool     `json:"near_me"`
 		}
 		if err := decodeArgs(raw, &args); err != nil {
 			return Result{}, err
@@ -245,17 +249,23 @@ var proposeQuickLink = Tool{
 		if err != nil {
 			return Result{}, err
 		}
-		publisher, err := publisherName(s, args.Publisher)
+		names, err := linkNames(s, args.Publishers)
 		if err != nil {
 			return Result{}, err
 		}
-		if s.Origin == nil {
+		if args.NearMe && s.Origin == nil {
 			return Result{}, needLocationError{}
 		}
-		return Result{Proposal: &Proposal{
+		p := Proposal{
 			Target: territoryTarget(territoryID, code),
-			Value:  publisher,
-		}}, nil
+			Value:  strings.Join(names, ", "),
+			// The card sends the admin's position only for a map near them.
+			Data: map[string]any{"near_me": args.NearMe},
+		}
+		if p.People, err = linkPeople(s, names); err != nil {
+			return Result{}, err
+		}
+		return Result{Proposal: &p}, nil
 	},
 }
 

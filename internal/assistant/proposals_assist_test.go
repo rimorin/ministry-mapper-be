@@ -81,14 +81,24 @@ func TestProposeQuickLink(t *testing.T) {
 	// Run does not check roles; the policy keeps Quick Link to conductors,
 	// as the screen does.
 	s.Role, s.UserID = "read_only", "testuseralpha03"
-	_, err := proposeQuickLink.Run(s, json.RawMessage(`{"territory": "T01", "publisher": "Sis Ong"}`))
+	_, err := proposeQuickLink.Run(s, json.RawMessage(`{"territory": "T01", "publishers": ["Sis Ong"], "near_me": true}`))
 	if !errors.As(err, &needLocationError{}) {
 		t.Fatalf("err = %v, want the admin asked for their location", err)
 	}
 	s.Origin = &Location{Lat: 1.30, Lng: 103.80}
-	p := propose(t, s, proposeQuickLink, `{"territory": "t01", "publisher": "Sis Ong"}`)
-	if p.Kind != "quick_link" || p.Target.ID != "testterralpha01" || p.Target.Name != "T01" || p.Value != "Sis Ong" {
+	p := propose(t, s, proposeQuickLink, `{"territory": "t01", "publishers": ["Sis Ong"], "near_me": true}`)
+	if p.Kind != "quick_link" || p.Target.ID != "testterralpha01" || p.Target.Name != "T01" || p.Value != "Sis Ong" ||
+		p.Data["near_me"] != true || p.People != nil {
 		t.Fatalf("proposal = %+v", p)
+	}
+
+	// Planned ahead, it needs no position, and a group goes on one link with
+	// the accounts its names fit.
+	s.Origin, s.MemberLinks = nil, true
+	group := propose(t, s, proposeQuickLink, `{"territory": "T01", "publishers": ["Alpha Publisher", "Sis Ong"], "near_me": false}`)
+	if group.Value != "Alpha Publisher, Sis Ong" || group.Data["near_me"] != false ||
+		len(group.People) != 2 || group.People[0].Picked != "testuseralpha04" || group.People[1].Picked != "" {
+		t.Fatalf("group = %+v", group)
 	}
 }
 

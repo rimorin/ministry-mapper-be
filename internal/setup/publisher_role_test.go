@@ -665,3 +665,59 @@ func TestEnrichScope_AssignmentsAndRolesBroadcast(t *testing.T) {
 		})
 	}
 }
+
+// Quick Link takes what the assistant's cards add to it: accounts to give the
+// link to, and no position when a map is picked ahead of time. The screen's
+// own request, one name and a position, is covered in endpoint_territory_test.
+func TestQuicklink_AccountsAndNoPosition(t *testing.T) {
+	conductorToken, err := generateToken("conductor@alpha.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	headers := map[string]string{"Authorization": conductorToken, "Content-Type": "application/json"}
+
+	scenarios := []tests.ApiScenario{
+		{
+			Name:   "a link picked without a position goes to the accounts named",
+			Method: http.MethodPost,
+			URL:    "/territory/link",
+			Body: strings.NewReader(`{"territory":"testterralpha01","publisher":"Alpha Publisher, Sis Ong",` +
+				`"assignees":["` + publisherUserID + `","` + publisherUserID + `"]}`),
+			Headers:         headers,
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"linkId"`, `"mapName"`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, _ *http.Response) {
+				link, err := app.FindFirstRecordByFilter("assignments", `publisher = "Alpha Publisher, Sis Ong"`)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := link.GetStringSlice("assignees"); !slices.Equal(got, []string{publisherUserID}) {
+					t.Errorf("assignees = %v, want the publisher once", got)
+				}
+				if link.GetString("type") != "normal" || link.GetString("user") != "testuseralpha02" {
+					t.Errorf("link = %v", link.PublicExport())
+				}
+			},
+		},
+		{
+			Name:   "a link cannot be given to someone outside the congregation",
+			Method: http.MethodPost,
+			URL:    "/territory/link",
+			Body: strings.NewReader(`{"territory":"testterralpha01","publisher":"Beta Admin",` +
+				`"coordinates":{"lat":1.3521,"lng":103.8198},"assignees":["testuserbeta001"]}`),
+			Headers:         headers,
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`"An assignee is not a member of this congregation."`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, _ *http.Response) {
+				if _, err := app.FindFirstRecordByFilter("assignments", `publisher = "Beta Admin"`); err == nil {
+					t.Error("a refused quick link still made a link")
+				}
+			},
+		},
+	}
+	for _, scenario := range scenarios {
+		scenario.Test(t)
+	}
+}

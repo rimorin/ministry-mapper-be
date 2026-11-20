@@ -529,7 +529,7 @@ func TestHandleTerritoryQuicklink(t *testing.T) {
 			},
 			TestAppFactory:  setupTestApp,
 			ExpectedStatus:  400,
-			ExpectedContent: []string{`"Coordinates are required."`},
+			ExpectedContent: []string{`"Publisher is required."`},
 		},
 		{
 			Name:   "missing lat key returns 400",

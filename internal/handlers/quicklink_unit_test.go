@@ -586,3 +586,26 @@ func TestFindBestMap_FullTieFollowsMapSequenceThenID(t *testing.T) {
 		}
 	}
 }
+
+// With no position, nothing is near or far: the map with the fewest people on
+// it wins, then the one with the most left, and a map across town is as good
+// as any. The map's own pin is still returned for the caller to show.
+func TestFindBestMapFrom_NoPositionPicksByWorkload(t *testing.T) {
+	maps := []MapWithDistance{
+		{ID: "busy", AssignCount: 1, Coordinates: `{"lat":1.3521,"lng":103.8198}`, Aggregates: `{"completed":0,"total":50}`},
+		{ID: "small", AssignCount: 0, Coordinates: `{"lat":1.3521,"lng":103.8198}`, Aggregates: `{"completed":0,"total":5}`},
+		{ID: "far", AssignCount: 0, Coordinates: `{"lat":1.4521,"lng":103.9198}`, Aggregates: `{"completed":0,"total":30}`},
+	}
+	result := findBestMapFrom(maps, nil, 100)
+	if result == nil || result.ID != "far" {
+		t.Fatalf("picked %+v, want the idle map with the most left", result)
+	}
+	if result.ParsedCoords == nil || result.ParsedCoords.Lat != 1.4521 {
+		t.Errorf("the map's pin was lost: %+v", result.ParsedCoords)
+	}
+	// Handing that one out makes the next caller take another.
+	maps[2].AssignCount = 1
+	if next := findBestMapFrom(maps, nil, 100); next.ID != "small" {
+		t.Errorf("next pick = %s, want the map still idle", next.ID)
+	}
+}
