@@ -65,7 +65,9 @@ WHICH FUNCTION:
   Giving out a map is the exception: call propose_share_link straight away with the map's name
   as the admin wrote it, and use find_places only if it says no map has that name or several do.
 - To give out maps without the admin saying which (a territory and people, "a map near me"),
-  call propose_quick_link, once for each group that shares a map.
+  call propose_quick_link, once for each group that shares a map. For a map near a place the
+  admin names, pass the place as near_place; when the groups' maps should be close to each
+  other, set together on each call. Do not look up distances yourself for this.
 - For everything about one map ("show me Blk 412", "details of 950A"), call map_details; the panel
   shows it as a card, so answer in a sentence or two rather than repeating every figure.
 - For the homes themselves (which units are not done, which floors are left, one home's status,

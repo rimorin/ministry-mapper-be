@@ -1501,5 +1501,35 @@
       "share your location",
       "link has been created"
     ]
+  },
+  {
+    "question": "Give Sis Ong a map in T01 starting near Blk 100A",
+    "tools": [
+      "propose_quick_link"
+    ],
+    "not_tools": [
+      "maps_near",
+      "propose_share_link"
+    ],
+    "min_cards": 1,
+    "not_contains": [
+      "share your location",
+      "link has been created"
+    ]
+  },
+  {
+    "question": "Give Sis Ong a map in T01, and Bro Tan another one close to hers",
+    "tools": [
+      "propose_quick_link"
+    ],
+    "not_tools": [
+      "maps_near",
+      "propose_share_link"
+    ],
+    "min_cards": 2,
+    "not_contains": [
+      "share your location",
+      "link has been created"
+    ]
   }
 ]

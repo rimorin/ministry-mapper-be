@@ -2,6 +2,7 @@ package assistant
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -230,17 +231,24 @@ var proposeQuickLink = Tool{
 		"nearest first when near_me is set. The map is picked when the asker confirms, so it is not known " +
 		"yet. To give several groups a map each, call it once for each group: confirmed in turn, each gets a " +
 		"different map. With near_me, call it even if no location has been shared: the call is what lets the " +
-		"admin share it. Use it only when the admin asks to give out a map without saying which.",
+		"admin share it. With near_place the map is the nearest to a map or territory the admin names " +
+		"instead (\"starting near Blk 301\"). With together, groups asked for in one request are given maps " +
+		"close to one another. Distances are worked out by the app. Use it only when the admin asks to give " +
+		"out a map without saying which.",
 	Params: object(map[string]any{
 		"territory":  map[string]any{"type": "string", "description": "The territory's exact code."},
 		"publishers": publishersArg,
 		"near_me":    map[string]any{"type": "boolean", "description": "True when the admin asks for a map near them or where they are standing; false to pick by workload alone, as when planning ahead."},
+		"near_place": nullable("string", "A map name or territory code to start from, as the admin wrote it, when they ask for a map near a place and not near themselves. Not with near_me."),
+		"together":   nullable("boolean", "True on every call of a request that asks for the groups' maps to be close to each other, in the same area or within walking distance."),
 	}),
 	Run: func(s Scope, raw json.RawMessage) (Result, error) {
 		var args struct {
 			Territory  string   `json:"territory"`
 			Publishers []string `json:"publishers"`
 			NearMe     bool     `json:"near_me"`
+			NearPlace  *string  `json:"near_place"`
+			Together   *bool    `json:"together"`
 		}
 		if err := decodeArgs(raw, &args); err != nil {
 			return Result{}, err
@@ -253,14 +261,35 @@ var proposeQuickLink = Tool{
 		if err != nil {
 			return Result{}, err
 		}
+		// What the card sends as the place to look from: the admin's position
+		// for a map near them, the named place's, or nothing. The place's
+		// position goes to the card alone; the model never sees it.
+		data := map[string]any{"near_me": args.NearMe}
+		if args.NearPlace != nil && strings.TrimSpace(*args.NearPlace) != "" {
+			place := strings.TrimSpace(*args.NearPlace)
+			if args.NearMe {
+				return Result{}, badArgs("use near_me or near_place, not both")
+			}
+			// A name several maps share most likely means the one in this territory.
+			origin, _, err := placeOrigin(s, place, nil)
+			if bad := (argError{}); errors.As(err, &bad) && strings.HasPrefix(bad.msg, "several") {
+				origin, _, err = placeOrigin(s, place, &code)
+			}
+			if err != nil {
+				return Result{}, err
+			}
+			data["near"], data["origin"] = place, map[string]float64{"lat": origin.Lat, "lng": origin.Lng}
+		}
 		if args.NearMe && s.Origin == nil {
 			return Result{}, needLocationError{}
+		}
+		if args.Together != nil && *args.Together {
+			data["together"] = true
 		}
 		p := Proposal{
 			Target: territoryTarget(territoryID, code),
 			Value:  strings.Join(names, ", "),
-			// The card sends the admin's position only for a map near them.
-			Data: map[string]any{"near_me": args.NearMe},
+			Data:   data,
 		}
 		if p.People, err = linkPeople(s, names); err != nil {
 			return Result{}, err

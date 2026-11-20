@@ -77,7 +77,8 @@ func TestProposeLinkRevoke(t *testing.T) {
 }
 
 func TestProposeQuickLink(t *testing.T) {
-	s := scopeFor(t, newTestApp(t), alphaCong)
+	app := newTestApp(t)
+	s := scopeFor(t, app, alphaCong)
 	// Run does not check roles; the policy keeps Quick Link to conductors,
 	// as the screen does.
 	s.Role, s.UserID = "read_only", "testuseralpha03"
@@ -99,6 +100,30 @@ func TestProposeQuickLink(t *testing.T) {
 	if group.Value != "Alpha Publisher, Sis Ong" || group.Data["near_me"] != false ||
 		len(group.People) != 2 || group.People[0].Picked != "testuseralpha04" || group.People[1].Picked != "" {
 		t.Fatalf("group = %+v", group)
+	}
+	if _, has := group.Data["origin"]; has || group.Data["together"] != nil {
+		t.Fatalf("a plain card carries a place or a group: %+v", group.Data)
+	}
+
+	// Starting from a named place, the card carries where that is and the
+	// model's copy does not; kept together is passed on as asked.
+	placeMaps(t, app)
+	near := propose(t, s, proposeQuickLink,
+		`{"territory": "T01", "publishers": ["Sis Ong"], "near_me": false, "near_place": "Blk 100A", "together": true}`)
+	origin, _ := near.Data["origin"].(map[string]float64)
+	if near.Data["near"] != "Blk 100A" || near.Data["together"] != true || origin["lat"] == 0 || origin["lng"] == 0 {
+		t.Fatalf("near = %+v", near.Data)
+	}
+	if view := proposalView(near); strings.Contains(view, "lat") || strings.Contains(view, "origin") {
+		t.Fatalf("the model was shown the place's position: %s", view)
+	}
+	for _, bad := range []string{
+		`{"territory": "T01", "publishers": ["Sis Ong"], "near_me": true, "near_place": "Blk 100A"}`,
+		`{"territory": "T01", "publishers": ["Sis Ong"], "near_me": false, "near_place": "Nowhere 9"}`,
+	} {
+		if _, err := proposeQuickLink.Run(s, json.RawMessage(bad)); !errors.As(err, &argError{}) {
+			t.Fatalf("%s: err = %v, want it refused", bad, err)
+		}
 	}
 }
 
