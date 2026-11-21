@@ -436,7 +436,7 @@ pb.collection("addresses").subscribe("*", (e) => {
 
 The caller must hold a staff role (administrator, conductor or `read_only`) in the congregation that owns the territory; a publisher account is given links and cannot mint its own. Candidate maps are restricted to that same congregation.
 
-A map is **finished** once its progress reaches the congregation's `completion_threshold` (the setting that also completes a territory, 90 by default), or it has nothing left to work (`total` minus `completed` in its aggregates is zero; the per-status counts are not used, as they are stale on older maps). Finished maps are set aside; they are only considered when every map in the territory is finished, and then those with addresses left come before those with none. A map whose counts were never calculated is treated as having work.
+A map is **finished** once its progress reaches the congregation's `completion_threshold` (the setting that also completes a territory, 90 by default), or it has nothing left to work (`total` minus `completed` in its aggregates is zero; the per-status counts are not used, as they are stale on older maps). Finished maps are set aside; they are only considered when every map in the territory is finished, and then only those with addresses left. When no map has an address left the request is refused with 409 "Every map in this territory is finished", since a link would lead to a map with nothing to call on. A map whose counts were never calculated is treated as having work.
 
 The remaining maps are ranked by these criteria in priority order:
 
@@ -447,6 +447,8 @@ The remaining maps are ranked by these criteria in priority order:
 5. **Map order** — full ties, common when the maps of one block share a pin, go to the map first in the territory's sequence
 
 Only maps within 300 m of the nearest unfinished map are ranked, so nobody is sent more than 300 m further just to avoid sharing a map. A map without usable coordinates is exempt from that limit: it stays eligible and ranks as the farthest candidate, so it is chosen only when no located map has the same workload. On a successful match an assignment record is created with an expiry derived from the congregation's `expiry_hours` setting (fractions allowed; zero or negative means 24 hours); its id is the returned `linkId`, which doubles as the publisher's `link-id` credential for that map.
+
+The response also carries `already`: the open normal links in the territory that someone on the new link still holds, each with its `publisher` text and `map` name. People are matched by account where `assignees` were given and otherwise by name as written (comma-separated, ignoring case and spacing). It is information for the conductor, never a refusal: a pair that finished early still holds its first link when it asks for the next map.
 
 To check the selection rules against a real database without writing to it:
 
