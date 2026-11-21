@@ -10,6 +10,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"ministry-mapper/internal/links"
+
 	"ganigeorgiev.com/pocketbase/dbx"
 )
 
@@ -293,6 +295,24 @@ var proposeQuickLink = Tool{
 		}
 		if p.People, err = linkPeople(s, names); err != nil {
 			return Result{}, err
+		}
+		// Someone who still holds a link here is given the map all the same:
+		// a pair that finished early wants the next one. The card says who.
+		var accounts []string
+		for _, person := range p.People {
+			if person.Picked != "" {
+				accounts = append(accounts, person.Picked)
+			}
+		}
+		held, err := links.HeldInTerritory(s.App, territoryID, s.CongregationID, names, accounts)
+		if err != nil {
+			return Result{}, err
+		}
+		if len(held) > 0 {
+			for i := range held {
+				held[i].Map = resolveLocalized(held[i].Map, s.Locale)
+			}
+			p.Data["already"] = held
 		}
 		return Result{Proposal: &p}, nil
 	},

@@ -8,6 +8,11 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
+
+	"ministry-mapper/internal/links"
+
+	"ganigeorgiev.com/pocketbase/dbx"
 )
 
 func TestProposeMarkRead(t *testing.T) {
@@ -103,6 +108,23 @@ func TestProposeQuickLink(t *testing.T) {
 	}
 	if _, has := group.Data["origin"]; has || group.Data["together"] != nil {
 		t.Fatalf("a plain card carries a place or a group: %+v", group.Data)
+	}
+
+	// Someone who still holds a link in the territory gets the card all the
+	// same, and it says who; the model learns only that it is so.
+	if group.Data["already"] != nil {
+		t.Fatalf("nobody holds a link yet: %+v", group.Data)
+	}
+	exec(t, app, `INSERT INTO assignments (id, congregation, map, publisher, type, assignees, expiry_date, created, updated)
+		VALUES ('testassignheld1', {:cong}, 'testmapalpha01b', 'Bro P', 'normal', '["testuseralpha04"]', {:soon}, {:now}, {:now})`,
+		dbx.Params{"cong": alphaCong, "soon": dbTime(time.Now().Add(time.Hour)), "now": dbTime(time.Now())})
+	again := propose(t, s, proposeQuickLink, `{"territory": "T01", "publishers": ["Alpha Publisher"], "near_me": false}`)
+	held, _ := again.Data["already"].([]links.Held)
+	if len(held) != 1 || held[0].Publisher != "Bro P" || held[0].Map != "Blk 100B" {
+		t.Fatalf("already = %+v", again.Data["already"])
+	}
+	if view := proposalView(again); !strings.Contains(view, "still holds an open link") || strings.Contains(view, "Bro P") {
+		t.Fatalf("the model's copy of the card: %s", view)
 	}
 
 	// Starting from a named place, the card carries where that is and the

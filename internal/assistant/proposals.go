@@ -11,6 +11,7 @@ import (
 	"ganigeorgiev.com/pocketbase/dbx"
 
 	"ministry-mapper/internal/authz"
+	"ministry-mapper/internal/links"
 )
 
 // A Proposal is a change the assistant prepared but did not make. The panel
@@ -179,6 +180,10 @@ func proposalView(p Proposal) string {
 	}
 	if p.LinkType != "" {
 		view["link_type"], view["hours"] = p.LinkType, p.Hours
+	}
+	// Who and which map stay on the card; the model may say that it is so.
+	if held, ok := p.Data["already"].([]links.Held); ok && len(held) > 0 {
+		view["note"] = "someone on this link still holds an open link in this territory; the card says who, and the map is given all the same"
 	}
 	// How each name fared against the members' accounts, in the order the
 	// model gave them: it can say so per person without learning whose is whose.

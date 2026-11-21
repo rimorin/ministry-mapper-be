@@ -865,8 +865,9 @@ func TestHandleTerritoryQuicklink(t *testing.T) {
 			},
 		},
 		{
-			// Nothing left anywhere: the caller still gets a link, to the closest idle map.
-			Name:    "map selection: fully finished territory still returns a map",
+			// Nothing left anywhere: a link would send someone to a map with no
+			// home to call on, so the caller is told the territory is finished.
+			Name:    "map selection: fully finished territory gives no map",
 			Method:  http.MethodPost,
 			URL:     "/territory/link",
 			Body:    strings.NewReader(quicklinkBody),
@@ -879,8 +880,8 @@ func TestHandleTerritoryQuicklink(t *testing.T) {
 				assign(t, app, mapC)
 			},
 			TestAppFactory:  setupTestApp,
-			ExpectedStatus:  200,
-			ExpectedContent: []string{`"mapName":"Blk 100B"`},
+			ExpectedStatus:  http.StatusConflict,
+			ExpectedContent: []string{`"Every map in this territory is finished."`},
 		},
 		{
 			// A (10 left, untouched) is where the caller stands; B (100 left, half done)

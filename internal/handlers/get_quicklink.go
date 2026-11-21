@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
 	"time"
+
+	"ministry-mapper/internal/links"
 
 	"ganigeorgiev.com/pocketbase/dbx"
 	"ganigeorgiev.com/pocketbase/pocketbase/apis"
@@ -64,7 +67,10 @@ type MapAggregates struct {
 // based on workload balance, proximity, and completion progress.
 //
 // The Quick Link screen sends a territory, one name and where the caller
-// stands, and that is still all the route needs. Two things are optional on
+// stands, and that is still all the route needs. It refuses only when the
+// territory has no home left to work, and its answer lists, under "already",
+// the open links in the territory that some of these people still hold. Two
+// things are optional on
 // top, both sent by the assistant's cards: assignees, the members' accounts
 // the link is given to, and leaving coordinates out, for a map picked ahead of
 // time by workload alone.
@@ -157,6 +163,7 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App, notify Assigne
 	var link *core.Record
 	var assignmentId string
 	var assignees []string
+	var already []links.Held
 	err = app.RunInTransaction(func(txApp core.App) error {
 		maps, err := getMapsWithAssignmentCount(txApp, territoryId, congregationId, activeSince)
 		if err != nil {
@@ -167,6 +174,18 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App, notify Assigne
 		}
 
 		bestMap = findBestMapFrom(maps, origin, settings.completionThreshold)
+		// Nothing is left anywhere: a link would send someone to a map with no
+		// home to call on. Maps past the threshold that still have homes are given.
+		if bestMap.tier == tierDone {
+			return apis.NewApiError(http.StatusConflict, "Every map in this territory is finished", nil)
+		}
+
+		// Told to the conductor with the link, and looked up before it is made
+		// so the new link is not counted against itself.
+		already, err = links.HeldInTerritory(txApp, territoryId, congregationId, strings.Split(publisher, ","), given)
+		if err != nil {
+			return err
+		}
 
 		link, err = createAssignment(txApp, bestMap.ID, c.Auth, publisher, congregationId, settings.expiryHours, given)
 		if err != nil {
@@ -206,6 +225,7 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App, notify Assigne
 		"not_home":    aggregates.NotHome,
 		"coordinates": coords,
 		"assignees":   assignees,
+		"already":     already,
 	})
 }
 
