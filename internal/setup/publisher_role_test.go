@@ -242,6 +242,33 @@ func TestMyAssignments(t *testing.T) {
 			NotExpectedContent: []string{publisherExpired, otherAssigneeID, `"Alpha Publisher"`, "readonly@alpha.test"},
 		},
 		{
+			// Counts only, for a map the caller holds: enough to tell which
+			// map still needs work and whether it carries an instruction.
+			Name:           "each link says where its map stands",
+			Method:         http.MethodPost,
+			URL:            "/assignments/mine",
+			Headers:        map[string]string{"Authorization": publisherToken},
+			TestAppFactory: setupTestApp,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, e *core.ServeEvent) {
+				seedPublisherLinks(t, app, e)
+				for _, query := range []string{
+					`UPDATE maps SET progress = 40, aggregates = '{"notDone":5,"notHome":1,"completed":4,"total":10}'`,
+					`UPDATE messages SET pinned = 0`,
+					`INSERT INTO messages (id, map, congregation, message, type, pinned, read, created, updated)
+					 SELECT 'testmsgpinned01', id, congregation, 'Skip level 3', 'administrator', 1, 1,
+					        datetime('now'), datetime('now') FROM maps WHERE id = 'testmapalpha01a'`,
+				} {
+					if _, err := app.DB().NewQuery(query).Execute(); err != nil {
+						t.Fatal(err)
+					}
+				}
+			},
+			ExpectedStatus: 200,
+			ExpectedContent: []string{
+				`"not_done":5`, `"not_home":1`, `"total":10`, `"progress":40`, `"pinned":1`,
+			},
+		},
+		{
 			Name:           "a staff member gets the links given to them, not the ones they can manage",
 			Method:         http.MethodPost,
 			URL:            "/assignments/mine",

@@ -22,6 +22,15 @@ type myAssignment struct {
 	Partners []string `json:"partners"`
 	// The caller made this link and put themself on it, so it is not news to them.
 	Own bool `json:"own"`
+	// Where the map stands, so the list can say which one still needs work.
+	// Counts only. Total is 0 while the map's homes have not been counted,
+	// and the others then say nothing.
+	NotDone  int `json:"not_done"`
+	NotHome  int `json:"not_home"`
+	Total    int `json:"total"`
+	Progress int `json:"progress"`
+	// Instructions the conductor pinned on the map.
+	Pinned int `json:"pinned"`
 }
 
 // HandleGetMyAssignments lists the caller's unexpired links: those given to
@@ -42,6 +51,11 @@ func HandleGetMyAssignments(c *core.RequestEvent, app core.App) error {
 		CongregationName string `db:"congregation_name"`
 		Partners         string `db:"partners"`
 		Own              bool   `db:"own"`
+		NotDone          int    `db:"not_done"`
+		NotHome          int    `db:"not_home"`
+		Total            int    `db:"total"`
+		Progress         int    `db:"progress"`
+		Pinned           int    `db:"pinned"`
 	}
 	err := app.DB().NewQuery(`
 		SELECT a.id, COALESCE(a.type, '') AS type, a.expiry_date,
@@ -50,6 +64,12 @@ func HandleGetMyAssignments(c *core.RequestEvent, app core.App) error {
 		       COALESCE(t.code, '')        AS territory,
 		       COALESCE(c.name, '')        AS congregation_name,
 		       a.user = {:user}            AS own,
+		       COALESCE(m.progress, 0)     AS progress,
+		       COALESCE(CASE WHEN json_valid(m.aggregates) THEN json_extract(m.aggregates, '$.notDone') END, 0) AS not_done,
+		       COALESCE(CASE WHEN json_valid(m.aggregates) THEN json_extract(m.aggregates, '$.notHome') END, 0) AS not_home,
+		       COALESCE(CASE WHEN json_valid(m.aggregates) THEN json_extract(m.aggregates, '$.total') END, 0)   AS total,
+		       (SELECT COUNT(*) FROM messages msg
+		        WHERE msg.map = m.id AND msg.type = 'administrator' AND msg.pinned = 1) AS pinned,
 		       COALESCE((
 		         SELECT json_group_array(p.name)
 		         FROM json_each(a.assignees) held
@@ -85,6 +105,11 @@ func HandleGetMyAssignments(c *core.RequestEvent, app core.App) error {
 			CongregationName: row.CongregationName,
 			Partners:         partners,
 			Own:              row.Own,
+			NotDone:          row.NotDone,
+			NotHome:          row.NotHome,
+			Total:            row.Total,
+			Progress:         row.Progress,
+			Pinned:           row.Pinned,
 		}
 	}
 
