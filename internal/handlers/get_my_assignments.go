@@ -25,7 +25,8 @@ type myAssignment struct {
 }
 
 // HandleGetMyAssignments lists the caller's unexpired links: those given to
-// their account, in every congregation.
+// their account, in every congregation, and the congregations they are a
+// publisher in.
 //
 // It is a route rather than a list of the assignments collection because a
 // publisher holds no staff role, so the map and congregation names an expand
@@ -86,7 +87,27 @@ func HandleGetMyAssignments(c *core.RequestEvent, app core.App) error {
 			Own:              row.Own,
 		}
 	}
-	return c.JSON(http.StatusOK, map[string]any{"assignments": assignments})
+
+	// A publisher's role row carries no congregation name they may read, and
+	// with no link in hand "My maps" says nothing of where they belong. Names
+	// only, and only where the caller is a publisher: staff see their
+	// congregations in the shell.
+	congregations := []string{}
+	err = app.DB().NewQuery(`
+		SELECT c.name
+		FROM roles r
+		JOIN congregations c ON c.id = r.congregation
+		WHERE r.user = {:user} AND r.role = 'publisher' AND c.name != ''
+		ORDER BY c.name
+	`).Bind(dbx.Params{"user": c.Auth.Id}).Column(&congregations)
+	if err != nil {
+		return newServerError(err)
+	}
+
+	return c.JSON(http.StatusOK, map[string]any{
+		"assignments":   assignments,
+		"congregations": congregations,
+	})
 }
 
 // localizedText passes a stored description through as it is kept: a JSON
