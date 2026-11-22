@@ -429,7 +429,7 @@ pb.collection("addresses").subscribe("*", (e) => {
 
 | Endpoint | Role | Description |
 |----------|------|-------------|
-| `POST /assignments/mine` | Any account, publishers included | The caller's unexpired links (those whose `assignees` include their account), with map and congregation names and the names of the other accounts on each link |
+| `POST /assignments/mine` | Any account, publishers included | The caller's unexpired links (those whose `assignees` include their account), with map and congregation names and the names of the other accounts on each link; also `congregations`, the names of those the caller is a publisher in |
 
 <details>
 <summary>📬 Quicklink algorithm details</summary>
