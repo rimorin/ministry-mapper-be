@@ -1,8 +1,8 @@
 # Stage 1: Build the Go application
 # Uses golang alpine as base image for smaller size.
-# Must match the `go 1.27` in go.mod -- an older toolchain downloads 1.27 at
+# Must match the `go 1.27.4` in go.mod -- an older toolchain downloads 1.27.4 at
 # build time instead of compiling with what's in the image.
-FROM golang:1.27.0-alpine AS builder
+FROM golang:1.27.4-alpine AS builder
 
 # Metadata and version information
 LABEL maintainer="John Eric"

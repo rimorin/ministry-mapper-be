@@ -201,27 +201,19 @@ func rolesScopeKeep(app core.App, userId string) (func(*core.Record) bool, error
 	}, nil
 }
 
-// assignmentsScopeKeep matches the user's own assignment history, every
-// assignment for a map they hold a staff role for, and — for global
-// administrators/conductors — the other user's assignments named in
-// clientFilter, mirroring the "admin/conductor may look up any publisher's
-// history" behavior.
-func assignmentsScopeKeep(app core.App, userId string, clientFilter string) (func(*core.Record) bool, error) {
+// assignmentsScopeKeep returns a predicate for rows the user may see in an
+// assignments list: their own, and any on a map they hold a staff role for.
+// That already covers looking up another person's links within the user's
+// own congregations. A link id is the key to its map, so a role in one
+// congregation must never show the links of another.
+func assignmentsScopeKeep(app core.App, userId string) (func(*core.Record) bool, error) {
 	mapIds, err := userMapIDs(app, userId)
 	if err != nil {
 		return nil, err
 	}
 	mapSet := toSet(mapIds)
 
-	var extraUser string
-	if requested := extractUserIdFromFilter(clientFilter); requested != "" && requested != userId {
-		if hasRoleAnywhere(app, userId, "administrator", "conductor") {
-			extraUser = requested
-		}
-	}
-
 	return func(r *core.Record) bool {
-		user := r.GetString("user")
-		return user == userId || mapSet[r.GetString("map")] || (extraUser != "" && user == extraUser)
+		return r.GetString("user") == userId || mapSet[r.GetString("map")]
 	}, nil
 }

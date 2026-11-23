@@ -151,3 +151,35 @@ func TestRealtimeSubscribeScopeEnforcement(t *testing.T) {
 		})
 	}
 }
+
+// A collection answers to its id as well as its name, and PocketBase
+// broadcasts under both. The subscribe check has to hold for either, or naming
+// a collection by id walks past it.
+func TestRealtimeSubscribeByCollectionIdIsCheckedToo(t *testing.T) {
+	app := setupTestApp(t)
+	defer app.Cleanup()
+
+	for _, name := range []string{"addresses", "messages", "address_options"} {
+		collection, err := app.FindCollectionByNameOrId(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		refused := []string{
+			// No link and no account.
+			realtimeSub(collection.Id, "*", `map="testmapalpha01a"`, ""),
+			// A made-up link, and a filter that matches everything.
+			realtimeSub(collection.Id, "*", `map="" || id!=""`, "x"),
+			// A real link, reaching for another congregation's map.
+			realtimeSub(collection.Id, "*", `map="testmapbeta001a"`, "testassignalpha01"),
+		}
+		if got := runSubscribeHook(t, app, nil, refused); len(got) != 0 {
+			t.Errorf("%s by id: kept %v, want none", name, got)
+		}
+
+		// A link's own map is still served, and the string is left as sent.
+		own := realtimeSub(collection.Id, "*", `map="testmapalpha01a"`, "testassignalpha01")
+		if got := runSubscribeHook(t, app, nil, []string{own}); len(got) != 1 || got[0] != own {
+			t.Errorf("%s by id: kept %v, want the link's own map unchanged", name, got)
+		}
+	}
+}

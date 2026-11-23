@@ -582,6 +582,50 @@ func TestAuthHook_AssignmentsCreateRequest(t *testing.T) {
 			ExpectedContent: []string{`"testmapalpha01b"`},
 		},
 		{
+			// A link opens its map, so a role in one congregation must not
+			// mint a link to another congregation's map.
+			Name:   "conductor cannot create a link to another congregation's map",
+			Method: http.MethodPost,
+			URL:    "/api/collections/assignments/records",
+			Body: strings.NewReader(`{"map":"testmapbeta001a","congregation":"testcongalpha01",` +
+				`"publisher":"Someone","type":"normal","expiry_date":"2099-01-01 00:00:00.000Z"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`"Invalid map."`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, _ *http.Response) {
+				if _, err := app.FindFirstRecordByFilter("assignments", `publisher = "Someone"`); err == nil {
+					t.Error("a refused link was still made")
+				}
+			},
+		},
+		{
+			Name:   "a link records the caller as its maker, whatever the request says",
+			Method: http.MethodPost,
+			URL:    "/api/collections/assignments/records",
+			Body: strings.NewReader(`{"map":"testmapalpha01b","congregation":"testcongalpha01","user":"testuseralpha01",` +
+				`"publisher":"Named By Request","type":"normal","expiry_date":"2099-01-01 00:00:00.000Z"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"Named By Request"`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, _ *http.Response) {
+				link, err := app.FindFirstRecordByFilter("assignments", `publisher = "Named By Request"`)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := link.GetString("user"); got != "testuseralpha02" {
+					t.Errorf("user = %q, want the conductor who made it", got)
+				}
+			},
+		},
+		{
 			Name:   "admin can create assignment",
 			Method: http.MethodPost,
 			URL:    "/api/collections/assignments/records",
@@ -818,6 +862,28 @@ func TestAuthHook_AssignmentsListRequest(t *testing.T) {
 			ExpectedStatus:     200,
 			ExpectedContent:    []string{`"testassignalpha01"`},
 			NotExpectedContent: []string{`"testassignbeta001"`},
+		},
+		{
+			// A link id is the key to its map. Looking a person up by id must
+			// show only their links in the caller's own congregations.
+			Name:   "looking up someone in another congregation shows none of their links",
+			Method: http.MethodGet,
+			URL: "/api/collections/assignments/records?fields=*&filter=" +
+				url.QueryEscape(`user="testuserbeta001"`),
+			Headers: map[string]string{
+				"Authorization": conductorToken,
+			},
+			TestAppFactory: setupTestApp,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				if _, err := app.DB().NewQuery(
+					`UPDATE assignments SET user = 'testuserbeta001' WHERE id = 'testassignbeta001'`,
+				).Execute(); err != nil {
+					t.Fatal(err)
+				}
+			},
+			ExpectedStatus:     200,
+			ExpectedContent:    []string{`"items":[]`},
+			NotExpectedContent: []string{`"testassignbeta001"`, `"testmapbeta001a"`},
 		},
 		{
 			Name:   "user tautology filter injection (admin/conductor lookup) does not leak other congregations' assignments",
@@ -2242,6 +2308,43 @@ func TestAuthHook_RolesUpdateRequest(t *testing.T) {
 			ExpectedContent: []string{`"status":404`},
 		},
 		{
+			// An administrator's say ends at their own congregation: a row
+			// moved elsewhere would carry its role with it.
+			Name:   "admin cannot move a role row to another congregation",
+			Method: http.MethodPatch,
+			URL:    "/api/collections/roles/records/testrolexcng01c",
+			Body:   strings.NewReader(`{"congregation":"testcongbeta001","role":"administrator"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`"A role cannot be moved to another congregation or person."`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, _ *http.Response) {
+				role, err := app.FindRecordById("roles", "testrolexcng01c")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if role.GetString("congregation") != "testcongalpha01" || role.GetString("role") != "read_only" {
+					t.Errorf("role = %v", role.PublicExport())
+				}
+			},
+		},
+		{
+			Name:   "admin cannot hand a role row to another person",
+			Method: http.MethodPatch,
+			URL:    "/api/collections/roles/records/testrolexcng01c",
+			Body:   strings.NewReader(`{"user":"testuseralpha01"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": adminToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  400,
+			ExpectedContent: []string{`"A role cannot be moved to another congregation or person."`},
+		},
+		{
 			Name:   "conductor cannot update role (403)",
 			Method: http.MethodPatch,
 			URL:    "/api/collections/roles/records/testrolexcng01c",
@@ -2869,6 +2972,71 @@ func TestAuthHook_MessagesCreateRequest(t *testing.T) {
 			Headers: map[string]string{
 				"Content-Type":  "application/json",
 				"Authorization": betaConductorToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  403,
+			ExpectedContent: []string{`"status":403`},
+		},
+		{
+			// A share link posts as a publisher on its own map: it cannot
+			// dress a message as a pinned administrator instruction, sign it
+			// with another name, or file it under another congregation.
+			Name:   "a link's message is a publisher's, whatever the request claims",
+			Method: http.MethodPost,
+			URL:    "/api/collections/messages/records",
+			Body: strings.NewReader(`{"map":"testmapalpha01a","congregation":"testcongbeta001","message":"Claimed instruction",` +
+				`"type":"administrator","pinned":true,"read":true,"created_by":"Bro Admin"}`),
+			Headers: map[string]string{
+				"Content-Type": "application/json",
+				"link-id":      "testassignalpha01",
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"Claimed instruction"`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, _ *http.Response) {
+				m, err := app.FindFirstRecordByFilter("messages", `message = "Claimed instruction"`)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if m.GetString("type") != "publisher" || m.GetBool("pinned") || m.GetBool("read") ||
+					m.GetString("congregation") != "testcongalpha01" || m.GetString("created_by") != "Test Publisher Alpha" {
+					t.Errorf("message = %v", m.PublicExport())
+				}
+			},
+		},
+		{
+			Name:   "a conductor's message is a conductor's, and is not pinned",
+			Method: http.MethodPost,
+			URL:    "/api/collections/messages/records",
+			Body: strings.NewReader(`{"map":"testmapalpha01a","congregation":"testcongalpha01","message":"Conductor note",` +
+				`"type":"administrator","pinned":true,"created_by":"Someone Else"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": conductorToken,
+			},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"Conductor note"`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, _ *http.Response) {
+				m, err := app.FindFirstRecordByFilter("messages", `message = "Conductor note"`)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if m.GetString("type") != "conductor" || m.GetBool("pinned") || m.GetString("created_by") != "Alpha Conductor" {
+					t.Errorf("message = %v", m.PublicExport())
+				}
+			},
+		},
+		{
+			// The role is checked for the map's own congregation, not the one named.
+			Name:   "staff cannot post on another congregation's map by naming their own",
+			Method: http.MethodPost,
+			URL:    "/api/collections/messages/records",
+			Body: strings.NewReader(`{"map":"testmapbeta001a","congregation":"testcongalpha01","message":"Wrong map",` +
+				`"type":"conductor","created_by":"Alpha Conductor"}`),
+			Headers: map[string]string{
+				"Content-Type":  "application/json",
+				"Authorization": conductorToken,
 			},
 			TestAppFactory:  setupTestApp,
 			ExpectedStatus:  403,
