@@ -121,6 +121,13 @@ func HandleNewMap(c *core.RequestEvent, app core.App) error {
 	if !AuthorizeByRole(app, c.Auth.Id, congregation, "administrator") {
 		return apis.NewForbiddenError("Administrator access required", nil)
 	}
+	// The role is for the congregation named, so the territory has to be one
+	// of its own: a map filed under another congregation's territory counts
+	// towards that territory's progress and is deleted with it. One message
+	// for missing and foreign alike, so it cannot be used to probe ids.
+	if getTerritoryCongregation(app, territory) != congregation {
+		return apis.NewBadRequestError("Invalid territory", nil)
+	}
 
 	option, err := fetchDefaultCongregationOption(app, congregation)
 	if err != nil {

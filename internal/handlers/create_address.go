@@ -53,12 +53,26 @@ func HandleCreateAddress(c *core.RequestEvent, app core.App) error {
 	if floor == 0 {
 		floor = 1
 	}
+	if floor < minAddressFloor || floor > maxAddressFloor {
+		return invalidValue("Invalid floor")
+	}
+	// The app names the record so a retried request lands on the same home;
+	// it must still be an id, not any string a caller chooses.
+	if req.AddressId != "" && !recordIDPattern.MatchString(req.AddressId) {
+		return invalidValue("Invalid address_id")
+	}
+	if err := validateAddressFields(status, req.Notes, req.NotHomeTries, req.DncTime, req.Coordinates); err != nil {
+		return err
+	}
 
 	var newID string
 	err := app.RunInTransaction(func(txApp core.App) error {
 		mapRecord, err := txApp.FindRecordById("maps", req.MapId)
 		if err != nil {
 			return apis.NewNotFoundError("Map not found", nil)
+		}
+		if err := validateAddressOptions(txApp, mapRecord.GetString("congregation"), req.AddOptionIds); err != nil {
+			return err
 		}
 
 		if req.AddressId != "" {
