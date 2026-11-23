@@ -162,6 +162,71 @@ func uniqueStrings(ss []string) []string {
 	return out
 }
 
+// settleMessage makes a new message say what its poster is, not what the
+// request claims. A message's type, its pin and its congregation decide who
+// reads it as an instruction and who is emailed it, so they follow from who
+// posted it: a share link posts as a publisher on its own map, staff post
+// under their role in the map's congregation, and only an administrator pins.
+func settleMessage(e *core.RecordRequestEvent, app core.App) error {
+	if e.HasSuperuserAuth() {
+		return e.Next()
+	}
+	var where struct {
+		Congregation string `db:"congregation"`
+	}
+	err := app.DB().NewQuery(`SELECT congregation FROM maps WHERE id = {:id}`).
+		Bind(dbx.Params{"id": e.Record.GetString("map")}).One(&where)
+	if err != nil || where.Congregation == "" {
+		return apis.NewBadRequestError("Invalid map", nil)
+	}
+	e.Record.Set("congregation", where.Congregation)
+
+	if linkId := e.Request.Header.Get("link-id"); linkId != "" {
+		var link struct {
+			Publisher string `db:"publisher"`
+		}
+		_ = app.DB().NewQuery(`SELECT COALESCE(publisher, '') AS publisher FROM assignments WHERE id = {:id}`).
+			Bind(dbx.Params{"id": linkId}).One(&link)
+		if link.Publisher != "" {
+			e.Record.Set("created_by", link.Publisher)
+		}
+		e.Record.Set("type", "publisher")
+		e.Record.Set("pinned", false)
+		e.Record.Set("read", false)
+		return e.Next()
+	}
+
+	// The role was checked against the congregation the request named; the
+	// map's own is the one that counts.
+	if e.Auth == nil || !AuthorizeByRole(app, e.Auth.Id, where.Congregation) {
+		return apis.NewForbiddenError("Unauthorized", nil)
+	}
+	if name := e.Auth.GetString("name"); name != "" {
+		e.Record.Set("created_by", name)
+	}
+	if AuthorizeByRole(app, e.Auth.Id, where.Congregation, "administrator") {
+		e.Record.Set("type", "administrator")
+		return e.Next()
+	}
+	e.Record.Set("type", "conductor")
+	e.Record.Set("pinned", false)
+	e.Record.Set("read", false)
+	return e.Next()
+}
+
+// mapInCongregation reports whether the map exists and belongs to the
+// congregation.
+func mapInCongregation(app core.App, mapId, congId string) bool {
+	if mapId == "" || congId == "" {
+		return false
+	}
+	var found int
+	err := app.DB().NewQuery(`
+		SELECT COUNT(*) FROM maps WHERE id = {:id} AND congregation = {:congregation}
+	`).Bind(dbx.Params{"id": mapId, "congregation": congId}).Row(&found)
+	return err == nil && found > 0
+}
+
 func getTerritoryCongregation(app core.App, territoryId string) string {
 	var result struct {
 		Congregation string `db:"congregation"`
@@ -427,6 +492,12 @@ func RegisterAuthHooks(app core.App) {
 				collName = sub[:idx]
 			}
 			collName = strings.SplitN(collName, "/", 2)[0]
+			// A collection answers to its id as well as its name, and
+			// PocketBase broadcasts under both, so the check must not depend
+			// on which one the client wrote.
+			if collection, err := app.FindCachedCollectionByNameOrId(collName); err == nil {
+				collName = collection.Name
+			}
 
 			if !protectedCollections[collName] {
 				filtered = append(filtered, sub)
@@ -750,7 +821,7 @@ func RegisterAuthHooks(app core.App) {
 		filter := e.Request.URL.Query().Get("filter")
 		mapIds := extractIdsFromFilter(mapIdPattern, filter)
 
-		keep, err := assignmentsScopeKeep(app, e.Auth.Id, filter)
+		keep, err := assignmentsScopeKeep(app, e.Auth.Id)
 		if err != nil {
 			return apis.NewForbiddenError("Unauthorized", nil)
 		}
@@ -793,6 +864,9 @@ func RegisterAuthHooks(app core.App) {
 	// deleteRule are superuser-only, so hooks registered here would never run.)
 	app.OnRecordCreateRequest("messages").BindFunc(func(e *core.RecordRequestEvent) error {
 		return authOrLink(e, app)
+	})
+	app.OnRecordCreateRequest("messages").BindFunc(func(e *core.RecordRequestEvent) error {
+		return settleMessage(e, app)
 	})
 
 	// Pattern B: Administrator only
@@ -844,6 +918,21 @@ func RegisterAuthHooks(app core.App) {
 	app.OnRecordUpdateRequest("roles").BindFunc(func(e *core.RecordRequestEvent) error {
 		return adminOnly(e, app, getCongId(e, true))
 	})
+	// A role row is one person's place in one congregation, and only the role
+	// on it changes. The check above looks at the congregation the row had,
+	// so a row moved to another congregation would carry its role into a
+	// place the caller has no say over.
+	app.OnRecordUpdateRequest("roles").BindFunc(func(e *core.RecordRequestEvent) error {
+		if e.HasSuperuserAuth() {
+			return e.Next()
+		}
+		if original := e.Record.Original(); original != nil &&
+			(e.Record.GetString("congregation") != original.GetString("congregation") ||
+				e.Record.GetString("user") != original.GetString("user")) {
+			return apis.NewBadRequestError("A role cannot be moved to another congregation or person", nil)
+		}
+		return e.Next()
+	})
 	app.OnRecordUpdateRequest("roles").BindFunc(func(e *core.RecordRequestEvent) error {
 		return keepLastAdministrator(e, app, false)
 	})
@@ -874,6 +963,22 @@ func RegisterAuthHooks(app core.App) {
 	// assignments create/delete
 	app.OnRecordCreateRequest("assignments").BindFunc(func(e *core.RecordRequestEvent) error {
 		return adminOrConductor(e, app, getCongId(e, false))
+	})
+	// The role above is checked against the congregation the record names, so
+	// the map has to be one of that congregation's: a link is a key to its
+	// map, and would otherwise open a map the caller has no role for. Who
+	// made the link is the caller, whatever the request says.
+	app.OnRecordCreateRequest("assignments").BindFunc(func(e *core.RecordRequestEvent) error {
+		if e.HasSuperuserAuth() {
+			return e.Next()
+		}
+		if !mapInCongregation(app, e.Record.GetString("map"), getCongId(e, false)) {
+			return apis.NewBadRequestError("Invalid map", nil)
+		}
+		if e.Auth != nil {
+			e.Record.Set("user", e.Auth.Id)
+		}
+		return e.Next()
 	})
 	// A link can only be given to a member of its congregation, publishers
 	// included: an assignee's "My maps" would otherwise reach a map in a
