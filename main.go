@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"ministry-mapper/internal/appenv"
 	"ministry-mapper/internal/commands"
 	"ministry-mapper/internal/handlers"
 	"ministry-mapper/internal/jobs"
@@ -26,6 +27,11 @@ func main() {
 		buildVersion = "development-build"
 	}
 	log.Printf("Starting Ministry Mapper build %s\n", buildVersion)
+	if os.Getenv("APP_ENV") == "" {
+		log.Printf("APP_ENV is not set: running as %s", appenv.Name())
+	} else {
+		log.Printf("Environment: %s", appenv.Name())
+	}
 
 	initSentry(buildVersion)
 	defer sentry.Flush(2 * time.Second)
@@ -51,10 +57,7 @@ func main() {
 }
 
 func initSentry(buildVersion string) {
-	sentryEnv := os.Getenv("SENTRY_ENV")
-	if sentryEnv == "" {
-		sentryEnv = "development"
-	}
+	sentryEnv := appenv.Name()
 
 	opts := sentry.ClientOptions{
 		Dsn:              os.Getenv("SENTRY_DSN"),

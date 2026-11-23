@@ -1,7 +1,6 @@
 package jobs
 
 import (
-	"context"
 	"encoding/base64"
 	"fmt"
 	"log"
@@ -205,36 +204,17 @@ func sendReportEmailFromBuffer(app core.App, congregation *core.Record, filename
 		return err
 	}
 
-	encoded := base64.StdEncoding.EncodeToString(content)
-	ms := mailersend.NewMailersend(os.Getenv("MAILERSEND_API_KEY"))
-
-	emailRecipients := []mailersend.Recipient{}
-	for _, r := range recipients {
-		emailRecipients = append(emailRecipients, mailersend.Recipient{
-			Email: r.Email,
-			Name:  r.Name,
-		})
-	}
-
-	message := ms.Email.NewMessage()
-	message.SetFrom(mailersend.From{Email: os.Getenv("MAILERSEND_FROM_EMAIL"), Name: "Ministry Mapper"})
-	message.SetRecipients(emailRecipients)
-	message.SetSubject(reportSubject(congregationName, period, summary))
-	message.SetHTML(htmlBody)
-	message.SetText(textBody)
-	message.AddAttachment(mailersend.Attachment{Filename: filename, Content: encoded})
+	attachment := mailersend.Attachment{Filename: filename, Content: base64.StdEncoding.EncodeToString(content)}
+	subject := reportSubject(congregationName, period, summary)
 
 	if err := sendEmailWithRetry(func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		_, err := ms.Email.Send(ctx, message)
-		return err
+		return deliver(recipients, subject, htmlBody, textBody, attachment)
 	}); err != nil {
 		log.Printf("Error sending report email for %s: %v", congregation.Get("code"), err)
 		return err
 	}
 
-	log.Println("Report email sent successfully")
+	log.Println("Report email handed to the mailer")
 	return nil
 }
 
@@ -269,27 +249,16 @@ func sendReportEmailToRecipient(app core.App, congregation *core.Record, filenam
 		return err
 	}
 
-	encoded := base64.StdEncoding.EncodeToString(content)
-	ms := mailersend.NewMailersend(os.Getenv("MAILERSEND_API_KEY"))
-
-	message := ms.Email.NewMessage()
-	message.SetFrom(mailersend.From{Email: os.Getenv("MAILERSEND_FROM_EMAIL"), Name: "Ministry Mapper"})
-	message.SetRecipients([]mailersend.Recipient{{Email: email, Name: name}})
-	message.SetSubject(reportSubject(congregationName, period, summary))
-	message.SetHTML(htmlBody)
-	message.SetText(textBody)
-	message.AddAttachment(mailersend.Attachment{Filename: filename, Content: encoded})
+	attachment := mailersend.Attachment{Filename: filename, Content: base64.StdEncoding.EncodeToString(content)}
+	subject := reportSubject(congregationName, period, summary)
 
 	if err := sendEmailWithRetry(func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer cancel()
-		_, err := ms.Email.Send(ctx, message)
-		return err
+		return deliver([]Recipient{{Email: email, Name: name}}, subject, htmlBody, textBody, attachment)
 	}); err != nil {
 		log.Printf("Error sending on-demand report email: %v", err)
 		return err
 	}
 
-	log.Println("On-demand report email sent successfully")
+	log.Println("On-demand report email handed to the mailer")
 	return nil
 }
