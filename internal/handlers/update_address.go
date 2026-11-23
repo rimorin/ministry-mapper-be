@@ -35,6 +35,12 @@ func HandleUpdateAddress(c *core.RequestEvent, app core.App) error {
 	if !AuthorizeMapAccess(c, app, req.MapId) {
 		return apis.NewForbiddenError("Unauthorized", nil)
 	}
+	if err := validateAddressFields(req.Status, req.Notes, req.NotHomeTries, req.DncTime, req.Coordinates); err != nil {
+		return err
+	}
+	if len(req.DeleteAoIds) > maxAddressOptions {
+		return invalidValue("Too many options")
+	}
 
 	actor := resolveActor(c, app)
 
@@ -48,6 +54,9 @@ func HandleUpdateAddress(c *core.RequestEvent, app core.App) error {
 		}
 
 		congregation := address.GetString("congregation")
+		if err := validateAddressOptions(txApp, congregation, req.AddOptionIds); err != nil {
+			return err
+		}
 
 		for _, aoId := range req.DeleteAoIds {
 			ao, err := txApp.FindRecordById("address_options", aoId)
