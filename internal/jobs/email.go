@@ -3,8 +3,11 @@ package jobs
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"time"
+
+	"ministry-mapper/internal/appenv"
 
 	"ganigeorgiev.com/pocketbase/dbx"
 	"ganigeorgiev.com/pocketbase/pocketbase/core"
@@ -46,10 +49,37 @@ func loadCongregationLocation(congRecord *core.Record) *time.Location {
 // sendHTMLEmail sends one email via MailerSend with an HTML body and its plain-text
 // alternative. It's a package-level var so tests can substitute a stub.
 var sendHTMLEmail = func(recipients []Recipient, subject, htmlBody, textBody string) error {
+	return deliver(recipients, subject, htmlBody, textBody)
+}
+
+// allowedRecipients keeps the recipients this environment may email: all of
+// them in production, only the allow-listed ones elsewhere.
+func allowedRecipients(recipients []Recipient) []Recipient {
+	allowed := make([]Recipient, 0, len(recipients))
+	for _, r := range recipients {
+		if appenv.MayEmail(r.Email) {
+			allowed = append(allowed, r)
+		}
+	}
+	return allowed
+}
+
+// deliver is the one place an email leaves for MailerSend, so the rules for
+// the environment hold for every kind of email: outside production the
+// subject is marked and only allow-listed addresses are sent to. An email
+// left with nobody to go to is skipped, which is not an error.
+func deliver(recipients []Recipient, subject, htmlBody, textBody string, attachments ...mailersend.Attachment) error {
 	apiKey := os.Getenv("MAILERSEND_API_KEY")
 	fromEmail := os.Getenv("MAILERSEND_FROM_EMAIL")
 	if apiKey == "" || fromEmail == "" {
 		return fmt.Errorf("MAILERSEND_API_KEY or MAILERSEND_FROM_EMAIL not configured")
+	}
+
+	total := len(recipients)
+	recipients = allowedRecipients(recipients)
+	if len(recipients) == 0 {
+		log.Printf("Email held back in %s: none of its %d recipients is in EMAIL_ALLOWLIST", appenv.Name(), total)
+		return nil
 	}
 
 	ms := mailersend.NewMailersend(apiKey)
@@ -64,10 +94,13 @@ var sendHTMLEmail = func(recipients []Recipient, subject, htmlBody, textBody str
 	message := ms.Email.NewMessage()
 	message.SetFrom(mailersend.From{Email: fromEmail, Name: "Ministry Mapper"})
 	message.SetRecipients(emailRecipients)
-	message.SetSubject(subject)
+	message.SetSubject(appenv.MarkSubject(subject))
 	message.SetHTML(htmlBody)
 	if textBody != "" {
 		message.SetText(textBody)
+	}
+	for _, attachment := range attachments {
+		message.AddAttachment(attachment)
 	}
 
 	_, err := ms.Email.Send(ctx, message)

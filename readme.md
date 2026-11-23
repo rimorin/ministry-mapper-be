@@ -215,7 +215,8 @@ docker run -d \
 | `LAUNCHDARKLY_SDK_KEY` | LaunchDarkly SDK key for feature flags | — | ✅ |
 | `LAUNCHDARKLY_CONTEXT_KEY` | LaunchDarkly environment context identifier | — | ✅ |
 | `SENTRY_DSN` | Sentry DSN for error tracking | — | ✅ |
-| `SENTRY_ENV` | Environment label (`development` / `staging` / `production`) | `development` | ✅ |
+| `APP_ENV` | Environment (`development` / `staging` / `production`). Labels Sentry events. Outside production, email subjects are prefixed (e.g. `[STAGING]`) and only `EMAIL_ALLOWLIST` is sent to | `production` | ✅ |
+| `EMAIL_ALLOWLIST` | Outside production, the only addresses emailed: comma-separated addresses or `@domain` entries. Empty means nobody. Sign-in emails are not held back | — | — |
 | `OPENAI_API_KEY` | OpenAI key for AI-generated summaries in reports/digests | — | ⚠️ AI only |
 | `ASSISTANT_ENABLED` | Turns the admin assistant on when LaunchDarkly is not configured (local runs and tests); with LaunchDarkly, the `enable-admin-assistant` flag decides per congregation | `false` | ⚠️ AI only |
 

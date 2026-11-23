@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"ministry-mapper/internal/appenv"
 	"ministry-mapper/internal/handlers"
 	"ministry-mapper/internal/jobs"
 
@@ -12,6 +13,14 @@ import (
 )
 
 func RegisterDomainHooks(app core.App) {
+	// Sign-in emails (codes, verification, password reset) leave through
+	// PocketBase's own mailer. Outside production their subject is marked;
+	// they are not held back, since the person asking for one is waiting.
+	app.OnMailerSend().BindFunc(func(e *core.MailerEvent) error {
+		e.Message.Subject = appenv.MarkSubject(e.Message.Subject)
+		return e.Next()
+	})
+
 	// Track notes changes on address updates
 	app.OnRecordUpdate("addresses").BindFunc(func(e *core.RecordEvent) error {
 		originalNotes := e.Record.Original().GetString("notes")
