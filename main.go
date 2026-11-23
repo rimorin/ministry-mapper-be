@@ -10,6 +10,7 @@ import (
 	"ministry-mapper/internal/commands"
 	"ministry-mapper/internal/handlers"
 	"ministry-mapper/internal/jobs"
+	"ministry-mapper/internal/middleware"
 	"ministry-mapper/internal/setup"
 	_ "ministry-mapper/migrations"
 
@@ -99,7 +100,14 @@ func registerSentryLogForwarding(app core.App) {
 			String("created", l.Created.Time().Format(time.RFC3339))
 
 		for key, value := range l.Data {
-			entry = entry.String("data_"+key, fmt.Sprint(value))
+			text := fmt.Sprint(value)
+			switch key {
+			case "url", "referer":
+				text = middleware.ScrubURL(text)
+			case "userIp", "remoteIp":
+				continue
+			}
+			entry = entry.String("data_"+key, text)
 		}
 
 		entry.Emit(l.Message)

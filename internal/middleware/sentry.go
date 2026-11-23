@@ -43,11 +43,9 @@ func WrapHandler(handler func(*core.RequestEvent) error) func(*core.RequestEvent
 		hub.ConfigureScope(func(scope *sentry.Scope) {
 			enrichScopeWithRequest(scope, c)
 			if c.Auth != nil {
-				scope.SetUser(sentry.User{
-					ID:       c.Auth.Id,
-					Email:    c.Auth.GetString("email"),
-					Username: c.Auth.GetString("name"),
-				})
+				// The id is enough to find the account; the name and
+				// email stay here.
+				scope.SetUser(sentry.User{ID: c.Auth.Id})
 				scope.SetTag("user_id", c.Auth.Id)
 			}
 		})
@@ -91,7 +89,7 @@ func isClientDisconnect(err error) bool {
 }
 
 func enrichScopeWithRequest(scope *sentry.Scope, c *core.RequestEvent) {
-	req := c.Request
+	req := scrubbedRequest(c.Request)
 	scope.SetRequest(req)
 	scope.SetTag("http_method", req.Method)
 	scope.SetTag("http_path", req.URL.Path)
