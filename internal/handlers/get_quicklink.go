@@ -140,7 +140,7 @@ func HandleTerritoryQuicklink(c *core.RequestEvent, app core.App, notify Assigne
 			if id == "" || slices.Contains(given, id) {
 				continue
 			}
-			if !holdsAnyRole(app, id, congregationId) {
+			if !mayHoldLink(app, id, congregationId) {
 				return apis.NewBadRequestError("An assignee is not a member of this congregation", nil)
 			}
 			given = append(given, id)
