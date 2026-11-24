@@ -52,8 +52,6 @@ var sendHTMLEmail = func(recipients []Recipient, subject, htmlBody, textBody str
 	return deliver(recipients, subject, htmlBody, textBody)
 }
 
-// allowedRecipients keeps the recipients this environment may email: all of
-// them in production, only the allow-listed ones elsewhere.
 func allowedRecipients(recipients []Recipient) []Recipient {
 	allowed := make([]Recipient, 0, len(recipients))
 	for _, r := range recipients {
@@ -64,10 +62,8 @@ func allowedRecipients(recipients []Recipient) []Recipient {
 	return allowed
 }
 
-// deliver is the one place an email leaves for MailerSend, so the rules for
-// the environment hold for every kind of email: outside production the
-// subject is marked and only allow-listed addresses are sent to. An email
-// left with nobody to go to is skipped, which is not an error.
+// deliver is the only path to MailerSend. Outside production it marks the
+// subject and applies the allow-list.
 func deliver(recipients []Recipient, subject, htmlBody, textBody string, attachments ...mailersend.Attachment) error {
 	apiKey := os.Getenv("MAILERSEND_API_KEY")
 	fromEmail := os.Getenv("MAILERSEND_FROM_EMAIL")

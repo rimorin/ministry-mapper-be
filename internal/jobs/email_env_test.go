@@ -26,8 +26,6 @@ func TestAllowedRecipientsByEnvironment(t *testing.T) {
 	}
 }
 
-// With nobody allowed, an email is skipped before MailerSend is reached, and
-// that is not a failure for the job that asked for it.
 func TestDeliverSkipsWhenNobodyIsAllowed(t *testing.T) {
 	t.Setenv("APP_ENV", "staging")
 	t.Setenv("EMAIL_ALLOWLIST", "")
