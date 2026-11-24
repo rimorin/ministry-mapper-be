@@ -5,11 +5,7 @@ import (
 	m "ganigeorgiev.com/pocketbase/pocketbase/migrations"
 )
 
-// How long a sign-in lasts, in seconds. The app renews it each time it is
-// opened, so this is how long an account can go unused before it has to sign
-// in again. Field service is weekly or fortnightly; fourteen days signed out
-// anyone who missed a fortnight. Thirty days is NIST SP 800-63B's limit for
-// a password-level sign-in, and the setting covers staff accounts too.
+// Sign-in length in seconds. Applies to every account in users.
 const (
 	signInSeconds         int64 = 30 * 24 * 60 * 60
 	previousSignInSeconds int64 = 14 * 24 * 60 * 60
@@ -18,7 +14,7 @@ const (
 func init() {
 	m.Register(func(app core.App) error {
 		return setUsersSignInLength(app, signInSeconds, func(current int64) bool {
-			// A longer value set by hand in the dashboard is left alone.
+			// Keep a longer value set in the dashboard.
 			return current < signInSeconds
 		})
 	}, func(app core.App) error {

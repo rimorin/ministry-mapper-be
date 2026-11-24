@@ -43,8 +43,6 @@ func WrapHandler(handler func(*core.RequestEvent) error) func(*core.RequestEvent
 		hub.ConfigureScope(func(scope *sentry.Scope) {
 			enrichScopeWithRequest(scope, c)
 			if c.Auth != nil {
-				// The id is enough to find the account; the name and
-				// email stay here.
 				scope.SetUser(sentry.User{ID: c.Auth.Id})
 				scope.SetTag("user_id", c.Auth.Id)
 			}

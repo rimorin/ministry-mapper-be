@@ -56,8 +56,6 @@ func HandleCreateAddress(c *core.RequestEvent, app core.App) error {
 	if floor < minAddressFloor || floor > maxAddressFloor {
 		return invalidValue("Invalid floor")
 	}
-	// The app names the record so a retried request lands on the same home;
-	// it must still be an id, not any string a caller chooses.
 	if req.AddressId != "" && !recordIDPattern.MatchString(req.AddressId) {
 		return invalidValue("Invalid address_id")
 	}

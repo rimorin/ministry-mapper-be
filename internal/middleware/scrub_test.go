@@ -44,7 +44,6 @@ func TestScrubbedRequestDropsLinkIDAndQuery(t *testing.T) {
 	if clean.Header.Get("User-Agent") != "test" {
 		t.Error("other headers should be kept")
 	}
-	// The handler still needs the real request.
 	if req.Header.Get("link-id") == "" || req.URL.RawQuery == "" {
 		t.Error("the original request was changed")
 	}

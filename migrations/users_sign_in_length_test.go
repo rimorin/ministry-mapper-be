@@ -25,12 +25,10 @@ func TestUsersSignInLength(t *testing.T) {
 	}
 	longer := func(current int64) bool { return current < signInSeconds }
 
-	// The migration has run on the seeded database.
 	if got := duration(); got != signInSeconds {
 		t.Fatalf("after migrating, sign-in lasts %d s, want %d", got, signInSeconds)
 	}
 
-	// A shorter value is raised.
 	if err := setUsersSignInLength(app, previousSignInSeconds, func(int64) bool { return true }); err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +39,6 @@ func TestUsersSignInLength(t *testing.T) {
 		t.Errorf("a 14-day sign-in became %d s, want %d", got, signInSeconds)
 	}
 
-	// A longer one, set by hand, is kept.
 	const byHand = 90 * 24 * 60 * 60
 	if err := setUsersSignInLength(app, byHand, func(int64) bool { return true }); err != nil {
 		t.Fatal(err)

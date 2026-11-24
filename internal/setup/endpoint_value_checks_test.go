@@ -10,9 +10,6 @@ import (
 	"ganigeorgiev.com/pocketbase/pocketbase/tests"
 )
 
-// A share link may update and add homes, and those routes save without
-// PocketBase's field validation, so the handlers must refuse values the
-// fields would not hold.
 func TestAddressRoutesCheckValues(t *testing.T) {
 	// testassignalpha01 is linked to testmapalpha01a
 	linkHeaders := map[string]string{
@@ -79,7 +76,6 @@ func TestAddressRoutesCheckValues(t *testing.T) {
 		})
 	}
 
-	// What the app sends is still accepted.
 	scenarios = append(scenarios,
 		tests.ApiScenario{
 			Name:   "update: a full, valid change is saved",
@@ -118,8 +114,6 @@ func TestAddressRoutesCheckValues(t *testing.T) {
 	}
 }
 
-// A new map's territory has to belong to the congregation the caller
-// administers.
 func TestNewMapRefusesForeignTerritory(t *testing.T) {
 	adminToken, err := generateToken("admin@alpha.test")
 	if err != nil {

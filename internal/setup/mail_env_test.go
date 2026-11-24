@@ -9,8 +9,6 @@ import (
 	"ganigeorgiev.com/pocketbase/pocketbase/tools/mailer"
 )
 
-// Emails sent through PocketBase's mailer (sign-in codes and the like) are
-// marked outside production and left alone in it.
 func TestMailerSubjectIsMarkedOutsideProduction(t *testing.T) {
 	cases := map[string]string{
 		"staging":    "[STAGING] Your code",
