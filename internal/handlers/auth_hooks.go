@@ -334,6 +334,21 @@ func holdsAnyRole(app core.App, userId, congregationId string) bool {
 	return err == nil
 }
 
+// mayHoldLink reports whether the account is a member that can sign in.
+func mayHoldLink(app core.App, userId, congregationId string) bool {
+	var v struct {
+		V int `db:"v"`
+	}
+	err := app.DB().NewQuery(`
+		SELECT 1 AS v FROM roles r
+		JOIN users u ON u.id = r.user
+		WHERE r.user = {:user} AND r.congregation = {:congregation}
+		  AND u.disabled = FALSE AND u.verified = TRUE
+		LIMIT 1
+	`).Bind(dbx.Params{"user": userId, "congregation": congregationId}).One(&v)
+	return err == nil
+}
+
 // sharesCongregation reports whether viewer holds a staff role in a congregation
 // where subject holds any role. It is one-way on purpose: staff see the
 // publishers on their roster, and a publisher sees no user record. The names
@@ -989,7 +1004,7 @@ func RegisterAuthHooks(app core.App) {
 		}
 		congId := getCongId(e, false)
 		for _, assignee := range e.Record.GetStringSlice("assignees") {
-			if !holdsAnyRole(app, assignee, congId) {
+			if !mayHoldLink(app, assignee, congId) {
 				return apis.NewBadRequestError("An assignee is not a member of this congregation", nil)
 			}
 		}

@@ -73,18 +73,19 @@ func HandleUpdateAssignees(c *core.RequestEvent, app core.App, notify AssigneeNo
 		return apis.NewBadRequestError("This link has expired", nil)
 	}
 
+	before := assignment.GetStringSlice("assignees")
 	assignees := []string{}
 	for _, id := range req.Assignees {
 		if slices.Contains(assignees, id) {
 			continue
 		}
-		if !holdsAnyRole(app, id, congregation) {
+		// Someone already on the link stays on it when the rest are changed.
+		if !slices.Contains(before, id) && !mayHoldLink(app, id, congregation) {
 			return apis.NewBadRequestError("An assignee is not a member of this congregation", nil)
 		}
 		assignees = append(assignees, id)
 	}
 
-	before := assignment.GetStringSlice("assignees")
 	added := []string{}
 	for _, id := range assignees {
 		if !slices.Contains(before, id) {
