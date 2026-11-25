@@ -105,7 +105,7 @@ func assigneeEmails(app core.App, assignment *core.Record, only []string) []assi
 			continue
 		}
 		user, err := app.FindRecordById("users", id)
-		if err != nil || user.GetBool("disabled") || user.GetBool("assignment_emails_off") || user.Email() == "" {
+		if err != nil || user.GetBool("disabled") || !user.GetBool("assignment_emails") || user.Email() == "" {
 			continue
 		}
 		data := assignmentGivenTmplData{
