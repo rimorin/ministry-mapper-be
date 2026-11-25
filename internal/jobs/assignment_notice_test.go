@@ -30,10 +30,25 @@ func newAssignment(t testing.TB, app core.App, linkType string, assignees ...str
 	return rec
 }
 
+func optIn(t testing.TB, app core.App, ids ...string) {
+	t.Helper()
+	for _, id := range ids {
+		user, err := app.FindRecordById("users", id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		user.Set("assignment_emails", true)
+		if err := app.SaveNoValidate(user); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestNotifyAssignees_EmailsEachAssigneeButNotTheCreator(t *testing.T) {
 	app := setupMessagesTestApp(t)
 	sent := stubSend(t, nil)
 	t.Setenv("PB_APP_URL", "https://app.example/")
+	optIn(t, app, "testuseralpha02", "testuseralpha03", "testuseralpha04")
 
 	link := newAssignment(t, app, "personal", "testuseralpha04", "testuseralpha02", "testuseralpha03")
 	sendAssigneeEmails(assigneeEmails(app, link, nil), link.Id)
@@ -63,6 +78,7 @@ func TestNotifyAssignees_EmailsEachAssigneeButNotTheCreator(t *testing.T) {
 func TestNotifyAssignees_SkipsLinksWithoutAssigneesAndDisabledAccounts(t *testing.T) {
 	app := setupMessagesTestApp(t)
 	sent := stubSend(t, nil)
+	optIn(t, app, "testuseralpha04")
 
 	sendAssigneeEmails(assigneeEmails(app, newAssignment(t, app, "normal"), nil), "")
 
@@ -81,28 +97,20 @@ func TestNotifyAssignees_SkipsLinksWithoutAssigneesAndDisabledAccounts(t *testin
 	}
 }
 
-func TestNotifyAssignees_RespectsTheOptOutAndTheOnlyList(t *testing.T) {
+func TestNotifyAssignees_RespectsTheOptInAndTheOnlyList(t *testing.T) {
 	app := setupMessagesTestApp(t)
 	sent := stubSend(t, nil)
 
 	link := newAssignment(t, app, "normal", "testuseralpha04", "testuseralpha03")
+	sendAssigneeEmails(assigneeEmails(app, link, nil), link.Id)
+	if len(*sent) != 0 {
+		t.Fatalf("accounts that never turned the emails on were emailed: %+v", *sent)
+	}
+
+	optIn(t, app, "testuseralpha03", "testuseralpha04")
 	sendAssigneeEmails(assigneeEmails(app, link, []string{"testuseralpha03"}), link.Id)
 	if len(*sent) != 1 || (*sent)[0].Recipients[0].Email != "readonly@alpha.test" {
 		t.Fatalf("only the added account should be emailed, got %+v", *sent)
-	}
-
-	publisher, err := app.FindRecordById("users", "testuseralpha04")
-	if err != nil {
-		t.Fatal(err)
-	}
-	publisher.Set("assignment_emails_off", true)
-	if err := app.SaveNoValidate(publisher); err != nil {
-		t.Fatal(err)
-	}
-	*sent = nil
-	sendAssigneeEmails(assigneeEmails(app, link, []string{"testuseralpha04"}), link.Id)
-	if len(*sent) != 0 {
-		t.Fatalf("an account that turned the emails off was emailed")
 	}
 }
 
