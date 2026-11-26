@@ -22,8 +22,6 @@ func RegisterRoutes(app core.App) {
 			AllowOrigins: strings.Split(allowOrigins, ","),
 		}))
 
-		// Lists are narrowed to what the caller may see before PocketBase
-		// runs them, so a hidden row cannot show in a count or a page.
 		e.Router.BindFunc(handlers.ScopeListQuery(app))
 
 		authRoute := func(path string, handler func(*core.RequestEvent) error) {

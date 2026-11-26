@@ -152,9 +152,7 @@ func TestRealtimeSubscribeScopeEnforcement(t *testing.T) {
 	}
 }
 
-// A collection answers to its id as well as its name, and PocketBase
-// broadcasts under both. The subscribe check has to hold for either, or naming
-// a collection by id walks past it.
+// PocketBase broadcasts under a collection's id as well as its name.
 func TestRealtimeSubscribeByCollectionIdIsCheckedToo(t *testing.T) {
 	app := setupTestApp(t)
 	defer app.Cleanup()

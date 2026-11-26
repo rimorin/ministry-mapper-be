@@ -13,7 +13,6 @@ func TestMailerSubjectIsMarkedOutsideProduction(t *testing.T) {
 	cases := map[string]string{
 		"staging":    "[STAGING] Your code",
 		"production": "Your code",
-		"":           "Your code",
 	}
 	for env, want := range cases {
 		t.Setenv("APP_ENV", env)

@@ -53,7 +53,7 @@
   </tr>
   <tr>
     <td>📧 <b>Email Digests</b></td>
-    <td>Message, instruction, notes, and new-address digests via MailerSend, plus an email to each account a link is given to</td>
+    <td>Message, instruction, notes, and new-address digests via MailerSend, plus an email to each account a link is given to, if it has turned them on</td>
   </tr>
   <tr>
     <td>📑 <b>Monthly Excel Reports</b></td>
@@ -417,7 +417,7 @@ pb.collection("addresses").subscribe("*", (e) => {
 |----------|------|-------------|
 | `POST /territory/reset` | Administrator or Conductor | Reset all maps in a territory |
 | `POST /territory/delete` | Administrator or Conductor | Delete a territory and all its maps |
-| `POST /assignment/assignees` | Administrator or Conductor of the link's congregation | Changes which accounts an open link is given to (`assignment`, `assignees`, optional `publisher`); members added are emailed |
+| `POST /assignment/assignees` | Administrator or Conductor of the link's congregation | Changes which accounts an open link is given to (`assignment`, `assignees`, optional `publisher`); members added are emailed if they have turned assignment emails on |
 
 #### Any Staff Member
 

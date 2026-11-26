@@ -9,14 +9,12 @@ import (
 	"net/url"
 	"testing"
 
-	"ganigeorgiev.com/pocketbase/dbx"
 	"ganigeorgiev.com/pocketbase/pocketbase/tests"
 )
 
-// A list's total and its pages must speak only of rows the caller may see.
-// The hooks used to drop hidden rows after the query had counted them, so a
-// filter widened with "|| id != ”" got a total of everything it matched,
-// and a count is enough to spell out a hidden value one question at a time.
+// A filter widened with `|| id != ""` must not get a total that counts rows
+// the caller may not see: a count spells out a hidden value one question at
+// a time.
 func TestListTotalsCountOnlyVisibleRows(t *testing.T) {
 	conductorToken, err := generateToken("conductor@alpha.test")
 	if err != nil {
@@ -27,8 +25,7 @@ func TestListTotalsCountOnlyVisibleRows(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The total a response reports, against a count taken from the database.
-	totalIs := func(countSQL string, params dbx.Params) func(testing.TB, *tests.TestApp, *http.Response) {
+	totalIs := func(countSQL string) func(testing.TB, *tests.TestApp, *http.Response) {
 		return func(t testing.TB, app *tests.TestApp, res *http.Response) {
 			body, err := io.ReadAll(res.Body)
 			if err != nil {
@@ -41,7 +38,7 @@ func TestListTotalsCountOnlyVisibleRows(t *testing.T) {
 				t.Fatalf("%v: %s", err, body)
 			}
 			var want int
-			if err := app.DB().NewQuery(countSQL).Bind(params).Row(&want); err != nil {
+			if err := app.DB().NewQuery(countSQL).Row(&want); err != nil {
 				t.Fatal(err)
 			}
 			if page.TotalItems != want {
@@ -73,10 +70,9 @@ func TestListTotalsCountOnlyVisibleRows(t *testing.T) {
 			ExpectedStatus:  200,
 			ExpectedContent: []string{`"totalItems"`},
 			AfterTestFunc: totalIs(`SELECT COUNT(*) FROM assignments
-				WHERE congregation = 'testcongalpha01' AND expiry_date > datetime('now')`, nil),
+				WHERE congregation = 'testcongalpha01' AND expiry_date > datetime('now')`),
 		},
 		{
-			// The same, with the collection named by its id.
 			Name:            "naming the collection by its id changes nothing",
 			Method:          http.MethodGet,
 			URL:             list(collectionID(t, "assignments"), `user="testuseralpha02" || id != ""`),
@@ -85,7 +81,7 @@ func TestListTotalsCountOnlyVisibleRows(t *testing.T) {
 			ExpectedStatus:  200,
 			ExpectedContent: []string{`"totalItems"`},
 			AfterTestFunc: totalIs(`SELECT COUNT(*) FROM assignments
-				WHERE congregation = 'testcongalpha01' AND expiry_date > datetime('now')`, nil),
+				WHERE congregation = 'testcongalpha01' AND expiry_date > datetime('now')`),
 		},
 		{
 			// An account with no staff role, as anyone gets by signing up.
@@ -106,7 +102,7 @@ func TestListTotalsCountOnlyVisibleRows(t *testing.T) {
 			ExpectedStatus:  200,
 			ExpectedContent: []string{`"totalItems"`},
 			AfterTestFunc: totalIs(`SELECT COUNT(*) FROM roles
-				WHERE congregation = 'testcongalpha01' OR user = 'testuseralpha02'`, nil),
+				WHERE congregation = 'testcongalpha01' OR user = 'testuseralpha02'`),
 		},
 		{
 			Name:            "a widened maps filter counts the caller's congregations only",
@@ -116,7 +112,7 @@ func TestListTotalsCountOnlyVisibleRows(t *testing.T) {
 			TestAppFactory:  setupTestApp,
 			ExpectedStatus:  200,
 			ExpectedContent: []string{`"totalItems"`},
-			AfterTestFunc:   totalIs(`SELECT COUNT(*) FROM maps WHERE congregation = 'testcongalpha01'`, nil),
+			AfterTestFunc:   totalIs(`SELECT COUNT(*) FROM maps WHERE congregation = 'testcongalpha01'`),
 		},
 		{
 			Name:            "a share link's widened addresses filter counts its one map only",
@@ -126,7 +122,7 @@ func TestListTotalsCountOnlyVisibleRows(t *testing.T) {
 			TestAppFactory:  setupTestApp,
 			ExpectedStatus:  200,
 			ExpectedContent: []string{`"totalItems"`},
-			AfterTestFunc:   totalIs(`SELECT COUNT(*) FROM addresses WHERE map = 'testmapalpha01a'`, nil),
+			AfterTestFunc:   totalIs(`SELECT COUNT(*) FROM addresses WHERE map = 'testmapalpha01a'`),
 		},
 		{
 			Name:            "a share link's widened messages filter counts its one map only",
@@ -136,7 +132,7 @@ func TestListTotalsCountOnlyVisibleRows(t *testing.T) {
 			TestAppFactory:  setupTestApp,
 			ExpectedStatus:  200,
 			ExpectedContent: []string{`"totalItems"`},
-			AfterTestFunc:   totalIs(`SELECT COUNT(*) FROM messages WHERE map = 'testmapalpha01a'`, nil),
+			AfterTestFunc:   totalIs(`SELECT COUNT(*) FROM messages WHERE map = 'testmapalpha01a'`),
 		},
 	}
 	for _, scenario := range scenarios {

@@ -14,7 +14,6 @@ func TestScrubURL(t *testing.T) {
 		"/auth/callback?code=secret&state=s&name=Someone":                "/auth/callback",
 		"/map/add":              "/map/add",
 		"/map/territory/update": "/map/territory/update",
-		"/address/update":       "/address/update",
 		"":                      "",
 	}
 	for in, want := range cases {

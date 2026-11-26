@@ -67,7 +67,6 @@ func validateAddressOptions(app core.App, congregation string, optionIds []strin
 	if len(optionIds) > maxAddressOptions {
 		return invalidValue("Too many options")
 	}
-	params := dbx.Params{"congregation": congregation}
 	unique := uniqueStrings(optionIds)
 	placeholders := make([]any, len(unique))
 	for i, id := range unique {
@@ -75,7 +74,7 @@ func validateAddressOptions(app core.App, congregation string, optionIds []strin
 	}
 	var found int
 	err := app.DB().Select("COUNT(*)").From("options").
-		Where(dbx.NewExp("congregation = {:congregation}", params)).
+		Where(dbx.NewExp("congregation = {:congregation}", dbx.Params{"congregation": congregation})).
 		AndWhere(dbx.In("id", placeholders...)).
 		Row(&found)
 	if err != nil {
