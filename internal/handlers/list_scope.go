@@ -22,6 +22,7 @@ var listScopes = map[string]struct {
 }{
 	"maps":            {},
 	"territories":     {},
+	"groups":          {},
 	"options":         {link: true},
 	"roles":           {byUser: true},
 	"assignments":     {byUser: true},

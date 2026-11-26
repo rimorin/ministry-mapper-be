@@ -227,6 +227,11 @@ func TestEnrichScope_Broadcast(t *testing.T) {
 			{"member", member, "", true},
 			{"other congregation", foreign, "", false},
 		}},
+		{"groups", "testgroupalpha1", "name", []subscriber{
+			{"member", member, "", true},
+			{"other congregation", foreign, "", false},
+			{"link", nil, "testassignalpha01", false},
+		}},
 		{"users", "testuseralpha03", "name", []subscriber{
 			{"the user", alphaReadonly, "", true},
 			{"co-member", member, "", true},

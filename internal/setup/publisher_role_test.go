@@ -81,6 +81,8 @@ func TestPublisher_StaffSurfacesAreRefused(t *testing.T) {
 	}{
 		{"territories list", http.MethodGet, list("territories", byCongregation), "", 403},
 		{"territory view", http.MethodGet, "/api/collections/territories/records/testterralpha01", "", 403},
+		{"groups list", http.MethodGet, list("groups", byCongregation), "", 403},
+		{"own group view", http.MethodGet, "/api/collections/groups/records/testgroupalpha1", "", 403},
 		{"maps list", http.MethodGet, list("maps", byCongregation), "", 403},
 		{"map view", http.MethodGet, "/api/collections/maps/records/testmapalpha01a", "", 403},
 		{"congregation view", http.MethodGet, "/api/collections/congregations/records/testcongalpha01", "", 403},
