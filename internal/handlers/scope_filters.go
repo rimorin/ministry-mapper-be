@@ -203,9 +203,8 @@ func rolesScopeKeep(app core.App, userId string) (func(*core.Record) bool, error
 
 // assignmentsScopeKeep returns a predicate for rows the user may see in an
 // assignments list: their own, and any on a map they hold a staff role for.
-// That already covers looking up another person's links within the user's
-// own congregations. A link id is the key to its map, so a role in one
-// congregation must never show the links of another.
+// A link id is the key to its map, so a role in one congregation must never
+// show the links of another.
 func assignmentsScopeKeep(app core.App, userId string) (func(*core.Record) bool, error) {
 	mapIds, err := userMapIDs(app, userId)
 	if err != nil {

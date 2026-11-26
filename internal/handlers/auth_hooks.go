@@ -214,8 +214,6 @@ func settleMessage(e *core.RecordRequestEvent, app core.App) error {
 	return e.Next()
 }
 
-// mapInCongregation reports whether the map exists and belongs to the
-// congregation.
 func mapInCongregation(app core.App, mapId, congId string) bool {
 	if mapId == "" || congId == "" {
 		return false

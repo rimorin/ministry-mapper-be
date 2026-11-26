@@ -236,14 +236,11 @@ func TestMyAssignments(t *testing.T) {
 				`"partners":["Alpha ReadOnly"]`,
 				`"partners":[]`,
 				`"own":false`,
-				// Where they are a publisher, links or none.
 				`"congregations":["Alpha Congregation"]`,
 			},
 			NotExpectedContent: []string{publisherExpired, otherAssigneeID, `"Alpha Publisher"`, "readonly@alpha.test"},
 		},
 		{
-			// Counts only, for a map the caller holds: enough to tell which
-			// map still needs work and whether it carries an instruction.
 			Name:           "each link says where its map stands",
 			Method:         http.MethodPost,
 			URL:            "/assignments/mine",
@@ -269,14 +266,13 @@ func TestMyAssignments(t *testing.T) {
 			},
 		},
 		{
-			Name:           "a staff member gets the links given to them, not the ones they can manage",
-			Method:         http.MethodPost,
-			URL:            "/assignments/mine",
-			Headers:        map[string]string{"Authorization": readonlyToken},
-			TestAppFactory: setupTestApp,
-			BeforeTestFunc: seedPublisherLinks,
-			ExpectedStatus: 200,
-			// Staff are told nothing here: the shell names their congregations.
+			Name:               "a staff member gets the links given to them, not the ones they can manage",
+			Method:             http.MethodPost,
+			URL:                "/assignments/mine",
+			Headers:            map[string]string{"Authorization": readonlyToken},
+			TestAppFactory:     setupTestApp,
+			BeforeTestFunc:     seedPublisherLinks,
+			ExpectedStatus:     200,
 			ExpectedContent:    []string{`"id":"` + otherAssigneeID + `"`, `"id":"` + sharedLinkID + `"`, `"congregations":[]`},
 			NotExpectedContent: []string{publisherLinkID, "testassignalpha01"},
 		},

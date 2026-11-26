@@ -29,7 +29,7 @@ type myAssignment struct {
 	NotHome  int `json:"not_home"`
 	Total    int `json:"total"`
 	Progress int `json:"progress"`
-	// Instructions the conductor pinned on the map.
+	// Pinned administrator messages on the map.
 	Pinned int `json:"pinned"`
 }
 

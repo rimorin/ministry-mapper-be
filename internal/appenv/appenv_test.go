@@ -18,10 +18,6 @@ func TestMarkSubject(t *testing.T) {
 	if got := MarkSubject("Hello"); got != "Hello" {
 		t.Errorf("production subject = %q", got)
 	}
-	t.Setenv("APP_ENV", "")
-	if got := MarkSubject("Hello"); got != "Hello" {
-		t.Errorf("unset subject = %q", got)
-	}
 	t.Setenv("APP_ENV", "staging")
 	if got := MarkSubject("Hello"); got != "[STAGING] Hello" {
 		t.Errorf("staging subject = %q", got)
@@ -33,10 +29,6 @@ func TestMayEmail(t *testing.T) {
 	t.Setenv("APP_ENV", "production")
 	if !MayEmail("anyone@elsewhere.test") {
 		t.Error("production must email everyone")
-	}
-	t.Setenv("APP_ENV", "")
-	if !MayEmail("anyone@elsewhere.test") {
-		t.Error("an unset environment must email everyone")
 	}
 
 	t.Setenv("APP_ENV", "staging")

@@ -30,7 +30,7 @@ type assignmentGivenTmplData struct {
 
 // NotifyAssignees emails each account a new link was given to, so the map
 // reaches someone whose app is closed. The creator is skipped when they gave
-// the link to themselves, and so is anyone who turned these emails off. With
+// the link to themselves, and so is anyone who has not turned these emails on. With
 // only set, just those accounts are emailed: the ones added to a link that
 // already existed. A failed send is logged and never fails the link.
 //
