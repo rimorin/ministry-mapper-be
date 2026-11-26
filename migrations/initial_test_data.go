@@ -141,6 +141,22 @@ func init() {
 		}
 
 		// -------------------------------------------------------------------
+		// Groups
+		// -------------------------------------------------------------------
+		groupCol, err := app.FindCollectionByNameOrId("groups")
+		if err != nil {
+			return fmt.Errorf("find groups: %w", err)
+		}
+		group := core.NewRecord(groupCol)
+		group.Id = "testgroupalpha1"
+		group.Set("congregation", seedAlphaCongID)
+		group.Set("name", "Group 1")
+		group.Set("members", []string{"testuseralpha02", "testuseralpha04"})
+		if err := app.SaveNoValidate(group); err != nil {
+			return fmt.Errorf("save group: %w", err)
+		}
+
+		// -------------------------------------------------------------------
 		// Territories
 		// -------------------------------------------------------------------
 		terrCol, err := app.FindCollectionByNameOrId("territories")

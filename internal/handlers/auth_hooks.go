@@ -1011,4 +1011,6 @@ func RegisterAuthHooks(app core.App) {
 	app.OnRecordDeleteRequest("assignments").BindFunc(func(e *core.RecordRequestEvent) error {
 		return adminOrConductor(e, app, getCongId(e, true))
 	})
+
+	registerGroupHooks(app)
 }

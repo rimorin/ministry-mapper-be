@@ -138,10 +138,11 @@ func RegisterDomainHooks(app core.App) {
 	})
 
 	// Stamp unprovisioned_since when a user's last role is deleted, and take
-	// them off the links they held in that congregation
+	// them off the links and out of the groups they had in that congregation
 	app.OnRecordAfterDeleteSuccess("roles").BindFunc(func(e *core.RecordEvent) error {
 		handlers.HandleRoleDelete(e)
 		handlers.RemoveFromHeldLinks(e)
+		handlers.RemoveFromGroups(e)
 		return e.Next()
 	})
 }
