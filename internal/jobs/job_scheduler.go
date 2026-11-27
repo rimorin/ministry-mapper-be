@@ -31,15 +31,14 @@ func IsAISummaryEnabled() bool {
 	return enabled
 }
 
-// IsAssistantEnabled reports whether the enable-admin-assistant flag is on for a
-// congregation, using the "congregation" context kind the frontend also uses.
-func IsAssistantEnabled(congregationID string) bool {
+// IsAssistantEnabled reports whether the enable-admin-assistant flag is on for
+// a user in a congregation, evaluated as the frontend evaluates it.
+func IsAssistantEnabled(app core.App, userID, congregationID string) bool {
 	ldInitOnce.Do(func() {}) // synchronise with ConfigureScheduler's writes
 	if sharedLDClient == nil {
 		return os.Getenv("ASSISTANT_ENABLED") == "true"
 	}
-	ctx := ldcontext.NewMulti(sharedLDContext, ldcontext.NewWithKind("congregation", congregationID))
-	enabled, _ := sharedLDClient.BoolVariation("enable-admin-assistant", ctx, false)
+	enabled, _ := sharedLDClient.BoolVariation("enable-admin-assistant", flagContext(app, userID, congregationID), false)
 	return enabled
 }
 

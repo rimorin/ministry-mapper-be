@@ -107,7 +107,9 @@ func RegisterRoutes(app core.App) {
 
 		// Admin assistant
 		authRoute("/assistant/ask", func(c *core.RequestEvent) error {
-			return handlers.HandleAssistantAsk(c, app, jobs.IsAssistantEnabled)
+			return handlers.HandleAssistantAsk(c, app, func(userID, congregationID string) bool {
+				return jobs.IsAssistantEnabled(app, userID, congregationID)
+			})
 		})
 		authRoute("/assistant/feedback", func(c *core.RequestEvent) error {
 			return handlers.HandleAssistantFeedback(c, app)
