@@ -239,6 +239,7 @@ func TestMyAssignments(t *testing.T) {
 				`"partners":[]`,
 				`"own":false`,
 				`"congregations":["Alpha Congregation"]`,
+				`"groups":["Group 1"]`,
 			},
 			NotExpectedContent: []string{publisherExpired, otherAssigneeID, `"Alpha Publisher"`, "readonly@alpha.test"},
 		},
@@ -275,7 +276,7 @@ func TestMyAssignments(t *testing.T) {
 			TestAppFactory:     setupTestApp,
 			BeforeTestFunc:     seedPublisherLinks,
 			ExpectedStatus:     200,
-			ExpectedContent:    []string{`"id":"` + otherAssigneeID + `"`, `"id":"` + sharedLinkID + `"`, `"congregations":[]`},
+			ExpectedContent:    []string{`"id":"` + otherAssigneeID + `"`, `"id":"` + sharedLinkID + `"`, `"congregations":[]`, `"groups":[]`},
 			NotExpectedContent: []string{publisherLinkID, "testassignalpha01"},
 		},
 		{
