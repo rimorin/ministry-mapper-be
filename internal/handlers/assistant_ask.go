@@ -7,7 +7,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -355,7 +354,7 @@ func logAssistantQuestion(app core.App, asked loggedQuestion, resp assistant.Res
 		}
 		conversation = core.NewRecord(conversations)
 		// The panel's id when it is new, so the panel and history agree.
-		if !taken && conversationIDPattern.MatchString(asked.conversation) {
+		if !taken && recordIDPattern.MatchString(asked.conversation) {
 			conversation.Id = asked.conversation
 		}
 		conversation.Set("congregation", asked.congregation)
@@ -393,10 +392,6 @@ func logAssistantQuestion(app core.App, asked loggedQuestion, resp assistant.Res
 	}
 	return conversation.Id, record.Id
 }
-
-// conversationIDPattern matches the ids the panel gives new conversations,
-// which are PocketBase's own form.
-var conversationIDPattern = regexp.MustCompile(`^[a-z0-9]{15}$`)
 
 // maxLoggedSteps bounds the lookups kept with a question, well under the steps
 // field's 2 MB limit, as a conversation sends them all whenever it is opened;

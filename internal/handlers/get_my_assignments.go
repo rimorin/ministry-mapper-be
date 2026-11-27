@@ -23,8 +23,7 @@ type myAssignment struct {
 	// The caller made this link and put themself on it, so it is not news to them.
 	Own bool `json:"own"`
 	// Where the map stands, so the list can say which one still needs work.
-	// Counts only. Total is 0 while the map's homes have not been counted,
-	// and the others then say nothing.
+	// Total is 0 until the map's homes are counted; the others are 0 then too.
 	NotDone  int `json:"not_done"`
 	NotHome  int `json:"not_home"`
 	Total    int `json:"total"`
