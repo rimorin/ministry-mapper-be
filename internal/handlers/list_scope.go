@@ -61,7 +61,7 @@ func ScopeListQuery(app core.App) func(*core.RequestEvent) error {
 		scope, scoped := listScopes[collection.Name]
 		query := e.Request.URL.Query()
 		filter := query.Get("filter")
-		// With no filter the collection's own rule refuses the request.
+		// With no filter the collection's rule or list hook refuses the request.
 		if !scoped || strings.TrimSpace(filter) == "" {
 			return e.Next()
 		}
@@ -70,9 +70,8 @@ func ScopeListQuery(app core.App) func(*core.RequestEvent) error {
 		switch linkID := e.Request.Header.Get("link-id"); {
 		case linkID != "" && scope.link:
 			allowed = linkScope(app, linkID, scope.byMap)
-		case linkID != "":
-			// A link lists nothing here; the hook refuses it.
-			return e.Next()
+		// A link-id where links list nothing doesn't lift an account's scope:
+		// these collections' hooks never read the header.
 		case e.Auth != nil:
 			allowed = accountScope(app, e.Auth.Id, scope.byUser)
 		default:

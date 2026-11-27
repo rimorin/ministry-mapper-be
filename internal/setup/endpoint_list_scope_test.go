@@ -73,6 +73,17 @@ func TestListTotalsCountOnlyVisibleRows(t *testing.T) {
 				WHERE congregation = 'testcongalpha01' AND expiry_date > datetime('now')`),
 		},
 		{
+			Name:            "a link-id header beside an account changes nothing",
+			Method:          http.MethodGet,
+			URL:             list("assignments", `user="testuseralpha02" || id != ""`),
+			Headers:         map[string]string{"Authorization": conductorToken, "link-id": "notarealinkid00"},
+			TestAppFactory:  setupTestApp,
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"totalItems"`},
+			AfterTestFunc: totalIs(`SELECT COUNT(*) FROM assignments
+				WHERE congregation = 'testcongalpha01' AND expiry_date > datetime('now')`),
+		},
+		{
 			Name:            "naming the collection by its id changes nothing",
 			Method:          http.MethodGet,
 			URL:             list(collectionID(t, "assignments"), `user="testuseralpha02" || id != ""`),

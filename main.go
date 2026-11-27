@@ -107,7 +107,7 @@ func registerSentryLogForwarding(app core.App) {
 			switch key {
 			case "url", "referer":
 				text = middleware.ScrubURL(text)
-			case "userIp", "remoteIp":
+			case "userIP", "remoteIP":
 				continue
 			}
 			entry = entry.String("data_"+key, text)
