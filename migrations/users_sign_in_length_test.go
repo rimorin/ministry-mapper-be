@@ -23,7 +23,7 @@ func TestUsersSignInLength(t *testing.T) {
 		}
 		return users.AuthToken.Duration
 	}
-	longer := func(current int64) bool { return current < signInSeconds }
+	shorter := func(current int64) bool { return current < signInSeconds }
 
 	if got := duration(); got != signInSeconds {
 		t.Fatalf("after migrating, sign-in lasts %d s, want %d", got, signInSeconds)
@@ -32,7 +32,7 @@ func TestUsersSignInLength(t *testing.T) {
 	if err := setUsersSignInLength(app, previousSignInSeconds, func(int64) bool { return true }); err != nil {
 		t.Fatal(err)
 	}
-	if err := setUsersSignInLength(app, signInSeconds, longer); err != nil {
+	if err := setUsersSignInLength(app, signInSeconds, shorter); err != nil {
 		t.Fatal(err)
 	}
 	if got := duration(); got != signInSeconds {
@@ -43,7 +43,7 @@ func TestUsersSignInLength(t *testing.T) {
 	if err := setUsersSignInLength(app, byHand, func(int64) bool { return true }); err != nil {
 		t.Fatal(err)
 	}
-	if err := setUsersSignInLength(app, signInSeconds, longer); err != nil {
+	if err := setUsersSignInLength(app, signInSeconds, shorter); err != nil {
 		t.Fatal(err)
 	}
 	if got := duration(); got != byHand {

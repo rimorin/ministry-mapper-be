@@ -24,6 +24,8 @@ const (
 
 var addressStatuses = []string{"not_done", "done", "not_home", "do_not_call", "invalid"}
 
+// recordIDPattern is PocketBase's own id form, which the panel also gives new
+// assistant conversations.
 var recordIDPattern = regexp.MustCompile(`^[a-z0-9]{15}$`)
 
 // 422, not 400: the app's offline queue retries a 400 and drops a 422.
