@@ -3005,6 +3005,34 @@ func TestAuthHook_MessagesCreateRequest(t *testing.T) {
 			},
 		},
 		{
+			Name:   "a link with no publisher name posts unsigned, not as the request claims",
+			Method: http.MethodPost,
+			URL:    "/api/collections/messages/records",
+			Body: strings.NewReader(`{"map":"testmapalpha01a","congregation":"testcongalpha01","message":"Unsigned note",` +
+				`"type":"publisher","created_by":"Bro Admin"}`),
+			Headers: map[string]string{
+				"Content-Type": "application/json",
+				"link-id":      "testassignalpha01",
+			},
+			TestAppFactory: setupTestApp,
+			BeforeTestFunc: func(t testing.TB, app *tests.TestApp, _ *core.ServeEvent) {
+				if _, err := app.DB().NewQuery(`UPDATE assignments SET publisher = '' WHERE id = 'testassignalpha01'`).Execute(); err != nil {
+					t.Fatal(err)
+				}
+			},
+			ExpectedStatus:  200,
+			ExpectedContent: []string{`"Unsigned note"`},
+			AfterTestFunc: func(t testing.TB, app *tests.TestApp, _ *http.Response) {
+				m, err := app.FindFirstRecordByFilter("messages", `message = "Unsigned note"`)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if by := m.GetString("created_by"); by != "" {
+					t.Errorf("created_by = %q, want empty", by)
+				}
+			},
+		},
+		{
 			Name:   "a conductor's message is a conductor's, and is not pinned",
 			Method: http.MethodPost,
 			URL:    "/api/collections/messages/records",

@@ -187,9 +187,7 @@ func settleMessage(e *core.RecordRequestEvent, app core.App) error {
 		}
 		_ = app.DB().NewQuery(`SELECT COALESCE(publisher, '') AS publisher FROM assignments WHERE id = {:id}`).
 			Bind(dbx.Params{"id": linkId}).One(&link)
-		if link.Publisher != "" {
-			e.Record.Set("created_by", link.Publisher)
-		}
+		e.Record.Set("created_by", link.Publisher)
 		e.Record.Set("type", "publisher")
 		e.Record.Set("pinned", false)
 		e.Record.Set("read", false)
@@ -201,9 +199,7 @@ func settleMessage(e *core.RecordRequestEvent, app core.App) error {
 	if e.Auth == nil || !AuthorizeByRole(app, e.Auth.Id, where.Congregation) {
 		return apis.NewForbiddenError("Unauthorized", nil)
 	}
-	if name := e.Auth.GetString("name"); name != "" {
-		e.Record.Set("created_by", name)
-	}
+	e.Record.Set("created_by", e.Auth.GetString("name"))
 	if AuthorizeByRole(app, e.Auth.Id, where.Congregation, "administrator") {
 		e.Record.Set("type", "administrator")
 		return e.Next()
