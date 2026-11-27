@@ -79,7 +79,7 @@ type assistantEvent struct {
 // role may ask; the asker's role, read here and never from the request,
 // decides which functions the assistant may use (assistant/policy.go). Changes
 // are only prepared: the asker confirms them through the screens' own calls.
-func HandleAssistantAsk(c *core.RequestEvent, app core.App, enabled func(congregationID string) bool) error {
+func HandleAssistantAsk(c *core.RequestEvent, app core.App, enabled func(userID, congregationID string) bool) error {
 	var req assistantAskRequest
 	if err := c.BindBody(&req); err != nil {
 		return apis.NewBadRequestError("Invalid request body", nil)
@@ -114,7 +114,7 @@ func HandleAssistantAsk(c *core.RequestEvent, app core.App, enabled func(congreg
 	if role == "" {
 		return apis.NewForbiddenError("Congregation access required", nil)
 	}
-	if !enabled(req.Congregation) {
+	if !enabled(c.Auth.Id, req.Congregation) {
 		return apis.NewForbiddenError("The assistant is not enabled for this congregation", nil)
 	}
 	chat := assistant.NewResponder()
