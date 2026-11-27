@@ -34,8 +34,8 @@ type myAssignment struct {
 }
 
 // HandleGetMyAssignments lists the caller's unexpired links: those given to
-// their account, in every congregation, and the congregations they are a
-// publisher in.
+// their account, in every congregation, and the congregations and groups they
+// are a publisher in.
 //
 // It is a route rather than a list of the assignments collection because a
 // publisher holds no staff role, so the map and congregation names an expand
@@ -129,9 +129,25 @@ func HandleGetMyAssignments(c *core.RequestEvent, app core.App) error {
 		return newServerError(err)
 	}
 
+	// Only staff can read groups, so a publisher learns its own groups' names
+	// here, for feature flags that target a group.
+	groups := []string{}
+	err = app.DB().NewQuery(`
+		SELECT DISTINCT g.name
+		FROM groups g
+		JOIN roles r ON r.congregation = g.congregation
+		WHERE r.user = {:user} AND r.role = 'publisher'
+		  AND EXISTS (SELECT 1 FROM json_each(g.members) WHERE value = {:user})
+		ORDER BY g.name
+	`).Bind(dbx.Params{"user": c.Auth.Id}).Column(&groups)
+	if err != nil {
+		return newServerError(err)
+	}
+
 	return c.JSON(http.StatusOK, map[string]any{
 		"assignments":   assignments,
 		"congregations": congregations,
+		"groups":        groups,
 	})
 }
 
