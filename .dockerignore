@@ -19,3 +19,6 @@
 # Email templates: parsed by relative path at runtime, so they ship in the
 # final image and must be present in the build context.
 !templates/
+
+# Startup script: restores data.db from Litestream on a new server.
+!docker-entrypoint.sh

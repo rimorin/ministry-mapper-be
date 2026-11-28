@@ -60,13 +60,15 @@ COPY --from=builder /app/main .
 # Copy the templates directory
 COPY --from=builder /app/templates ./templates
 
+# Used by docker-entrypoint.sh to restore data.db on a new server
+COPY --from=litestream/litestream:0.5.18 /usr/local/bin/litestream /usr/local/bin/litestream
+COPY --chmod=755 docker-entrypoint.sh ./
+
 # Document that the container listens on port 8080
 EXPOSE 8080
 
-# Command to run the binary
-# serve - Run in server mode
-# --http=0.0.0.0:8080 - Listen on all interfaces, port 8080
-CMD ["./main", "serve", "--http=0.0.0.0:8080"]
+# Restores data.db if it is missing, then runs ./main serve
+CMD ["./docker-entrypoint.sh"]
 
 # Usage:
 # Build: docker build -t app-name .
