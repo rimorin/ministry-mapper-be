@@ -1,0 +1,4 @@
+# Gitignored files copied into worktrees made by `claude -w`.
+# pb_data (~1 GB) is left out on purpose: use the PocketBase running from the main checkout.
+.env
+.claude/settings.local.json

@@ -10,7 +10,10 @@ case "$file" in
 esac
 [ -f "$file" ] || exit 0
 
-cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}" || exit 0
+# Run from the checkout that holds the file, so go vet resolves packages in a
+# worktree under .claude/worktrees/ against that worktree's own go.mod.
+root=$(git -C "$(dirname "$file")" rev-parse --show-toplevel 2>/dev/null) || root="${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}"
+cd "$root" || exit 0
 
 unformatted=$(gofmt -l "$file")
 if [ -n "$unformatted" ]; then
