@@ -219,6 +219,8 @@ docker run -d \
 | `EMAIL_ALLOWLIST` | Outside production, the only addresses emailed: comma-separated addresses or `@domain` entries. Empty means nobody. Sign-in emails are not held back | — | — |
 | `OPENAI_API_KEY` | OpenAI key for AI-generated summaries in reports/digests | — | ⚠️ AI only |
 | `ASSISTANT_ENABLED` | Turns the admin assistant on when LaunchDarkly is not configured (local runs and tests); with LaunchDarkly, the `enable-admin-assistant` flag decides per congregation | `false` | ⚠️ AI only |
+| `LITESTREAM_REPLICA_URL` | Docker only. When `pb_data/data.db` is missing at startup, the container restores it from this Litestream backup before starting, e.g. `s3://mm-pb-backups/production?endpoint=https://<account_id>.r2.cloudflarestorage.com&region=auto`. Unset: no restore | — | — |
+| `LITESTREAM_ACCESS_KEY_ID` / `LITESTREAM_SECRET_ACCESS_KEY` | R2 key for that restore | — | with `LITESTREAM_REPLICA_URL` |
 
 <details>
 <summary>📋 Additional environment variables (SMTP, auth, rate limiting)</summary>
