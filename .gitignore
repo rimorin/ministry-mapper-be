@@ -11,3 +11,6 @@ pb_*
 
 # test fixture DB is generated locally by scripts/test.sh — never committed
 test_pb_data/
+
+# Claude Code worktrees (claude -w)
+.claude/worktrees/
